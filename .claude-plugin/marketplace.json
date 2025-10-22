@@ -5,8 +5,8 @@
     "url": "https://github.com/tchow-twistedxcom"
   },
   "metadata": {
-    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite workflows + best community plugins",
-    "version": "1.0.0",
+    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite workflows + Celigo integration + best community plugins",
+    "version": "1.1.0",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "license": "MIT"
@@ -37,6 +37,15 @@
       "version": "1.0.0",
       "category": "deployment",
       "keywords": ["netsuite", "sdf", "deployment", "erp"],
+      "strict": false
+    },
+    {
+      "name": "celigo-integration",
+      "source": "./plugins/celigo-integration",
+      "description": "Celigo integration platform automation with 63 MCP tools for managing integrations, flows, connections, jobs, and errors",
+      "version": "1.0.0",
+      "category": "integration",
+      "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "iPaaS"],
       "strict": false
     },
     {

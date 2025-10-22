@@ -11,10 +11,11 @@
 /plugin marketplace add tchow-twistedxcom/claude-marketplace
 
 # Install everything
-/plugin install superclaude-framework chrome-devtools netsuite-workflows
+/plugin install superclaude-framework chrome-devtools netsuite-workflows celigo-integration
 
 # Or install selectively
 /plugin install superclaude-framework
+/plugin install celigo-integration
 /plugin install backend-development
 ```
 
@@ -47,6 +48,16 @@ NetSuite SDF deployment automation for Record Display app.
 - `/netsuite-setup` command
 - SDF bundle creation skill
 - NetSuite customization patterns skill
+
+#### Celigo Integration
+Celigo integration platform automation with 63 MCP tools.
+
+**Includes:**
+- `/celigo-setup` command
+- `/celigo-manage` command
+- Celigo integration patterns skill
+- 63 MCP tools (integrations, flows, connections, jobs, errors, etc.)
+- Python-based FastMCP server
 
 #### Personal Automation
 Template for your custom workflows (empty, ready for your additions).
@@ -125,6 +136,26 @@ Template for your custom workflows (empty, ready for your additions).
 
 **Deployment Script:**
 - Location: `/home/tchow/NetSuiteBundlet/SDF/twx-sdf-deploy.sh`
+
+### Celigo Integration
+
+**Commands:**
+- `/celigo-setup` - Configure Celigo MCP server
+- `/celigo-manage` - Manage integrations, flows, connections
+
+**Skills:**
+- Celigo integration patterns (bi-directional sync, hub-and-spoke, pipelines)
+- ETL workflows and data transformation
+- Error handling and monitoring
+
+**MCP Tools (63):**
+- Integrations (13 tools)
+- Connections (6 tools)
+- Flows (9 tools)
+- Exports & Imports (8 tools)
+- Jobs & Errors (17 tools)
+- Lookup Caches (3 tools)
+- Tags (7 tools)
 
 ## 🌐 Full Marketplace Access
 

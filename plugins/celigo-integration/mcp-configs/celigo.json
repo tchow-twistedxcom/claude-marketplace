@@ -1,0 +1,16 @@
+{
+  "celigo": {
+    "command": "uvx",
+    "args": [
+      "--from",
+      "git+https://github.com/Twisted-X/CeligoMCP",
+      "celigo-mcp"
+    ],
+    "env": {
+      "CELIGO_API_TOKEN": "",
+      "CELIGO_API_BASE_URL": "https://api.integrator.io/v1",
+      "CELIGO_TIMEOUT": "30",
+      "LOG_LEVEL": "INFO"
+    }
+  }
+}

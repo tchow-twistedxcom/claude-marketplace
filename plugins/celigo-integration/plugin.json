@@ -1,0 +1,25 @@
+{
+  "name": "celigo-integration",
+  "version": "1.0.0",
+  "description": "Celigo integration platform automation with 63 MCP tools for managing integrations, flows, connections, jobs, and errors",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "automation", "iPaaS"],
+  "category": "integration",
+  "strict": false,
+  "commands": [
+    "./commands/celigo-setup.md",
+    "./commands/celigo-manage.md"
+  ],
+  "mcpServers": [
+    "./mcp-configs/celigo.json"
+  ],
+  "skills": [
+    "./skills/celigo-integration-patterns"
+  ]
+}

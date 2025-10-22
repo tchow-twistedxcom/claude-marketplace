@@ -1,0 +1,18 @@
+{
+  "name": "personal-automation",
+  "version": "1.0.0",
+  "description": "Custom infrastructure workflows, agents, and automation patterns (template for future additions)",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": ["infrastructure", "automation", "custom", "workflows"],
+  "category": "automation",
+  "strict": false,
+  "commands": [],
+  "agents": [],
+  "skills": []
+}

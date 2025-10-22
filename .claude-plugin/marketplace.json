@@ -1,0 +1,112 @@
+{
+  "name": "tchow-essentials",
+  "owner": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "metadata": {
+    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite workflows + best community plugins",
+    "version": "1.0.0",
+    "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+    "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+    "license": "MIT"
+  },
+  "plugins": [
+    {
+      "name": "superclaude-framework",
+      "source": "./plugins/superclaude-framework",
+      "description": "Complete SuperClaude framework with FLAGS, PRINCIPLES, RULES, 5 behavioral modes, and 6 bundled MCPs (Context7, Sequential, Magic, Playwright, Serena, Morphllm)",
+      "version": "1.0.0",
+      "category": "framework",
+      "keywords": ["framework", "modes", "mcp", "orchestration"],
+      "strict": false
+    },
+    {
+      "name": "chrome-devtools",
+      "source": "./plugins/chrome-devtools",
+      "description": "Chrome DevTools MCP for browser automation, E2E testing, and visual validation (separate from Playwright)",
+      "version": "1.0.0",
+      "category": "testing",
+      "keywords": ["browser", "devtools", "testing", "automation"],
+      "strict": false
+    },
+    {
+      "name": "netsuite-workflows",
+      "source": "./plugins/netsuite-workflows",
+      "description": "NetSuite SDF deployment automation with twx-sdf-deploy.sh integration for Record Display app",
+      "version": "1.0.0",
+      "category": "deployment",
+      "keywords": ["netsuite", "sdf", "deployment", "erp"],
+      "strict": false
+    },
+    {
+      "name": "personal-automation",
+      "source": "./plugins/personal-automation",
+      "description": "Custom infrastructure workflows, agents, and automation patterns (template for future additions)",
+      "version": "1.0.0",
+      "category": "automation",
+      "keywords": ["infrastructure", "automation", "custom"],
+      "strict": false
+    },
+    {
+      "name": "anthropic-document-skills",
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      },
+      "description": "⭐ Curated: Anthropic's official document processing (Excel, Word, PowerPoint, PDF)",
+      "category": "skills",
+      "keywords": ["documents", "excel", "pdf", "office"]
+    },
+    {
+      "name": "anthropic-example-skills",
+      "source": {
+        "source": "github",
+        "repo": "anthropics/skills"
+      },
+      "description": "⭐ Curated: Anthropic's example skills (MCP builder, canvas design, algorithmic art, etc.)",
+      "category": "skills",
+      "keywords": ["examples", "templates", "learning"]
+    },
+    {
+      "name": "backend-development",
+      "source": {
+        "source": "github",
+        "repo": "wshobson/agents"
+      },
+      "description": "⭐ Curated: Seth Hobson's backend API design, architecture patterns, and microservices",
+      "category": "development",
+      "keywords": ["backend", "api", "architecture", "microservices"]
+    },
+    {
+      "name": "frontend-mobile-development",
+      "source": {
+        "source": "github",
+        "repo": "wshobson/agents"
+      },
+      "description": "⭐ Curated: Seth Hobson's React, Flutter, and mobile development workflows",
+      "category": "development",
+      "keywords": ["frontend", "react", "flutter", "mobile"]
+    },
+    {
+      "name": "security-scanning",
+      "source": {
+        "source": "github",
+        "repo": "wshobson/agents"
+      },
+      "description": "⭐ Curated: Seth Hobson's security auditing and SAST configuration",
+      "category": "security",
+      "keywords": ["security", "scanning", "audit", "sast"]
+    },
+    {
+      "name": "kubernetes-operations",
+      "source": {
+        "source": "github",
+        "repo": "wshobson/agents"
+      },
+      "description": "⭐ Curated: Seth Hobson's K8s workflows with GitOps, Helm, and manifest generation",
+      "category": "infrastructure",
+      "keywords": ["kubernetes", "k8s", "devops", "gitops"]
+    }
+  ]
+}

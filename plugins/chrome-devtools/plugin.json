@@ -1,0 +1,24 @@
+{
+  "name": "chrome-devtools",
+  "version": "1.0.0",
+  "description": "Chrome DevTools MCP for browser automation, E2E testing, and visual validation (separate from Playwright)",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": ["browser", "devtools", "testing", "automation", "chrome", "e2e"],
+  "category": "testing",
+  "strict": false,
+  "commands": [
+    "./commands/browser-test.md"
+  ],
+  "mcpServers": [
+    "./mcp-configs/chrome-devtools.json"
+  ],
+  "skills": [
+    "./skills/e2e-testing-patterns"
+  ]
+}

@@ -1,0 +1,77 @@
+# OS Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Editor directories and files
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Node modules (if any local dev tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.*.local
+*.env
+
+# API Keys and Secrets
+**/secrets/
+**/*secret*
+**/*token*
+**/*key*.json
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# Logs
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+
+# Build artifacts
+dist/
+build/
+*.tgz
+
+# Cache directories
+.cache/
+.npm/
+
+# Python (if any python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+ENV/
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Claude Code specific
+.claude-cache/
+
+# User-specific files (customize as needed)
+TODO.md
+NOTES.md
+scratch/

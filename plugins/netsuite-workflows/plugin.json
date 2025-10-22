@@ -1,0 +1,23 @@
+{
+  "name": "netsuite-workflows",
+  "version": "1.0.0",
+  "description": "NetSuite SDF deployment automation with twx-sdf-deploy.sh integration for Record Display app and advanced customization patterns",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": ["netsuite", "sdf", "deployment", "erp", "automation"],
+  "category": "deployment",
+  "strict": false,
+  "commands": [
+    "./commands/deploy-netsuite.md",
+    "./commands/netsuite-setup.md"
+  ],
+  "skills": [
+    "./skills/sdf-bundle-creation",
+    "./skills/netsuite-customization"
+  ]
+}

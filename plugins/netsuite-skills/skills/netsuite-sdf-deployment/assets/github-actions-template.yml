@@ -1,0 +1,161 @@
+name: Deploy to NetSuite
+
+on:
+  # Manual workflow dispatch with environment selection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - sb1
+          - sb2
+          - prod
+      build:
+        description: 'Run build step'
+        required: false
+        type: boolean
+        default: false
+
+  # Automatic deployment on push to specific branches
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  # Determine environment based on branch
+  determine-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+      should-deploy: ${{ steps.set-env.outputs.should-deploy }}
+    steps:
+      - name: Determine environment
+        id: set-env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "environment=sb1" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "environment=sb2" >> $GITHUB_OUTPUT
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Deploy to NetSuite
+  deploy:
+    needs: determine-environment
+    if: needs.determine-environment.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.determine-environment.outputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install SuiteCloud CLI
+        run: npm install -g @oracle/suitecloud-cli
+
+      - name: Setup credentials
+        env:
+          CERT_ID: ${{ secrets.NETSUITE_CERT_ID }}
+          PRIVATE_KEY: ${{ secrets.NETSUITE_PRIVATE_KEY }}
+          CI_PASSKEY: ${{ secrets.NETSUITE_CI_PASSKEY }}
+          # Environment-specific secrets (if using multi-cred approach)
+          SB1_CERT_ID: ${{ secrets.NETSUITE_SB1_CERT_ID }}
+          SB1_PRIVATE_KEY: ${{ secrets.NETSUITE_SB1_PRIVATE_KEY }}
+          SB2_CERT_ID: ${{ secrets.NETSUITE_SB2_CERT_ID }}
+          SB2_PRIVATE_KEY: ${{ secrets.NETSUITE_SB2_PRIVATE_KEY }}
+          PROD_CERT_ID: ${{ secrets.NETSUITE_PROD_CERT_ID }}
+          PROD_PRIVATE_KEY: ${{ secrets.NETSUITE_PROD_PRIVATE_KEY }}
+        run: |
+          # Use environment-specific credentials if available
+          ENV="${{ needs.determine-environment.outputs.environment }}"
+          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
+
+          # Resolve certificate ID
+          CERT_VAR="NETSUITE_${ENV_UPPER}_CERT_ID"
+          if [ -n "${!CERT_VAR}" ]; then
+            echo "TWX_SDF_CERT_ID=${!CERT_VAR}" >> $GITHUB_ENV
+          elif [ -n "$CERT_ID" ]; then
+            echo "TWX_SDF_CERT_ID=$CERT_ID" >> $GITHUB_ENV
+          fi
+
+          # Setup private key
+          KEY_VAR="${ENV_UPPER}_PRIVATE_KEY"
+          if [ -n "${!KEY_VAR}" ]; then
+            echo "${!KEY_VAR}" > /tmp/netsuite.pem
+          elif [ -n "$PRIVATE_KEY" ]; then
+            echo "$PRIVATE_KEY" > /tmp/netsuite.pem
+          fi
+
+          chmod 600 /tmp/netsuite.pem
+          echo "TWX_SDF_PRIVATE_KEY_PATH=/tmp/netsuite.pem" >> $GITHUB_ENV
+
+          # Setup CI passkey if available
+          if [ -n "$CI_PASSKEY" ]; then
+            echo "TWX_SDF_CI_PASSKEY=$CI_PASSKEY" >> $GITHUB_ENV
+          fi
+
+      - name: Deploy to NetSuite
+        env:
+          ENVIRONMENT: ${{ needs.determine-environment.outputs.environment }}
+          BUILD_FLAG: ${{ github.event.inputs.build == 'true' && '--build' || '' }}
+        run: |
+          echo "🚀 Deploying to $ENVIRONMENT..."
+          npx twx-deploy deploy $ENVIRONMENT $BUILD_FLAG
+
+      - name: Cleanup credentials
+        if: always()
+        run: |
+          rm -f /tmp/netsuite.pem
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Successfully deployed to ${{ needs.determine-environment.outputs.environment }}"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment to ${{ needs.determine-environment.outputs.environment }} failed"
+          exit 1
+
+  # Optional: Add Slack notification
+  notify:
+    needs: [determine-environment, deploy]
+    if: always() && needs.determine-environment.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack
+        uses: slackapi/slack-github-action@v1
+        if: ${{ secrets.SLACK_WEBHOOK }}
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "NetSuite Deployment ${{ needs.deploy.result }}: ${{ needs.determine-environment.outputs.environment }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*NetSuite Deployment*\n*Environment:* ${{ needs.determine-environment.outputs.environment }}\n*Status:* ${{ needs.deploy.result }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* <${{ github.event.head_commit.url }}|${{ github.event.head_commit.message }}>"
+                  }
+                }
+              ]
+            }

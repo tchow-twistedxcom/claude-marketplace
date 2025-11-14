@@ -1,0 +1,39 @@
+{
+  "name": "netsuite-skills",
+  "version": "1.2.0",
+  "description": "NetSuite expertise skills for debugging, diagnosing, and deploying complex NetSuite implementations. Includes Prolecto PRI Container Tracking (with 23+ Application Settings configuration knowledge), SuiteCloud Development Framework (SDF) deployment automation, CI/CD integration, certificate-based authentication, authId management, and multi-environment deployment workflows",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": [
+    "netsuite",
+    "erp",
+    "suitescript",
+    "sdf",
+    "suitecloud",
+    "deployment",
+    "ci-cd",
+    "authentication",
+    "prolecto",
+    "freight",
+    "container-tracking",
+    "landed-cost",
+    "customization",
+    "bundle",
+    "application-settings",
+    "field-mapping",
+    "configuration",
+    "tba",
+    "certificate-auth"
+  ],
+  "category": "skills",
+  "strict": false,
+  "skills": [
+    "./skills/pri-container-tracking",
+    "./skills/netsuite-sdf-deployment"
+  ]
+}

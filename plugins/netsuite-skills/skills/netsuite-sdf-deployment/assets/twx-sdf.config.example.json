@@ -1,0 +1,36 @@
+{
+  "projectName": "My NetSuite SDF Project",
+  "version": "1.0.0",
+  "environments": {
+    "sb1": {
+      "accountId": "1234567_SB1",
+      "authId": "myproject-sb1",
+      "certificateId": "cert-id-sb1",
+      "privateKeyPath": "/path/to/keys/sb1.pem"
+    },
+    "sb2": {
+      "accountId": "1234567_SB2",
+      "authId": "myproject-sb2",
+      "certificateId": "cert-id-sb2",
+      "privateKeyPath": "/path/to/keys/sb2.pem"
+    },
+    "prod": {
+      "accountId": "1234567",
+      "authId": "myproject-prod",
+      "certificateId": "cert-id-prod",
+      "privateKeyPath": "/path/to/keys/prod.pem"
+    }
+  },
+  "build": {
+    "enabled": true,
+    "command": "npm run build",
+    "outputDir": "dist"
+  },
+  "paths": {
+    "sdf": "./sdf"
+  },
+  "deploy": {
+    "accountSpecificValues": "ERROR",
+    "validateBeforeDeploy": true
+  }
+}

@@ -5,8 +5,8 @@
     "url": "https://github.com/tchow-twistedxcom"
   },
   "metadata": {
-    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite workflows + Celigo integration + best community plugins",
-    "version": "1.1.0",
+    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite workflows + NetSuite skills (with PRI Application Settings) + Celigo integration + ClaudeKit skills + Shopify workflows",
+    "version": "1.4.0",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "license": "MIT"
@@ -58,64 +58,31 @@
       "strict": false
     },
     {
-      "name": "anthropic-document-skills",
-      "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
-      },
-      "description": "⭐ Curated: Anthropic's official document processing (Excel, Word, PowerPoint, PDF)",
+      "name": "claudekit-skills",
+      "source": "./plugins/claudekit-skills",
+      "description": "Curated collection of 20+ specialized skills from ClaudeKit community: Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, problem-solving, debugging, and more",
+      "version": "1.0.0",
       "category": "skills",
-      "keywords": ["documents", "excel", "pdf", "office"]
+      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "design"],
+      "strict": false
     },
     {
-      "name": "anthropic-example-skills",
-      "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
-      },
-      "description": "⭐ Curated: Anthropic's example skills (MCP builder, canvas design, algorithmic art, etc.)",
+      "name": "netsuite-skills",
+      "source": "./plugins/netsuite-skills",
+      "description": "NetSuite expertise skills for debugging, diagnosing, and deploying complex NetSuite implementations. Includes Prolecto PRI Container Tracking (with 23+ Application Settings configuration knowledge), SuiteCloud Development Framework (SDF) deployment automation with automatic stale credential detection and refresh, CI/CD integration, certificate-based authentication, authId management, credential storage architecture (CI vs browser mode), post-sandbox-refresh credential validation, and multi-environment deployment workflows",
+      "version": "1.3.0",
       "category": "skills",
-      "keywords": ["examples", "templates", "learning"]
+      "keywords": ["netsuite", "erp", "suitescript", "sdf", "suitecloud", "deployment", "ci-cd", "authentication", "prolecto", "freight", "container-tracking", "landed-cost", "customization", "bundle", "application-settings", "field-mapping", "configuration", "tba", "certificate-auth"],
+      "strict": false
     },
     {
-      "name": "backend-development",
-      "source": {
-        "source": "github",
-        "repo": "wshobson/agents"
-      },
-      "description": "⭐ Curated: Seth Hobson's backend API design, architecture patterns, and microservices",
-      "category": "development",
-      "keywords": ["backend", "api", "architecture", "microservices"]
-    },
-    {
-      "name": "frontend-mobile-development",
-      "source": {
-        "source": "github",
-        "repo": "wshobson/agents"
-      },
-      "description": "⭐ Curated: Seth Hobson's React, Flutter, and mobile development workflows",
-      "category": "development",
-      "keywords": ["frontend", "react", "flutter", "mobile"]
-    },
-    {
-      "name": "security-scanning",
-      "source": {
-        "source": "github",
-        "repo": "wshobson/agents"
-      },
-      "description": "⭐ Curated: Seth Hobson's security auditing and SAST configuration",
-      "category": "security",
-      "keywords": ["security", "scanning", "audit", "sast"]
-    },
-    {
-      "name": "kubernetes-operations",
-      "source": {
-        "source": "github",
-        "repo": "wshobson/agents"
-      },
-      "description": "⭐ Curated: Seth Hobson's K8s workflows with GitOps, Helm, and manifest generation",
-      "category": "infrastructure",
-      "keywords": ["kubernetes", "k8s", "devops", "gitops"]
+      "name": "shopify-workflows",
+      "source": "./plugins/shopify-workflows",
+      "description": "Shopify Admin API workflow automation with 5 specialized skills for content creation, merchant operations, marketing campaigns, developer integrations, and analytics",
+      "version": "1.0.0",
+      "category": "ecommerce",
+      "keywords": ["shopify", "ecommerce", "graphql", "admin-api", "automation", "content", "marketing"],
+      "strict": false
     }
   ]
 }

@@ -31,6 +31,8 @@ Activate this skill when:
 - Certificate ID, private key, .pem file
 - Environment variables, credential resolution
 - twx-sdf.config.json, .sdfcli.json, project.json
+- Monorepo, multi-project, shared credentials, workspace
+- PathResolver, ProjectContext, environment-specific paths
 
 ## Core Capabilities
 
@@ -88,7 +90,80 @@ See `assets/twx-sdf.config.example.json` for a complete template.
 
 For comprehensive configuration documentation, see `references/configuration.md`.
 
-### 3. Deployment Workflow
+### 3. Monorepo Support (v0.1.8+)
+
+**Architecture:**
+Multiple NetSuite projects sharing common code, credentials, and configuration in a single repository.
+
+**Automatic Detection:**
+- Walks up directory tree from project root
+- Looks for `package.json` with `workspaces` field
+- Creates ProjectContext with monorepo root information
+
+**Shared Resources:**
+```json
+{
+  "monorepo": {
+    "sharedEnvPath": "SDF/.env",
+    "sharedKeysPath": "SDF/keys",
+    "sharedModules": [
+      "SDF/shared/SuiteScripts/Common"
+    ]
+  }
+}
+```
+
+**Environment-Specific Path Overrides:**
+```json
+{
+  "environments": {
+    "sb1": {
+      "accountId": "1234567_SB1",
+      "authId": "myapp-sb1",
+      "sdfPath": "./sdf-sandbox"
+    },
+    "prod": {
+      "accountId": "1234567",
+      "authId": "myapp-prod",
+      "sdfPath": "./sdf-production"
+    }
+  }
+}
+```
+
+**Multi-Tier .env Resolution:**
+1. Monorepo shared .env (via `monorepo.sharedEnvPath`)
+2. Legacy shared .env (`~/NetSuiteBundlet/SDF/.env`)
+3. Project .env (highest priority)
+
+**Key Benefits:**
+- ✅ Single source of truth for credentials
+- ✅ DRY principle for shared SuiteScript modules
+- ✅ Consistent deployment patterns across projects
+- ✅ Environment-specific SDF directories
+- ✅ Automatic credential and key path resolution
+
+**Example Monorepo Structure:**
+```
+my-netsuite-monorepo/
+├── package.json                   # Monorepo root (workspaces)
+├── SDF/
+│   ├── .env                      # Shared credentials
+│   ├── keys/                     # Shared private keys
+│   └── shared/                   # Shared SuiteScripts
+├── apps/
+│   ├── customer-portal/          # Project 1
+│   │   ├── twx-sdf.config.json
+│   │   └── sdf/
+│   └── inventory-mgmt/           # Project 2
+│       ├── twx-sdf.config.json
+│       └── sdf/
+└── packages/                     # Shared TypeScript packages
+```
+
+For comprehensive monorepo documentation, see the project's `MONOREPO.md` file.
+
+### 4. Deployment Workflow
 
 **Basic Commands:**
 ```bash
@@ -117,39 +192,65 @@ For detailed deployment workflows, see `references/deployment-workflow.md`.
 - ✅ **Private Key Validation:** Checks file exists before deployment
 - 🔄 **Graceful Deduplication:** "Already registered" authIds handled safely
 
-### 4. AuthId Management & Refresh
+### 5. AuthId Management & Automatic Credential Refresh
 
 **What is an authId?**
 - Unique identifier for a Token-Based Authentication (TBA) credential in NetSuite
-- Links a certificate ID to a NetSuite account for M2M authentication
+- Contains **COMPLETE credentials**: accountId, certificateId, privateKeyPath, User/Role binding
+- NOT just an alias - it's a **credential snapshot** stored in `~/.suitecloud-sdk/credentials_ci.p12`
 - Registered with SuiteCloud CLI via `suitecloud account:setup:ci`
 
-**When to Refresh AuthId:**
-- New environment setup
-- Certificate rotation
-- Account ID changes
-- "Already registered" errors (safe to ignore)
-- Moving between development machines
+**Critical Understanding: Stale Credential Problem**
 
-**How to Refresh AuthId:**
+After NetSuite sandbox refresh or certificate rotation:
+- ❌ Config updated with new certificate ID
+- ❌ Cached credentials still have OLD certificate ID
+- 🔥 Could deploy to wrong account (production instead of sandbox)
 
-Using twx-deploy (automatic):
+**Automatic Credential Refresh (v0.1.6+):**
+
+The tool now **automatically detects and refreshes stale credentials**:
+
+1. **Detects:** "Authentication ID already in use" error
+2. **Backs up:** `credentials_ci.p12` → `credentials_ci.p12.backup`
+3. **Removes:** Old credentials file
+4. **Re-registers:** Fresh credentials from config
+5. **Cleanup:** Removes backup on success
+6. **Fail-safe:** Restores backup if refresh fails
+
+**Expected Output:**
+```
+ℹ  AuthId exists - refreshing credentials to ensure they match config...
+✓ Backed up existing credentials...
+✓ Forcing fresh credential registration...
+✓ CI authentication refreshed with updated credentials
+```
+
+**When Credential Refresh Happens:**
+- ✅ Sandbox refresh from production (certificate ID changes)
+- ✅ Certificate rotation (new certificate uploaded)
+- ✅ Account ID changes (rare but possible)
+- ✅ AuthId points to wrong credentials
+- ✅ Moving between development machines
+
+**Manual Refresh (if needed):**
 ```bash
+# 1. Backup and remove credentials
+cp ~/.suitecloud-sdk/credentials_ci.p12 ~/.suitecloud-sdk/credentials_ci.p12.backup
+rm ~/.suitecloud-sdk/credentials_ci.p12
+
+# 2. Re-deploy (triggers fresh registration)
 npx twx-deploy deploy sb1
+
+# 3. Remove backup if successful
+rm ~/.suitecloud-sdk/credentials_ci.p12.backup
 ```
 
-Manual SuiteCloud CLI:
-```bash
-suitecloud account:setup:ci \
-  --accountId 1234567_SB1 \
-  --authId my-auth-id \
-  --certId cert-id \
-  --privateKeyPath /path/to/key.pem
-```
+For comprehensive credential refresh guide, see `references/credential-refresh.md`.
 
 For certificate generation and management, use `scripts/generate_cert.sh`.
 
-### 5. CI/CD Integration
+### 6. CI/CD Integration
 
 **GitHub Actions Template:**
 See `assets/github-actions-template.yml` for a complete workflow example.
@@ -161,7 +262,7 @@ See `assets/github-actions-template.yml` for a complete workflow example.
 
 For comprehensive CI/CD setup guide, see `references/ci-cd-setup.md`.
 
-### 6. Error Handling & Troubleshooting
+### 7. Error Handling & Troubleshooting
 
 **Common Errors:**
 - "Auth ID already registered" - Safe to ignore
@@ -198,11 +299,23 @@ For complete troubleshooting guide, see `references/troubleshooting.md`.
 ## Package Information
 
 - **Package:** `@twisted-x/netsuite-deploy`
-- **Version:** 0.1.5 (as of November 2025)
+- **Version:** 0.1.8 (as of November 2025)
 - **Node:** 18+, npm 9+
 - **Type:** ESM Module
 - **Registry:** GitHub Packages (Private)
 - **Repository:** `/home/tchow/netsuite-deploy`
+
+**Latest Features (v0.1.8):**
+- ✅ **Monorepo Support:** Multi-project deployments with shared credentials and code
+- ✅ **Automatic Monorepo Detection:** Discovers workspace roots automatically
+- ✅ **Shared Resources:** Centralized credentials, keys, and SuiteScript modules
+- ✅ **Environment-Specific Paths:** Per-environment SDF directory overrides
+- ✅ **Context-Aware Path Resolution:** PathResolver handles single-project and monorepo scenarios
+- ✅ Multi-tier .env resolution (monorepo → legacy → project)
+- ✅ Automatic stale credential detection and refresh
+- ✅ Post-sandbox-refresh credential validation
+- ✅ Fail-safe backup/restore for credential operations
+- ✅ Prevention of wrong-environment deployments
 
 ## Key Principles
 
@@ -221,11 +334,12 @@ This skill includes comprehensive reference documentation and templates:
 - `generate_cert.sh` - Generate self-signed certificates for NetSuite TBA
 
 ### references/
-- `authentication.md` - Detailed authentication architecture and flows
+- `authentication.md` - Detailed authentication architecture and credential storage
 - `configuration.md` - Complete configuration reference and schema
 - `deployment-workflow.md` - Step-by-step deployment process
 - `ci-cd-setup.md` - GitHub Actions and CI/CD integration guide
-- `troubleshooting.md` - Common errors and solutions
+- `credential-refresh.md` - **NEW**: Stale credential detection and automatic refresh
+- `troubleshooting.md` - Common errors and solutions (now includes stale credential scenarios)
 - `api-reference.md` - Package API and programmatic usage
 
 ### assets/

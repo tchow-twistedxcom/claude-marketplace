@@ -1,0 +1,23 @@
+{
+  "stores": {
+    "my-store": {
+      "name": "My Store",
+      "shop_domain": "my-store.myshopify.com",
+      "api_version": "2024-10"
+    }
+  },
+  "oauth": {
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET"
+  },
+  "defaults": {
+    "store": "my-store"
+  },
+  "scopes_by_skill": {
+    "shopify-content-creator": ["write_content", "write_themes"],
+    "shopify-merchant-daily": ["write_products", "write_inventory", "write_orders", "write_customers", "write_fulfillments"],
+    "shopify-marketing-ops": ["write_discounts", "write_price_rules", "write_marketing_events", "read_analytics"],
+    "shopify-developer": ["write_metafields", "write_webhooks", "write_script_tags"],
+    "shopify-analytics": ["read_analytics", "read_reports", "read_orders", "read_customers"]
+  }
+}

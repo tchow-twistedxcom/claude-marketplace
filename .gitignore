@@ -74,6 +74,10 @@ ENV/
 # Atlassian credentials (real config with secrets)
 **/atlassian_config.json
 
+# Shopify credentials and tokens
+**/shopify_config.json
+**/.shopify_tokens.json
+
 # User-specific files (customize as needed)
 TODO.md
 NOTES.md

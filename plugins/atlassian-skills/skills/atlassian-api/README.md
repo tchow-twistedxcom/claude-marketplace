@@ -44,19 +44,28 @@ A Python CLI for Atlassian Confluence and Jira operations with OAuth 2.0 authent
 
 ### Step 2: Configure Permissions
 
-Navigate to **"Permissions"** tab and add these scopes:
+Navigate to **"Permissions"** tab and add these **v2 granular scopes**:
 
-**Confluence API:**
-- `read:confluence-content.all` - Read pages and content
-- `write:confluence-content` - Create and update pages
-- `read:confluence-space.summary` - List spaces
+**Confluence API (v2 Granular Scopes):**
+- `read:content:confluence` - Read content
+- `write:content:confluence` - Write content
+- `read:content-details:confluence` - Read content details
+- `read:page:confluence` - Read pages
+- `write:page:confluence` - Write pages
+- `read:space:confluence` - Read spaces
 
-**Jira API:**
+**Jira API (Optional - only if using Jira features):**
 - `read:jira-work` - Read issues
 - `write:jira-work` - Create and update issues
 - `read:jira-user` - Read user info (for assignee lookup)
 
+**⚠️ REQUIRED for Refresh Tokens:**
+- `offline_access` - **MUST be included** to get refresh tokens
+
 Click **"Save"** after adding each scope.
+
+> **Note:** This skill uses v2 granular OAuth scopes. Make sure the scopes in your
+> Atlassian Developer Console app match exactly what's listed above.
 
 ### Step 3: Configure Authorization
 
@@ -76,16 +85,19 @@ Click **"Save"** after adding each scope.
 Run the authorization flow to get your refresh token:
 
 ```bash
-# Option A: Use the built-in auth helper
+# Recommended: Use the built-in auth helper
 python3 scripts/get_refresh_token.py
-
-# Option B: Manual flow
-# 1. Build auth URL:
-AUTH_URL="https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=YOUR_CLIENT_ID&scope=read:confluence-content.all%20write:confluence-content%20read:confluence-space.summary%20read:jira-work%20write:jira-work%20read:jira-user%20offline_access&redirect_uri=http://localhost:8080/callback&response_type=code&prompt=consent"
-
-# 2. Open in browser, authorize, get code from redirect URL
-# 3. Exchange code for tokens (see below)
 ```
+
+The script will:
+1. Ask for your Client ID and Client Secret
+2. Ask if you need Jira scopes (optional)
+3. Show the exact scopes that will be requested
+4. Open a browser for authorization
+5. Display your refresh token
+
+> **Important:** The scopes requested MUST match what's configured in your
+> Atlassian Developer Console app. If they don't match, authorization will fail.
 
 Exchange authorization code for tokens:
 ```bash
@@ -174,16 +186,31 @@ cp config/atlassian_config.template.json config/atlassian_config.json
 ```
 
 ### "Token refresh failed: invalid_grant"
-Your refresh token has expired or been revoked. Re-run the OAuth flow (Step 5).
+Your refresh token has expired or been revoked. Re-run the OAuth flow:
+```bash
+python3 scripts/get_refresh_token.py
+```
 
 ### "HTTP 403: Forbidden"
-Missing required OAuth scopes. Check your app permissions in the Developer Console.
+Missing required OAuth scopes. Verify your app has these v2 scopes configured:
+- Confluence: `read:content:confluence`, `write:content:confluence`, `read:page:confluence`, etc.
+- The scopes in your app MUST match what the script requests.
+
+Check your app permissions at: https://developer.atlassian.com/console/myapps/
+
+### "access_denied" during OAuth flow
+The scopes requested don't match what's configured in your Atlassian app.
+Make sure your app has all the v2 granular scopes listed in Step 2.
 
 ### "Unknown site: xyz"
 Site not configured. Add it to `config/atlassian_config.json` under `sites`.
 
 ### Timeout errors
 Increase timeout: `--timeout 60`
+
+### No refresh token received
+Make sure `offline_access` scope is included in your Atlassian app permissions.
+This scope is REQUIRED to get refresh tokens.
 
 ## Security Notes
 

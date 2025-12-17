@@ -18,6 +18,23 @@ Execute Confluence and Jira operations via direct REST API calls with automatic 
 - When the Atlassian MCP is unreliable or hanging
 - When response efficiency is critical (this skill uses ~50 tokens vs ~2000 for MCP)
 
+## OAuth Scopes
+
+This skill uses **v2 granular OAuth scopes**. Your Atlassian app must have these scopes configured:
+
+**Confluence (Required):**
+- `read:content:confluence`, `write:content:confluence`
+- `read:content-details:confluence`, `read:page:confluence`, `write:page:confluence`
+- `read:space:confluence`
+
+**Jira (Optional):**
+- `read:jira-work`, `write:jira-work`, `read:jira-user`
+
+**Required for refresh tokens:**
+- `offline_access` - MUST be included
+
+See [README.md](README.md) for complete OAuth setup instructions.
+
 ## Quick Start
 
 ```bash

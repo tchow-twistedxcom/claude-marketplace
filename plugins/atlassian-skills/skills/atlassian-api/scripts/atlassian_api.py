@@ -68,6 +68,27 @@ class AtlassianClient:
         if self.verbose:
             print(f"[DEBUG] {msg}", file=sys.stderr)
 
+    def _format_http_error(self, status_code, error_msg):
+        """
+        Format HTTP error with helpful hints for common issues.
+
+        Args:
+            status_code: HTTP status code
+            error_msg: Error message from response
+
+        Returns:
+            Formatted error string with hints
+        """
+        hints = {
+            401: "\n  → Token may have expired. Run: python3 scripts/auth.py",
+            403: "\n  → Missing OAuth scopes. Check app permissions at:\n"
+                 "    https://developer.atlassian.com/console/myapps/",
+            404: "\n  → Resource not found. Verify the page/issue ID is correct.",
+            429: "\n  → Rate limited. Wait a moment and retry, or reduce request frequency.",
+        }
+        hint = hints.get(status_code, "")
+        return f"HTTP {status_code}: {error_msg}{hint}"
+
     def _request(self, method, url, data=None):
         """
         Make authenticated HTTP request.
@@ -103,9 +124,9 @@ class AtlassianClient:
             try:
                 error_json = json.loads(error_body)
                 error_msg = error_json.get('message', error_json.get('errorMessages', [str(e)])[0] if isinstance(error_json.get('errorMessages'), list) else str(e))
-            except:
-                error_msg = error_body[:500] or str(e)
-            raise Exception(f"HTTP {e.code}: {error_msg}")
+            except (json.JSONDecodeError, KeyError, TypeError, IndexError):
+                error_msg = error_body[:500] if error_body else str(e)
+            raise Exception(self._format_http_error(e.code, error_msg))
         except URLError as e:
             raise Exception(f"Network error: {e}")
 
@@ -207,13 +228,14 @@ class AtlassianClient:
         url = self.confluence_url(f'/pages/{page_id}{query}')
         page = self._request('GET', url)
 
-        # Also get version info
+        # Also get version info (non-critical - continue without if it fails)
         version_url = self.confluence_url(f'/pages/{page_id}/versions?limit=1')
         try:
             versions = self._request('GET', version_url)
             if versions.get('results'):
                 page['version'] = versions['results'][0]
-        except:
+        except Exception:
+            # Version info is supplementary - don't fail the whole request
             pass
 
         return page

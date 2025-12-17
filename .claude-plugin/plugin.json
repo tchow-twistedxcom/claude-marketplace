@@ -1,0 +1,6 @@
+{
+  "name": "tchow-essentials-core",
+  "version": "1.0.0",
+  "description": "Core hooks and shared functionality for tchow-essentials marketplace. Includes automatic skill detection and activation for Atlassian, Shopify, NetSuite, and Celigo.",
+  "hooks": "../hooks/hooks.json"
+}

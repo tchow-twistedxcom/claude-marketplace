@@ -5,7 +5,7 @@
     "url": "https://github.com/tchow-twistedxcom"
   },
   "metadata": {
-    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite workflows + NetSuite skills (with PRI Application Settings) + Celigo integration + ClaudeKit skills + Shopify workflows",
+    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite skills (with PRI Application Settings & SuiteQL) + Celigo integration + ClaudeKit skills + Shopify workflows + Atlassian skills",
     "version": "1.4.0",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
@@ -28,15 +28,6 @@
       "version": "1.0.0",
       "category": "testing",
       "keywords": ["browser", "devtools", "testing", "automation"],
-      "strict": false
-    },
-    {
-      "name": "netsuite-workflows",
-      "source": "./plugins/netsuite-workflows",
-      "description": "NetSuite SDF deployment automation with twx-sdf-deploy.sh integration for Record Display app",
-      "version": "1.0.0",
-      "category": "deployment",
-      "keywords": ["netsuite", "sdf", "deployment", "erp"],
       "strict": false
     },
     {
@@ -82,6 +73,15 @@
       "version": "1.0.0",
       "category": "ecommerce",
       "keywords": ["shopify", "ecommerce", "graphql", "admin-api", "automation", "content", "marketing"],
+      "strict": false
+    },
+    {
+      "name": "atlassian-skills",
+      "source": "./plugins/atlassian-skills",
+      "description": "Atlassian Confluence and Jira operations via REST API. Includes page creation/update/archive, search, attachments, markdown-to-Confluence conversion with Mermaid diagram support, Jira issue management, JQL queries, and transitions",
+      "version": "1.0.0",
+      "category": "skills",
+      "keywords": ["atlassian", "confluence", "jira", "documentation", "wiki", "issue-tracking", "markdown", "mermaid", "oauth", "rest-api"],
       "strict": false
     }
   ]

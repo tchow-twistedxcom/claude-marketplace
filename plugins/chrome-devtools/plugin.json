@@ -15,9 +15,7 @@
   "commands": [
     "./commands/browser-test.md"
   ],
-  "mcpServers": [
-    "./mcp-configs/chrome-devtools.json"
-  ],
+  "mcpServers": "./mcp-configs/chrome-devtools.json",
   "skills": [
     "./skills/e2e-testing-patterns"
   ]

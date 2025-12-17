@@ -1,0 +1,61 @@
+{
+  "name": "claudekit-skills",
+  "version": "1.0.0",
+  "description": "Curated collection of 20+ specialized skills for Claude Code covering development tools, AI/agents, document processing, problem-solving frameworks, and design tools",
+  "author": {
+    "name": "mrgoonie",
+    "url": "https://github.com/mrgoonie"
+  },
+  "maintainer": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/mrgoonie/claudekit-skills",
+  "repository": "https://github.com/mrgoonie/claudekit-skills",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "nextjs",
+    "tailwindcss",
+    "shadcn-ui",
+    "ffmpeg",
+    "imagemagick",
+    "mcp",
+    "google-adk",
+    "better-auth",
+    "document-processing",
+    "problem-solving",
+    "debugging",
+    "canvas-design",
+    "remix-icon"
+  ],
+  "category": "skills",
+  "strict": false,
+  "commands": [
+    "./commands/git/cp.md",
+    "./commands/git/cm.md",
+    "./commands/git/pr.md",
+    "./commands/skill/create.md"
+  ],
+  "skills": [
+    "./skills/better-auth",
+    "./skills/canvas-design",
+    "./skills/claude-code",
+    "./skills/debugging",
+    "./skills/docs-seeker",
+    "./skills/document-skills",
+    "./skills/ffmpeg",
+    "./skills/google-adk-python",
+    "./skills/imagemagick",
+    "./skills/mcp-builder",
+    "./skills/nextjs",
+    "./skills/problem-solving",
+    "./skills/remix-icon",
+    "./skills/repomix",
+    "./skills/shadcn-ui",
+    "./skills/shopify",
+    "./skills/skill-creator",
+    "./skills/tailwindcss",
+    "./skills/turborepo"
+  ]
+}

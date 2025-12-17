@@ -6,6 +6,74 @@ This guide provides comprehensive troubleshooting for common errors encountered 
 
 ## Authentication Errors
 
+### 🔥 CRITICAL: "Invalid certificate ID" After Sandbox Refresh
+
+**Full Error:**
+```
+Error: There was an error with the certificate ID used to authenticate.
+Verify that certificate ID 4gS-fIf8L-4GTq6qQFZ5H6bRmwYTGbuIbF2qx0wF0nA is invalid...
+```
+
+**Symptom:**
+- Config file has correct NEW certificate ID
+- Deployment fails with OLD certificate ID in error message
+- Occurs after NetSuite sandbox refresh from production
+- Message says "AuthId already registered - using existing registration"
+
+**Root Cause:**
+AuthId has **stale cached credentials** in `~/.suitecloud-sdk/credentials_ci.p12`. When the authId was first registered, it captured the certificate ID at that time. After sandbox refresh, the certificate ID changed but the cached credentials still have the old value.
+
+**CRITICAL SAFETY:**
+This is NOT just a deployment failure - stale credentials could point to the **wrong account** (e.g., production instead of sandbox), causing catastrophic mis-deployment.
+
+**Automatic Solution (v0.1.6+):**
+✅ **Automatic credential refresh** - The tool now detects this and automatically:
+1. Backs up `credentials_ci.p12`
+2. Removes the file to clear stale credentials
+3. Re-registers authId with fresh credentials from config
+4. Restores backup if refresh fails
+
+**Expected Output:**
+```
+ℹ  AuthId exists - refreshing credentials to ensure they match config...
+✓ Backed up existing credentials...
+✓ Forcing fresh credential registration...
+✓ CI authentication refreshed with updated credentials
+```
+
+**Manual Solution (if automatic fails):**
+```bash
+# 1. Backup credentials
+cp ~/.suitecloud-sdk/credentials_ci.p12 ~/.suitecloud-sdk/credentials_ci.p12.backup
+
+# 2. Remove stale credentials
+rm ~/.suitecloud-sdk/credentials_ci.p12
+
+# 3. Re-register with fresh credentials
+cd /path/to/sdf-project
+npx twx-deploy deploy sb2  # Triggers fresh registration
+
+# 4. If successful, remove backup
+rm ~/.suitecloud-sdk/credentials_ci.p12.backup
+```
+
+**Why NOT to ignore:**
+Unlike "Auth ID already registered" (which is safe), stale credentials are DANGEROUS:
+- ❌ Could deploy to wrong account (production instead of sandbox)
+- ❌ Could use wrong certificate (old/revoked certificate)
+- ❌ Could have wrong permissions (stale user/role binding)
+
+**Prevention:**
+- Use separate authIds per environment (`myapp-sb1`, `myapp-prod`)
+- Document sandbox refresh events and certificate changes
+- Test with dry-run after sandbox refresh: `npx twx-deploy deploy sb2 --dry-run`
+
+**See Also:**
+- Complete guide: `references/credential-refresh.md`
+- Understanding credential storage in CI mode
+
+---
+
 ### "Auth ID already registered"
 
 **Full Error:**
@@ -14,22 +82,19 @@ Error: Auth ID 'myapp-sb1' is already registered
 ```
 
 **Cause:**
-The authId is already present in `~/.sdfcli.json` from a previous registration.
+The authId is already present in `~/.suitecloud-sdk/credentials_ci.p12` from a previous registration.
 
-**Solution:**
+**Solution (v0.1.6+):**
+✅ **Automatic credential refresh** - Tool now refreshes credentials to ensure they match config.
+
+**Solution (v0.1.5 and earlier):**
 ✅ **Safe to ignore** - The deployment tool handles this automatically and continues.
 
-**Manual Resolution (if needed):**
-```bash
-# View registered authIds
-cat ~/.sdfcli.json
-
-# Remove specific authId (if needed)
-# Edit ~/.sdfcli.json and remove the authId entry
-```
+**Important Note:**
+As of v0.1.6, the tool **refreshes credentials** instead of skipping setup. This ensures credentials are never stale.
 
 **Prevention:**
-None needed - this is normal behavior when re-deploying to the same environment.
+None needed - this is now handled automatically with credential refresh.
 
 ---
 

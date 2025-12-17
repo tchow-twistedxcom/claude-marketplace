@@ -174,6 +174,55 @@ export TWX_SDF_CI_PASSKEY="global-passkey"
 export TWX_SDF_SB1_CI_PASSKEY="sb1-passkey"
 ```
 
+## Credential Storage in CI Mode
+
+### Browser Mode vs CI Mode
+
+SuiteCloud CLI uses **completely different** authentication storage mechanisms depending on the mode:
+
+| Aspect | Browser Mode | CI Mode (M2M) |
+|--------|--------------|---------------|
+| **Storage File** | `~/.suitecloud-sdk/credentials_browser_based.p12` | `~/.suitecloud-sdk/credentials_ci.p12` |
+| **Additional Storage** | System keychain (macOS Keychain, GNOME Keyring, Windows Credential Manager) | **NONE** - file only |
+| **Encryption** | System-managed | `SUITECLOUD_CI_PASSKEY` environment variable |
+| **Management Command** | `suitecloud account:manageauth` | **Incompatible** - tries to access keychain |
+| **Environment Variable** | None required | `SUITECLOUD_CI=1` required |
+| **Use Case** | Interactive development | CI/CD pipelines, automation |
+
+### CI Mode Credential Storage
+
+**File Location:** `~/.suitecloud-sdk/credentials_ci.p12`
+
+**What's Stored:**
+When `suitecloud account:setup:ci` registers an authId, it stores **COMPLETE credentials**:
+1. **accountId** - Which NetSuite account to deploy to
+2. **certificateId** - Which certificate to use for authentication
+3. **privateKeyPath** - Where the private key is located
+4. **User/Role binding** - NetSuite user and role for the integration
+
+**Critical Insight:**
+An authId is NOT just an alias - it's a **complete credential snapshot**. This means:
+- ✅ Once registered, the authId contains all authentication info
+- ⚠️ Updating config doesn't update cached credentials
+- 🔥 Stale credentials can point to wrong account/certificate
+
+### Why account:manageauth Fails in CI Mode
+
+If you try to use `suitecloud account:manageauth --remove authId` in CI mode:
+
+```
+Error: Secure storage is inaccessible
+```
+
+**This is EXPECTED and NORMAL** in CI mode because:
+- `account:manageauth` is designed for browser-based authentication
+- It tries to access the system keychain (which doesn't exist in CI environments)
+- CI mode uses file-based storage (`credentials_ci.p12`) instead
+
+**Solution:** Manipulate `credentials_ci.p12` file directly (backup → remove → re-register)
+
+See `references/credential-refresh.md` for complete guide on credential refresh.
+
 ## Critical Files
 
 ### Core Authentication Module

@@ -25,14 +25,16 @@ Comprehensive expertise for debugging, diagnosing, and understanding the Prolect
 
 **Documentation:** 11 reference files (~390KB) including 3 new Application Settings guides
 
-### NetSuite SDF Deployment (v1.2)
-Comprehensive expertise for NetSuite SuiteCloud Development Framework (SDF) deployment, CI/CD automation, and certificate-based authentication.
+### NetSuite SDF Deployment (v1.3)
+Comprehensive expertise for NetSuite SuiteCloud Development Framework (SDF) deployment, CI/CD automation, and certificate-based authentication with automatic stale credential detection.
 
 **Capabilities:**
 - **Certificate-Based M2M Authentication** - X.509 certificates with Token-Based Authentication (TBA)
+- **Automatic Credential Refresh** (NEW v1.3) - Detects and refreshes stale credentials after sandbox refresh
+- **Credential Storage Architecture** (NEW v1.3) - Deep understanding of CI mode vs browser mode authentication storage
 - **Multi-Environment Deployment** - Sandbox (SB1, SB2) and production workflows
 - **CI/CD Integration** - GitHub Actions templates and automated deployment pipelines
-- **AuthId Management** - Registration, refresh, and credential resolution
+- **AuthId Management** - Registration, refresh, and credential resolution with safety checks
 - **Configuration System** - Type-safe Zod validation with environment variables
 - **Deployment Workflows** - Automated validation, build, deploy, and config restoration
 
@@ -40,12 +42,15 @@ Comprehensive expertise for NetSuite SuiteCloud Development Framework (SDF) depl
 - Set up certificate-based TBA for machine-to-machine deployments
 - Configure multi-environment deployments (sb1, sb2, prod)
 - Implement GitHub Actions workflows for automated NetSuite deployments
-- Refresh authIds after certificate rotation
+- **Handle sandbox refresh scenarios** (NEW v1.3) - Automatically detect and refresh stale certificates
+- **Prevent wrong-environment deployments** (NEW v1.3) - Validate credentials match configuration
+- Refresh authIds after certificate rotation with fail-safe backup/restore
 - Troubleshoot authentication and deployment errors
 - Manage credential resolution across environments
+- Understand CI mode credential storage (`credentials_ci.p12`)
 - Validate SDF project structure before deployment
 
-**Documentation:** 6 comprehensive reference files + 3 asset templates + certificate generation script
+**Documentation:** 7 comprehensive reference files (includes new `credential-refresh.md`) + 3 asset templates + certificate generation script
 
 ## Future Skills
 
@@ -73,6 +78,20 @@ To add a new NetSuite skill:
 
 ## Version History
 
+- **1.3.0** (2025-11-14) - Enhanced NetSuite SDF Deployment with automatic credential refresh
+  - **NEW**: Automatic stale credential detection and refresh capability
+  - **NEW**: Comprehensive credential refresh guide (`credential-refresh.md`) documenting:
+    - Post-sandbox-refresh credential validation
+    - CI mode vs browser mode credential storage architecture
+    - Understanding `credentials_ci.p12` file structure
+    - Fail-safe backup/restore for credential operations
+    - Prevention of wrong-environment deployments
+    - Why `account:manageauth` fails in CI mode
+  - Enhanced `troubleshooting.md` with critical stale credential scenarios
+  - Enhanced `authentication.md` with credential storage details
+  - Enhanced `SKILL.md` with v0.1.6 features
+  - Updated all version references to 0.1.6
+  - Total: 7 reference documents (up from 6)
 - **1.2.0** (2025-11-14) - Added NetSuite SDF Deployment skill
   - New skill: NetSuite SDF Deployment Expert
   - 6 comprehensive reference documents (authentication, configuration, deployment, CI/CD, troubleshooting, API)

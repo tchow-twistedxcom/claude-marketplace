@@ -36,14 +36,7 @@
     "./commands/sc/workflow.md"
   ],
   "agents": [],
-  "mcpServers": [
-    "./mcp-configs/context7.json",
-    "./mcp-configs/sequential.json",
-    "./mcp-configs/magic.json",
-    "./mcp-configs/playwright.json",
-    "./mcp-configs/serena.json",
-    "./mcp-configs/morphllm.json"
-  ],
+  "mcpServers": "./.mcp.json",
   "globalInstructions": [
     "./.claude/CLAUDE.md",
     "./.claude/FLAGS.md",

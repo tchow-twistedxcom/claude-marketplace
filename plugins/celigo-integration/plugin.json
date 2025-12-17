@@ -16,9 +16,7 @@
     "./commands/celigo-setup.md",
     "./commands/celigo-manage.md"
   ],
-  "mcpServers": [
-    "./mcp-configs/celigo.json"
-  ],
+  "mcpServers": "./mcp-configs/celigo.json",
   "skills": [
     "./skills/celigo-integration-patterns"
   ]

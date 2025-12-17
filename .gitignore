@@ -71,6 +71,9 @@ ENV/
 # Claude Code specific
 .claude-cache/
 
+# Atlassian credentials (real config with secrets)
+**/atlassian_config.json
+
 # User-specific files (customize as needed)
 TODO.md
 NOTES.md

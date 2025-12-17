@@ -1,0 +1,27 @@
+{
+  "name": "atlassian-skills",
+  "version": "1.0.0",
+  "description": "Atlassian Confluence and Jira operations via REST API. Includes page creation/update/archive, search, attachments, markdown-to-Confluence conversion with Mermaid diagram support, Jira issue management, JQL queries, and transitions. More reliable than MCP with efficient response formatting.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": [
+    "atlassian",
+    "confluence",
+    "jira",
+    "documentation",
+    "wiki",
+    "issue-tracking",
+    "markdown",
+    "mermaid",
+    "oauth",
+    "rest-api"
+  ],
+  "skills": [
+    "./skills/atlassian-api"
+  ]
+}

@@ -11,11 +11,12 @@
 /plugin marketplace add tchow-twistedxcom/claude-marketplace
 
 # Install everything
-/plugin install superclaude-framework chrome-devtools netsuite-workflows celigo-integration
+/plugin install superclaude-framework chrome-devtools netsuite-workflows celigo-integration claudekit-skills shopify-workflows
 
 # Or install selectively
 /plugin install superclaude-framework
 /plugin install celigo-integration
+/plugin install claudekit-skills
 /plugin install backend-development
 ```
 
@@ -58,6 +59,25 @@ Celigo integration platform automation with 63 MCP tools.
 - Celigo integration patterns skill
 - 63 MCP tools (integrations, flows, connections, jobs, errors, etc.)
 - Python-based FastMCP server
+
+#### ClaudeKit Skills
+Curated collection of 20+ specialized skills from the ClaudeKit community.
+
+**Includes:**
+- `/git/cp`, `/git/cm`, `/git/pr` commands (git commit patterns, pull requests)
+- `/skill/create` command (create custom skills)
+- **20 Skills**: Next.js, Tailwind CSS, shadcn-ui, Turborepo, better-auth, FFmpeg, ImageMagick, Google ADK, MCP builder, document processing, problem-solving, debugging, canvas design, Remix Icon, and more
+- Community-maintained patterns and workflows
+
+#### Shopify Workflows
+Shopify Admin API automation with 5 specialized workflow skills.
+
+**Includes:**
+- 5 workflow-specific skills: content-creator, merchant-daily, marketing-ops, developer, analytics
+- Shopify Dev MCP integration (GraphQL schema introspection, validation)
+- Production-ready GraphQL mutations and queries
+- Zero overlap between skills (clear boundaries)
+- Token-efficient (60-75% reduction vs monolithic)
 
 #### Personal Automation
 Template for your custom workflows (empty, ready for your additions).
@@ -157,6 +177,27 @@ Template for your custom workflows (empty, ready for your additions).
 - Lookup Caches (3 tools)
 - Tags (7 tools)
 
+### ClaudeKit Skills
+
+**Commands:**
+- `/git/cp` - Git commit with conventional patterns
+- `/git/cm` - Git commit message helper
+- `/git/pr` - Pull request creation
+- `/skill/create` - Create custom Claude Code skills
+
+**Skills (20):**
+- **Development**: nextjs, tailwindcss, shadcn-ui, turborepo, better-auth
+- **Media**: ffmpeg, imagemagick
+- **AI/Agents**: google-adk-python, mcp-builder, claude-code
+- **Documents**: document-skills (PDF, Excel, PowerPoint, Word)
+- **Problem-Solving**: problem-solving frameworks, debugging
+- **Design**: canvas-design, remix-icon (3,100+ icons)
+- **Utilities**: docs-seeker, repomix, shopify, skill-creator
+
+**Source:**
+- Original repository: https://github.com/mrgoonie/claudekit-skills
+- 20+ curated skills from the ClaudeKit community
+
 ## 🌐 Full Marketplace Access
 
 When you install this marketplace, you also get access to:
@@ -228,11 +269,13 @@ MIT License - see [LICENSE](./LICENSE) for details
 - **Claude Code**: https://claude.ai/code
 - **Anthropic Skills**: https://github.com/anthropics/skills
 - **Seth Hobson's Workflows**: https://github.com/wshobson/agents
+- **ClaudeKit Skills**: https://github.com/mrgoonie/claudekit-skills
 
 ## 🙏 Acknowledgments
 
 - **Anthropic** - For Claude Code and official skills
 - **Seth Hobson** - For comprehensive claude-code-workflows
+- **mrgoonie** - For ClaudeKit skills collection
 - **SuperClaude Framework** - For behavioral modes and orchestration patterns
 
 ---

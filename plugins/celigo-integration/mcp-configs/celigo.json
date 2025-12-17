@@ -7,7 +7,7 @@
       "celigo-mcp"
     ],
     "env": {
-      "CELIGO_API_TOKEN": "",
+      "CELIGO_API_TOKEN": "252f7167e58f4d369fffb658662bff43",
       "CELIGO_API_BASE_URL": "https://api.integrator.io/v1",
       "CELIGO_TIMEOUT": "30",
       "LOG_LEVEL": "INFO"

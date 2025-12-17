@@ -1,0 +1,22 @@
+{
+  "sites": {
+    "twistedx": {
+      "name": "Twisted X",
+      "cloud_id": "72e4ede1-1aba-4eb0-b8b3-fc8a0515f327",
+      "domain": "twistedx.atlassian.net"
+    },
+    "dutyman": {
+      "name": "Dutyman",
+      "cloud_id": "YOUR_CLOUD_ID_HERE",
+      "domain": "dutyman.atlassian.net"
+    }
+  },
+  "oauth": {
+    "client_id": "YOUR_CLIENT_ID",
+    "client_secret": "YOUR_CLIENT_SECRET",
+    "refresh_token": "YOUR_REFRESH_TOKEN"
+  },
+  "defaults": {
+    "site": "twistedx"
+  }
+}

@@ -9,7 +9,13 @@
   "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "license": "MIT",
-  "keywords": ["framework", "modes", "mcp", "orchestration", "superclaude"],
+  "keywords": [
+    "framework",
+    "modes",
+    "mcp",
+    "orchestration",
+    "superclaude"
+  ],
   "category": "framework",
   "strict": false,
   "commands": [
@@ -36,7 +42,6 @@
     "./commands/sc/workflow.md"
   ],
   "agents": [],
-  "mcpServers": "./.mcp.json",
   "globalInstructions": [
     "./.claude/CLAUDE.md",
     "./.claude/FLAGS.md",
@@ -53,5 +58,6 @@
     "./.claude/MCP_Playwright.md",
     "./.claude/MCP_Sequential.md",
     "./.claude/MCP_Serena.md"
-  ]
+  ],
+  "mcpServers": "./.mcp.json"
 }

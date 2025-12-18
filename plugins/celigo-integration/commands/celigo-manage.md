@@ -1,222 +1,380 @@
 ---
 name: celigo-manage
-description: Manage Celigo integrations, flows, and connections
+description: Manage Celigo integrations, flows, and connections via CLI
 ---
 
 # Celigo Integration Management
 
-Execute Celigo integration platform operations using MCP tools.
+Execute Celigo integration platform operations using the Python CLI.
 
-## Usage
+## CLI Location
 
-When the user requests Celigo operations:
-
-### Integration Management
-
-**List Integrations**
-```
-User: "List all my Celigo integrations"
-Action: Use list_integrations tool, display name, status, version
+```bash
+# All commands run from the plugin directory
+cd plugins/celigo-integration
+python3 scripts/celigo_api.py <resource> <action> [options]
 ```
 
-**Get Integration Details**
-```
-User: "Show details for integration XYZ"
-Action: Use get_integration tool, display full configuration
+## Integration Management
+
+### List Integrations
+```bash
+# List all integrations
+python3 scripts/celigo_api.py integrations list
+
+# JSON output for scripting
+python3 scripts/celigo_api.py integrations list --format json
 ```
 
-**Create Integration**
-```
-User: "Create a new Salesforce to NetSuite integration"
-Action:
-1. Gather requirements (source, destination, mapping)
-2. Use create_integration tool
-3. Confirm creation and provide integration ID
+### Get Integration Details
+```bash
+# Get specific integration
+python3 scripts/celigo_api.py integrations get <integration_id>
 ```
 
-**Clone Integration**
-```
-User: "Clone the order sync integration"
-Action: Use clone_integration tool with new name
+### Get Integration Resources
+```bash
+# List flows in integration
+python3 scripts/celigo_api.py integrations flows <integration_id>
+
+# List connections in integration
+python3 scripts/celigo_api.py integrations connections <integration_id>
+
+# List exports in integration
+python3 scripts/celigo_api.py integrations exports <integration_id>
+
+# List imports in integration
+python3 scripts/celigo_api.py integrations imports <integration_id>
+
+# Get integration dependencies
+python3 scripts/celigo_api.py integrations dependencies <integration_id>
+
+# Get integration audit log
+python3 scripts/celigo_api.py integrations audit <integration_id>
 ```
 
-### Flow Management
+## Flow Management
 
-**List Flows**
-```
-User: "Show all flows in the customer sync integration"
-Action: Use list_flows tool with integration filter
-```
+### List Flows
+```bash
+# List all flows
+python3 scripts/celigo_api.py flows list
 
-**Trigger Flow**
-```
-User: "Run the customer export flow"
-Action:
-1. Find flow by name
-2. Use trigger_flow_run tool
-3. Monitor job status
-4. Report results
+# Get flows for specific integration
+python3 scripts/celigo_api.py integrations flows <integration_id>
 ```
 
-**Update Flow**
-```
-User: "Update the mapping in the product flow"
-Action:
-1. Get current flow configuration
-2. Apply mapping updates
-3. Use update_flow tool
-4. Verify changes
+### Get Flow Details
+```bash
+# Get single flow
+python3 scripts/celigo_api.py flows get <flow_id>
+
+# Get flow descendants (exports/imports)
+python3 scripts/celigo_api.py flows descendants <flow_id>
 ```
 
-### Connection Management
+### Run Flow
+```bash
+# Trigger full flow run
+python3 scripts/celigo_api.py flows run <flow_id>
 
-**List Connections**
-```
-User: "What connections are configured?"
-Action: Use list_connections tool, display type and status
-```
+# Run specific exports only
+python3 scripts/celigo_api.py flows run <flow_id> --export-ids exp1,exp2
 
-**Test Connection**
-```
-User: "Test the Salesforce connection"
-Action: Use test_connection tool, report health status
-```
-
-**Create Connection**
-```
-User: "Add a new NetSuite connection"
-Action:
-1. Ask for connection details (auth, credentials)
-2. Use create_connection tool
-3. Test connection
-4. Confirm setup
+# Run with date range (delta flows)
+python3 scripts/celigo_api.py flows run <flow_id> \
+  --start-date "2024-01-01T00:00:00.000Z" \
+  --end-date "2024-01-31T23:59:59.999Z"
 ```
 
-### Job & Error Management
+### Flow Status
+```bash
+# Get latest job for flow
+python3 scripts/celigo_api.py flows jobs-latest <flow_id>
 
-**Monitor Jobs**
-```
-User: "Show recent integration jobs"
-Action: Use list_jobs tool with time filter, show status
-```
+# Get last export datetime
+python3 scripts/celigo_api.py flows last-export-datetime <flow_id>
 
-**Retry Failed Jobs**
-```
-User: "Retry all failed jobs from yesterday"
-Action:
-1. List failed jobs with date filter
-2. Use retry_job for each
-3. Report retry results
+# Get flow audit log
+python3 scripts/celigo_api.py flows audit <flow_id>
 ```
 
-**View Errors**
-```
-User: "Show errors for the order sync integration"
-Action: Use list_errors tool, display error details and counts
+## Connection Management
+
+### List Connections
+```bash
+# List all connections
+python3 scripts/celigo_api.py connections list
 ```
 
-**Clear Errors**
-```
-User: "Clear resolved errors from last week"
-Action: Use clear_errors tool with date filter
-```
+### Connection Operations
+```bash
+# Get connection details
+python3 scripts/celigo_api.py connections get <connection_id>
 
-### Export & Import Management
+# Test connection health
+python3 scripts/celigo_api.py connections test <connection_id>
 
-**List Exports**
-```
-User: "Show all data exports"
-Action: Use list_exports tool, display name, status, schedule
-```
+# Get connection debug log
+python3 scripts/celigo_api.py connections debug-log <connection_id>
 
-**Trigger Export**
-```
-User: "Run the customer export now"
-Action: Use trigger_export tool, monitor completion
+# Get connection logs
+python3 scripts/celigo_api.py connections logs <connection_id>
+
+# Get what uses this connection
+python3 scripts/celigo_api.py connections dependencies <connection_id>
 ```
 
-### Tag Management
+## Job Monitoring
 
-**List Tags**
+### List Jobs
+```bash
+# List all jobs
+python3 scripts/celigo_api.py jobs list
+
+# Filter by status
+python3 scripts/celigo_api.py jobs list --status running
+python3 scripts/celigo_api.py jobs list --status completed
+python3 scripts/celigo_api.py jobs list --status failed
+
+# Filter by integration
+python3 scripts/celigo_api.py jobs list --integration <integration_id>
+
+# Filter by flow
+python3 scripts/celigo_api.py jobs list --flow <flow_id>
+
+# Filter by date range
+python3 scripts/celigo_api.py jobs list \
+  --since "2024-01-01T00:00:00.000Z" \
+  --until "2024-01-31T23:59:59.999Z"
+
+# Filter by type
+python3 scripts/celigo_api.py jobs list --type flow
 ```
-User: "What tags are available?"
-Action: Use list_tags tool
+
+### Job Operations
+```bash
+# Get job details
+python3 scripts/celigo_api.py jobs get <job_id>
+
+# Cancel running job (flow type only)
+python3 scripts/celigo_api.py jobs cancel <job_id>
 ```
 
-**Tag Integration**
+## Error Management
+
+### List Errors
+```bash
+# List import errors
+python3 scripts/celigo_api.py errors list --flow <flow_id> --import <import_id>
+
+# List export errors
+python3 scripts/celigo_api.py errors list --flow <flow_id> --export <export_id>
+
+# Filter by date
+python3 scripts/celigo_api.py errors list --flow <flow_id> --import <import_id> \
+  --since "2024-01-01T00:00:00.000Z"
+
+# Filter by source
+python3 scripts/celigo_api.py errors list --flow <flow_id> --import <import_id> \
+  --source mapping
 ```
-User: "Add 'production' tag to customer sync"
-Action: Use add_tag_to_integration tool
+
+### Error Investigation
+```bash
+# Get retry data for error
+python3 scripts/celigo_api.py errors retry-data \
+  --flow <flow_id> --import <import_id> --key <retry_data_key>
+
+# List resolved errors
+python3 scripts/celigo_api.py errors resolved --flow <flow_id> --import <import_id>
 ```
 
-## Best Practices
+### Error Resolution
+```bash
+# Retry errors
+python3 scripts/celigo_api.py errors retry \
+  --flow <flow_id> --import <import_id> --keys key1,key2,key3
 
-### Before Making Changes
-1. **Backup Configuration**: Export integration before updates
-2. **Test in Sandbox**: Use test environment first
-3. **Verify Connections**: Test connections before running flows
-4. **Check Dependencies**: Review integration dependencies
+# Resolve errors (mark as handled)
+python3 scripts/celigo_api.py errors resolve \
+  --flow <flow_id> --import <import_id> --ids err1,err2
+```
 
-### Monitoring
-1. **Regular Job Review**: Check job success rates
-2. **Error Tracking**: Monitor and resolve errors promptly
-3. **Performance**: Track integration execution times
-4. **Data Quality**: Validate data transformations
+### Error Assignment & Tagging
+```bash
+# Assign errors to user
+python3 scripts/celigo_api.py errors assign \
+  --flow <flow_id> --import <import_id> \
+  --ids err1,err2 --email user@example.com
 
-### Troubleshooting
-1. **Check Logs**: Review job logs for detailed errors
-2. **Test Connections**: Verify API connectivity
-3. **Validate Mappings**: Ensure field mappings are correct
-4. **Review Permissions**: Check API token permissions
+# Tag errors
+python3 scripts/celigo_api.py errors tags \
+  --flow <flow_id> --import <import_id> \
+  --errors '[{"id":"err1","rdk":"key1"}]' --tag-ids tag1,tag2
+```
+
+### Integration Error Summary
+```bash
+# Get error summary for integration
+python3 scripts/celigo_api.py integrations errors <integration_id>
+
+# Assign integration errors
+python3 scripts/celigo_api.py errors integration-assign \
+  --integration <integration_id> --ids err1,err2 --email user@example.com
+```
+
+## Lookup Cache Operations
+
+```bash
+# List all caches
+python3 scripts/celigo_api.py caches list
+
+# Get cache metadata
+python3 scripts/celigo_api.py caches get <cache_id>
+
+# Get cache data
+python3 scripts/celigo_api.py caches data <cache_id>
+
+# Get specific keys
+python3 scripts/celigo_api.py caches data <cache_id> --keys key1,key2
+
+# Get keys with prefix
+python3 scripts/celigo_api.py caches data <cache_id> --starts-with "ABC"
+
+# Paginate cache data
+python3 scripts/celigo_api.py caches data <cache_id> --page-size 100
+```
+
+## Tag Management
+
+```bash
+# List tags
+python3 scripts/celigo_api.py tags list
+
+# Get tag
+python3 scripts/celigo_api.py tags get <tag_id>
+
+# Create tag
+python3 scripts/celigo_api.py tags create "my-tag-name"
+
+# Update tag
+python3 scripts/celigo_api.py tags update <tag_id> --name "new-name"
+
+# Delete tag
+python3 scripts/celigo_api.py tags delete <tag_id>
+```
+
+## User Management
+
+```bash
+# List users
+python3 scripts/celigo_api.py users list
+
+# Get user details
+python3 scripts/celigo_api.py users get <user_id>
+```
 
 ## Common Workflows
 
 ### Daily Health Check
-```
-1. List recent jobs (last 24h)
-2. Check for failed jobs
-3. Review error counts
-4. Test critical connections
-5. Report status summary
-```
+```bash
+# 1. Check for failed jobs in last 24 hours
+python3 scripts/celigo_api.py jobs list --status failed
 
-### Create New Integration
-```
-1. Create source connection
-2. Create destination connection
-3. Test both connections
-4. Create integration
-5. Create flows (import/export)
-6. Configure mappings
-7. Test with sample data
-8. Enable and monitor
+# 2. Get error summary for integration
+python3 scripts/celigo_api.py integrations errors <integration_id>
+
+# 3. List currently running jobs
+python3 scripts/celigo_api.py jobs list --status running
+
+# 4. Test critical connections
+python3 scripts/celigo_api.py connections test <connection_id>
 ```
 
 ### Troubleshoot Failed Jobs
+```bash
+# 1. Find failed jobs
+python3 scripts/celigo_api.py jobs list --status failed --flow <flow_id>
+
+# 2. Get job details
+python3 scripts/celigo_api.py jobs get <job_id>
+
+# 3. Get flow descendants to find import ID
+python3 scripts/celigo_api.py flows descendants <flow_id>
+
+# 4. List import errors
+python3 scripts/celigo_api.py errors list --flow <flow_id> --import <import_id>
+
+# 5. Get retry data for failed record
+python3 scripts/celigo_api.py errors retry-data \
+  --flow <flow_id> --import <import_id> --key <retry_data_key>
+
+# 6. Fix data and retry
+python3 scripts/celigo_api.py errors retry \
+  --flow <flow_id> --import <import_id> --keys <keys>
+
+# 7. Or resolve errors
+python3 scripts/celigo_api.py errors resolve \
+  --flow <flow_id> --import <import_id> --ids <error_ids>
 ```
-1. Get job details
-2. List job errors
-3. Analyze error patterns
-4. Fix root cause (mapping, connection, data)
-5. Retry failed jobs
-6. Verify success
-7. Clear resolved errors
+
+### Connection Health Check
+```bash
+# 1. List all connections
+python3 scripts/celigo_api.py connections list
+
+# 2. Test connection
+python3 scripts/celigo_api.py connections test <connection_id>
+
+# 3. If failed, get debug log
+python3 scripts/celigo_api.py connections debug-log <connection_id>
+
+# 4. Check what's affected
+python3 scripts/celigo_api.py connections dependencies <connection_id>
+```
+
+### Flow Execution & Monitoring
+```bash
+# 1. Run flow
+python3 scripts/celigo_api.py flows run <flow_id>
+# Output: {"_jobId": "job123", ...}
+
+# 2. Monitor job progress
+python3 scripts/celigo_api.py jobs get <job_id>
+
+# 3. Check for completion
+python3 scripts/celigo_api.py flows jobs-latest <flow_id>
+
+# 4. If errors, investigate
+python3 scripts/celigo_api.py errors list --flow <flow_id> --import <import_id>
 ```
 
 ## Error Codes Reference
 
-Common Celigo error patterns:
+| Code | Description | Solution |
+|------|-------------|----------|
+| 401 | Authentication failed | Check API token |
+| 403 | Permission denied | Verify token scope |
+| 404 | Resource not found | Check integration/flow ID |
+| 429 | Rate limit exceeded | Reduce API calls |
+| 500 | Server error | Retry after delay |
 
-- **401**: Authentication failed - check API token
-- **403**: Permission denied - verify token scope
-- **404**: Resource not found - check integration/flow ID
-- **429**: Rate limit exceeded - reduce API calls
-- **500**: Server error - retry after delay
+## Error Sources
+
+When filtering errors, use these source values:
+- `internal` - Platform error
+- `application` - Application-level error
+- `connection` - Auth/connection error
+- `mapping` - Field mapping error
+- `lookup` - Lookup operation failed
+- `transformation` - Data transformation error
+- `pre_map_hook`, `post_map_hook` - Hook errors
 
 ## Security Notes
 
-- Always use environment variables for tokens
-- Never log sensitive data
+- Always use config file for tokens (never hardcode)
+- Add `config/celigo_config.json` to `.gitignore`
 - Rotate API tokens regularly
 - Use role-based access in Celigo
 - Monitor API usage for anomalies

@@ -1,109 +1,138 @@
 ---
 name: celigo-setup
-description: Set up Celigo MCP server configuration and API authentication
+description: Set up Celigo CLI configuration and API authentication
 ---
 
-# Celigo MCP Setup
+# Celigo CLI Setup
 
-Configure the Celigo MCP server for integration platform access.
+Configure the Celigo Python CLI for integration platform access.
 
 ## Prerequisites
 
-- **Python 3.10+** installed
-- **UV package manager** (will be installed via uvx if needed)
+- **Python 3.8+** installed
+- **requests** library (`pip install requests`)
+- **tabulate** library (`pip install tabulate`) - for table output
 - **Celigo account** with API access
 - **Celigo API token** (from Celigo dashboard)
 
-## Configuration Steps
+## Quick Setup
 
 ### 1. Get Your Celigo API Token
 
-1. Log in to your Celigo dashboard
+1. Log in to your Celigo dashboard at https://integrator.io
 2. Navigate to **Settings → API Tokens**
 3. Click **Generate New Token**
 4. Copy the token (you won't see it again)
 5. Store it securely
 
-### 2. Configure Environment
+### 2. Create Configuration File
 
-Set the required environment variable:
+Create the config file at `plugins/celigo-integration/config/celigo_config.json`:
 
 ```bash
-# Add to your shell profile (~/.bashrc or ~/.zshrc)
-export CELIGO_API_TOKEN=your_token_here
+# Navigate to config directory
+cd plugins/celigo-integration/config
 
-# Or for temporary use
-CELIGO_API_TOKEN=your_token_here
+# Copy template
+cp celigo_config.template.json celigo_config.json
+
+# Edit with your API key
 ```
 
-### 3. Optional Configuration
+Configuration file format:
 
-Additional environment variables:
+```json
+{
+  "environments": {
+    "production": {
+      "api_key": "YOUR_PRODUCTION_API_KEY",
+      "base_url": "https://api.integrator.io/v1"
+    },
+    "sandbox": {
+      "api_key": "YOUR_SANDBOX_API_KEY",
+      "base_url": "https://api.integrator.io/v1"
+    }
+  },
+  "default_environment": "production"
+}
+```
+
+### 3. Install Dependencies
 
 ```bash
-# Custom API base URL (default: https://api.integrator.io/v1)
-export CELIGO_API_BASE_URL=https://api.integrator.io/v1
-
-# Request timeout in seconds (default: 30)
-export CELIGO_TIMEOUT=60
-
-# Logging level (default: INFO)
-export LOG_LEVEL=DEBUG
+pip install requests tabulate
 ```
 
 ### 4. Verify Installation
 
-Test the MCP server:
-
 ```bash
-# The MCP server will be auto-installed via uvx when first used
-# No manual installation needed
+# Test the CLI
+cd plugins/celigo-integration
+python3 scripts/celigo_api.py integrations list
+
+# Should display your integrations in table format
 ```
 
-## Available Tools (63 Total)
+## CLI Usage
 
-### Integrations (13 tools)
-- List, get, create, update, delete integrations
-- Clone integrations
-- Manage integration versions
-- Import/export integrations
+### Basic Commands
 
-### Connections (6 tools)
-- List, get, create, update, delete connections
-- Test connection health
+```bash
+# List all integrations
+python3 scripts/celigo_api.py integrations list
 
-### Flows (9 tools)
-- List, get, create, update, delete flows
-- Clone flows
-- Manage flow versions
-- Trigger flow runs
+# Get specific integration
+python3 scripts/celigo_api.py integrations get <integration_id>
 
-### Exports & Imports (8 tools)
-- Manage data exports and imports
-- Monitor export/import jobs
-- Configure schedules
+# Check for failed jobs
+python3 scripts/celigo_api.py jobs list --status failed
 
-### Jobs & Errors (17 tools)
-- List and monitor jobs
-- Retry failed jobs
-- Error tracking and debugging
-- Clear error logs
+# Run a flow
+python3 scripts/celigo_api.py flows run <flow_id>
+```
 
-### Lookup Caches (3 tools)
-- Manage lookup caches
-- Clear cache data
+### Output Formats
 
-### Tags (7 tools)
-- Tag management
-- Organize integrations with tags
+```bash
+# Human-readable table (default)
+python3 scripts/celigo_api.py integrations list
 
-### Users (2 tools)
-- List and manage users
+# JSON for scripting
+python3 scripts/celigo_api.py integrations list --format json
+
+# Pipe to jq for processing
+python3 scripts/celigo_api.py flows get <id> --format json | jq '.name'
+```
+
+### Environment Selection
+
+```bash
+# Use production (default)
+python3 scripts/celigo_api.py integrations list
+
+# Use sandbox
+python3 scripts/celigo_api.py integrations list --env sandbox
+```
+
+## Available Operations (63 Total)
+
+| Resource | Operations |
+|----------|------------|
+| integrations | list, get, flows, connections, exports, imports, users, template, dependencies, audit, errors |
+| flows | list, get, run, template, dependencies, descendants, jobs-latest, last-export-datetime, audit |
+| connections | list, get, test, debug-log, logs, dependencies |
+| exports | list, get, audit, dependencies |
+| imports | list, get, audit, dependencies |
+| jobs | list, get, cancel |
+| errors | list, resolved, retry-data, resolve, retry, assign, tags, integration-summary, integration-assign |
+| caches | list, get, data |
+| tags | list, get, create, update, delete |
+| users | list, get |
 
 ## Security Best Practices
 
-1. **Never Commit Tokens**: Add `.env` to `.gitignore`
-2. **Use Environment Variables**: Don't hardcode tokens in code
+1. **Never Commit Config**: Add `config/celigo_config.json` to `.gitignore`
+2. **Use Template**: Keep `celigo_config.template.json` without real keys
 3. **Rotate Tokens Regularly**: Generate new tokens periodically
 4. **Limit Token Scope**: Use role-based permissions in Celigo
 5. **Monitor API Usage**: Track token usage in Celigo dashboard
@@ -116,41 +145,50 @@ Error: 401 Unauthorized
 ```
 
 **Solution:**
-- Verify `CELIGO_API_TOKEN` is set correctly
+- Verify API key in `config/celigo_config.json`
 - Check token hasn't expired
 - Regenerate token in Celigo dashboard
 
-### UV/Python Not Found
+### Config File Not Found
 ```
-Error: uvx: command not found
+Error: Config file not found
 ```
 
 **Solution:**
 ```bash
-# Install UV package manager
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Create config from template
+cp config/celigo_config.template.json config/celigo_config.json
 
-# Or use pip
-pip install uv
+# Edit with your API key
+```
+
+### Missing Dependencies
+```
+ModuleNotFoundError: No module named 'requests'
+```
+
+**Solution:**
+```bash
+pip install requests tabulate
 ```
 
 ### Connection Timeout
 ```
-Error: Request timeout after 30s
+Error: Request timeout
 ```
 
 **Solution:**
-- Increase timeout: `export CELIGO_TIMEOUT=60`
 - Check network connectivity
-- Verify Celigo API status
+- Verify Celigo API status at https://status.celigo.com
+- Try again in a few moments
 
 ## Usage Examples
 
 **User:** "Set up Celigo integration"
-**Action:** Guide through token generation and environment configuration
+**Action:** Guide through config file creation and API key setup
 
 **User:** "List my Celigo integrations"
-**Action:** Use MCP tools to fetch and display integrations
+**Action:** Execute `python3 scripts/celigo_api.py integrations list`
 
-**User:** "Create a new connection to Salesforce"
-**Action:** Use connection creation tool with guided parameters
+**User:** "Check for failed jobs"
+**Action:** Execute `python3 scripts/celigo_api.py jobs list --status failed`

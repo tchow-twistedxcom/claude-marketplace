@@ -1,0 +1,9 @@
+{
+  "environments": {
+    "production": {
+      "api_key": "252f7167e58f4d369fffb658662bff43",
+      "base_url": "https://api.integrator.io/v1"
+    }
+  },
+  "default_environment": "production"
+}

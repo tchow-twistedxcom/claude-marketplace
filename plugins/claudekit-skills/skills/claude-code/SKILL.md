@@ -1,869 +1,274 @@
-# Claude Code Expert Skill
+---
+name: claude-code
+description: "Comprehensive guide for expert Claude Code usage including tool selection, agent orchestration, MCP integration, hooks, CLI mastery, and advanced workflows. This skill should be used when choosing between native tools (Read vs Bash, Edit vs MultiEdit), selecting specialized agents for tasks, configuring MCP servers, writing hooks, optimizing Claude Code performance, or debugging Claude Code issues."
+version: 2.0.0
+license: MIT
+---
 
-This skill provides comprehensive guidance on using Claude Code, Anthropic's agentic coding tool.
+# Claude Code Mastery
+
+Expert guidance for maximizing Claude Code effectiveness through intelligent tool selection, agent orchestration, and advanced feature utilization.
 
 ## When to Use This Skill
 
-Use this skill when users need help with:
-- Understanding Claude Code features and capabilities
-- Setting up and configuring Claude Code
-- Working with slash commands, hooks, and plugins
-- Using MCP servers and Agent Skills
-- Troubleshooting Claude Code issues
-- Understanding best practices for Claude Code usage
-- Deploying Claude Code in enterprise environments
-- Using Claude Code with IDEs (VS Code, JetBrains)
+This skill activates when:
+- Choosing between native tools (Read vs Bash, Edit vs MultiEdit, Grep vs Task)
+- Selecting specialized agents for tasks (which of 30+ subagent types)
+- Configuring MCP servers and integrations
+- Writing hooks for automation
+- Optimizing performance or debugging issues
+- Understanding CLI flags and advanced features
+
+## Quick Decision Frameworks
+
+### Which Native Tool?
+
+| Task | Best Tool | Avoid |
+|------|-----------|-------|
+| Read file content | `Read` | `Bash cat` |
+| Search file content | `Grep` | `Bash grep/rg` |
+| Find files by pattern | `Glob` | `Bash find` |
+| Edit 1-2 files | `Edit` | `MultiEdit` |
+| Edit 3+ files | `MultiEdit` | Sequential `Edit` |
+| Complex codebase search | `Task` (Explore agent) | Direct `Grep` |
+| System/git commands | `Bash` | - |
+| Fetch web content | `WebFetch` | `Bash curl` |
+| Search the web | `WebSearch` | - |
+| Clarify with user | `AskUserQuestion` | Assumptions |
+| Track progress | `TodoWrite` | - |
+| Plan complex work | `EnterPlanMode` | Jumping to code |
+
+**Key Principle**: Use specialized tools over Bash equivalents for better integration and output handling.
+
+### Which Agent? (Quick Reference)
+
+**For Exploration**:
+- `Explore` - Codebase discovery, file patterns, understanding structure
+- `general-purpose` - Complex multi-step research
+- `claude-code-guide` - Questions about Claude Code itself
+
+**For Implementation**:
+- `Plan` - Design implementation strategy before coding
+- `feature-dev:code-architect` - Feature blueprints and design
+- `tc-implementation-agent` - Production-ready feature development
+
+**For Quality**:
+- `feature-dev:code-reviewer` - Code review and quality check
+- `security-engineer` - Vulnerability assessment
+- `performance-engineer` - Optimization analysis
+
+**For Debugging**:
+- `root-cause-analyst` - Complex bug investigation
+- `refactoring-expert` - Code improvement and cleanup
+
+See [references/agent-catalog.md](references/agent-catalog.md) for all 30+ agents organized by use case.
+
+### Which MCP Server?
+
+| Need | MCP Server | Transport |
+|------|------------|-----------|
+| Library documentation | Context7 | stdio |
+| Complex multi-step reasoning | Sequential | stdio |
+| UI component generation | Magic | stdio |
+| Browser automation/testing | Playwright | stdio |
+| Live browser inspection | Chrome DevTools | stdio |
+| Semantic code operations | Serena | stdio |
+| Bulk pattern-based edits | Morphllm | stdio |
+| Cloud services/OAuth | HTTP servers | http |
+
+See [references/mcp-guide.md](references/mcp-guide.md) for configuration examples.
 
 ## Core Concepts
 
-### What is Claude Code?
+### Architecture
 
-Claude Code is Anthropic's agentic coding tool that lives in your terminal and helps you turn ideas into code faster. Key features include:
+Claude Code operates as an **agentic coding tool** with:
+- **Terminal-first execution** - Direct file edits, command execution, commits
+- **Subagents** - Specialized AI agents for specific task types
+- **Plugins** - Custom commands, skills, hooks, MCP servers
+- **MCP Integration** - Connect external tools via Model Context Protocol
 
-- **Agentic Capabilities**: Claude autonomously plans, executes, and validates tasks
-- **Terminal Integration**: Works directly in your command line
-- **IDE Support**: Extensions for VS Code and JetBrains IDEs
-- **Extensibility**: Plugins, skills, slash commands, and MCP servers
-- **Enterprise Ready**: SSO, sandboxing, monitoring, and compliance features
+### Tool Hierarchy
 
-### Architecture Components
+Prefer tools in this order:
+1. **Specialized tools** (Read, Edit, Grep, Glob) - Best integration
+2. **Task agents** - Complex multi-step operations
+3. **MCP tools** - External service integration
+4. **Bash** - System commands, git operations
 
-1. **Subagents**: Specialized AI agents for specific tasks
-   - `planner`: Research and create implementation plans
-   - `code-reviewer`: Review code quality and security
-   - `tester`: Run tests and validate implementations
-   - `debugger`: Investigate and diagnose issues
-   - `docs-manager`: Manage technical documentation
-   - `ui-ux-designer`: Design and implement UI/UX
-   - `database-admin`: Database optimization and management
-   - And many more specialized agents
+### Agent Invocation
 
-2. **Agent Skills**: Modular capabilities that extend functionality
-   - Package instructions, metadata, and resources
-   - Automatically discovered and used by Claude
-   - Shareable across projects and teams
+To use a specialized agent:
+```
+Task tool with subagent_type parameter
+```
 
-3. **Slash Commands**: User-defined operations that expand to prompts
-   - Located in `.claude/commands/`
-   - Execute with `/command-name`
-   - Can accept arguments
+Agents run autonomously and return results. Launch multiple agents in parallel for independent operations.
 
-4. **Hooks**: Shell commands that execute in response to events
-   - Pre/post tool execution hooks
-   - User prompt submit hooks
-   - Customizable validation and automation
+## CLI Essentials
 
-5. **MCP Servers**: Model Context Protocol integrations
-   - Connect external tools and services
-   - Provide resources, tools, and prompts
-   - Remote and local server support
+### Core Commands
 
-## Installation & Setup
-
-### Prerequisites
-- macOS, Linux, or Windows (WSL2)
-- Node.js 18+ or Python 3.10+
-- API key from Anthropic Console
-
-### Installation
 ```bash
-# Install via npm (recommended)
-npm install -g @anthropic-ai/claude-code
-
-# Or via pip
-pip install claude-code
+claude                          # Interactive REPL
+claude "query"                  # Start with prompt
+claude -p "query"               # Print mode (non-interactive)
+claude -c                       # Continue last conversation
+claude -r "session" "query"     # Resume specific session
 ```
 
-### Authentication
-```bash
-# Login with API key
-claude login
+### Essential Flags
 
-# Or set environment variable
-export ANTHROPIC_API_KEY=your_api_key
-```
+| Flag | Purpose |
+|------|---------|
+| `-p, --print` | Non-interactive output |
+| `-c, --continue` | Resume last conversation |
+| `--model <name>` | Select model (sonnet/opus/haiku) |
+| `--agent <name>` | Use specific agent |
+| `--tools "..."` | Restrict available tools |
+| `--max-turns <n>` | Limit agentic turns |
+| `--verbose` | Detailed output |
+| `--debug` | Debug logging |
 
-### First Run
-```bash
-# Start interactive session
-claude
-
-# Run with specific task
-claude "implement user authentication"
-
-# Use in specific directory
-cd /path/to/project
-claude
-```
-
-## Common Workflows
-
-### 1. Feature Implementation
-```bash
-# Use the cook command for feature work
-/cook implement user authentication with JWT
-
-# Or start with planning
-/plan implement payment integration with Stripe
-```
-
-### 2. Bug Fixing
-```bash
-# Quick fixes
-/fix:fast the login button is not working
-
-# Complex debugging
-/debug the API returns 500 errors intermittently
-
-# Fix type errors
-/fix:types
-```
-
-### 3. Code Review & Testing
-```bash
-# Review recent changes
-claude "review my latest commit"
-
-# Run tests
-/test
-
-# Fix test failures
-/fix:test the user service tests are failing
-```
-
-### 4. Documentation
-```bash
-# Create initial documentation
-/docs:init
-
-# Update existing docs
-/docs:update
-
-# Summarize changes
-/docs:summarize
-```
-
-### 5. Git Operations
-```bash
-# Commit changes
-/git:cm
-
-# Commit and push
-/git:cp
-
-# Create pull request
-/git:pr feature-branch main
-```
-
-## Slash Commands Reference
-
-### Development Commands
-- `/cook [task]`: Implement features
-- `/plan [task]`: Research and create implementation plans
-- `/debug [issue]`: Debug technical issues
-- `/test`: Run test suite
-- `/refactor`: Improve code quality
-
-### Fix Commands
-- `/fix:fast [issue]`: Quick fixes
-- `/fix:hard [issue]`: Complex issues with planning
-- `/fix:types`: Fix TypeScript errors
-- `/fix:test [issue]`: Fix test failures
-- `/fix:ui [issue]`: Fix UI issues
-- `/fix:ci [url]`: Fix CI/CD issues
-- `/fix:logs [issue]`: Analyze logs and fix
-
-### Documentation Commands
-- `/docs:init`: Create initial documentation
-- `/docs:update`: Update existing documentation
-- `/docs:summarize`: Summarize codebase
-
-### Git Commands
-- `/git:cm`: Stage and commit
-- `/git:cp`: Stage, commit, and push
-- `/git:pr [branch] [base]`: Create pull request
-
-### Planning Commands
-- `/plan:two [task]`: Create plan with 2 approaches
-- `/plan:ci [url]`: Plan CI/CD fixes
-- `/plan:cro [issue]`: Create CRO optimization plan
-
-### Content Commands
-- `/content:fast [request]`: Quick copy writing
-- `/content:good [request]`: High-quality copy
-- `/content:enhance [issue]`: Enhance existing content
-- `/content:cro [issue]`: Conversion rate optimization
-
-### Design Commands
-- `/design:fast [task]`: Quick design
-- `/design:good [task]`: High-quality design
-- `/design:3d [task]`: 3D designs with Three.js
-- `/design:screenshot [path]`: Design from screenshot
-- `/design:video [path]`: Design from video
-
-### Deployment Commands
-- `/deploy`: Deploy using `dx up`
-- `/deploy-check`: Check deployment readiness
-
-### Other Commands
-- `/brainstorm [question]`: Brainstorm features
-- `/ask [question]`: Answer technical questions
-- `/scout [prompt]`: Scout directories
-- `/watzup`: Review recent changes
-- `/bootstrap [requirements]`: Bootstrap new project
-- `/journal`: Write journal entries
-
-## Agent Skills
-
-### Creating Skills
-
-Skills are located in `.claude/skills/` and consist of:
-
-1. **skill.md**: Main skill instructions
-2. **skill.json**: Metadata and configuration
-
-Example skill.json:
-```json
-{
-  "name": "my-skill",
-  "description": "Brief description of when to use this skill",
-  "version": "1.0.0",
-  "author": "Your Name"
-}
-```
-
-Example skill.md structure:
-```markdown
-# Skill Name
-
-Description of what this skill does.
-
-## When to Use This Skill
-
-Specific scenarios when Claude should activate this skill.
-
-## Instructions
-
-Step-by-step instructions for Claude to follow.
-
-## Examples
-
-Concrete examples of skill usage.
-```
-
-### Best Practices for Skills
-
-1. **Clear Activation Criteria**: Define exactly when the skill should be used
-2. **Concise Instructions**: Focus on essential information
-3. **Actionable Guidance**: Provide clear steps Claude can follow
-4. **Examples**: Include concrete examples of expected inputs/outputs
-5. **Scope Limitation**: Keep skills focused on specific domains
-
-### Using Skills via API
-
-Skills can be used with the Claude API:
-
-```typescript
-import Anthropic from '@anthropic-ai/sdk';
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const response = await client.messages.create({
-  model: 'claude-sonnet-4-5-20250929',
-  max_tokens: 4096,
-  skills: [
-    {
-      type: 'custom',
-      custom: {
-        name: 'document-creator',
-        description: 'Creates professional documents',
-        instructions: 'Follow corporate style guide...'
-      }
-    }
-  ],
-  messages: [{ role: 'user', content: 'Create a project proposal' }]
-});
-```
-
-## MCP Server Integration
-
-### What is MCP?
-
-Model Context Protocol (MCP) allows Claude Code to connect to external tools and services.
-
-### Configuration
-
-MCP servers are configured in `.claude/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/files"]
-    },
-    "github": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": {
-        "GITHUB_TOKEN": "your_github_token"
-      }
-    }
-  }
-}
-```
-
-### Common MCP Servers
-
-- **@modelcontextprotocol/server-filesystem**: File system access
-- **@modelcontextprotocol/server-github**: GitHub integration
-- **@modelcontextprotocol/server-postgres**: PostgreSQL database
-- **@modelcontextprotocol/server-brave-search**: Web search
-- **@modelcontextprotocol/server-puppeteer**: Browser automation
-
-### Remote MCP Servers
-
-Connect to MCP servers over HTTP/SSE:
-
-```json
-{
-  "mcpServers": {
-    "remote-service": {
-      "url": "https://api.example.com/mcp",
-      "headers": {
-        "Authorization": "Bearer token"
-      }
-    }
-  }
-}
-```
+See [references/cli-reference.md](references/cli-reference.md) for all 30+ flags.
 
 ## Hooks System
 
+Hooks automate responses to Claude Code events.
+
+### Event Types
+
+| Event | Purpose | Has Matcher |
+|-------|---------|-------------|
+| `PreToolUse` | Before tool execution | Yes |
+| `PostToolUse` | After tool completes | Yes |
+| `PermissionRequest` | Permission dialog shown | Yes |
+| `UserPromptSubmit` | User submits prompt | No |
+| `Stop` | Main agent finishes | No |
+| `SubagentStop` | Subagent finishes | No |
+| `SessionStart` | Session begins | Yes |
+| `SessionEnd` | Session ends | No |
+
 ### Hook Types
 
-1. **Pre-tool hooks**: Execute before tool calls
-2. **Post-tool hooks**: Execute after tool calls
-3. **User prompt submit hooks**: Execute when user submits prompts
+- **Command hooks** (`type: "command"`) - Execute bash scripts
+- **Prompt hooks** (`type: "prompt"`) - LLM-based decisions (Haiku)
 
-### Configuration
-
-Hooks are configured in `.claude/hooks.json`:
+### Basic Example
 
 ```json
 {
   "hooks": {
-    "pre-tool": {
-      "bash": "echo 'Running bash command: $TOOL_ARGS'"
-    },
-    "post-tool": {
-      "write": "./scripts/format-code.sh"
-    },
-    "user-prompt-submit": "./scripts/validate-request.sh"
+    "PostToolUse": [{
+      "matcher": "Write|Edit",
+      "hooks": [{
+        "type": "command",
+        "command": "npx prettier --write \"$TOOL_INPUT_FILE_PATH\"",
+        "timeout": 30
+      }]
+    }]
   }
 }
 ```
 
-### Hook Environment Variables
+See [references/hooks-reference.md](references/hooks-reference.md) for complete documentation.
 
-Available in hook scripts:
-- `$TOOL_NAME`: Name of the tool being called
-- `$TOOL_ARGS`: JSON string of tool arguments
-- `$TOOL_RESULT`: Tool execution result (post-tool only)
-- `$USER_PROMPT`: User's prompt text (user-prompt-submit only)
+## Common Workflows
 
-### Use Cases
+### Debugging Pattern
 
-- Code formatting after file writes
-- Security validation before bash execution
-- Cost tracking and budgeting
-- Custom logging and monitoring
-- Integration with external systems
+1. **Understand** - Use `Explore` agent or `Read` to understand context
+2. **Investigate** - Use `root-cause-analyst` agent for complex bugs
+3. **Fix** - Use `Edit` for targeted changes
+4. **Verify** - Use `Bash` to run tests
 
-## Plugins System
+### Implementation Pattern
 
-### Plugin Structure
+1. **Plan** - Use `EnterPlanMode` for non-trivial features
+2. **Design** - Use `Plan` agent for architecture
+3. **Implement** - Use `Edit`/`MultiEdit` for code
+4. **Review** - Use `feature-dev:code-reviewer` agent
+5. **Test** - Use `Bash` for test execution
 
-Plugins are packaged collections of extensions:
+### Research Pattern
 
-```
-my-plugin/
-├── plugin.json          # Plugin metadata
-├── commands/            # Slash commands
-├── skills/             # Agent skills
-├── hooks/              # Hook scripts
-├── mcp/                # MCP server configurations
-└── README.md           # Documentation
-```
+1. **Explore** - Use `Explore` agent with specific focus
+2. **Read** - Use `Read` for identified files
+3. **Synthesize** - Combine findings
+4. **Report** - Present to user
 
-### plugin.json Example
-
-```json
-{
-  "name": "my-plugin",
-  "version": "1.0.0",
-  "description": "Plugin description",
-  "author": "Your Name",
-  "homepage": "https://github.com/user/plugin",
-  "commands": ["commands/*.md"],
-  "skills": ["skills/*/"],
-  "hooks": "hooks/hooks.json",
-  "mcpServers": "mcp/mcp.json"
-}
-```
-
-### Installing Plugins
-
-```bash
-# Install from GitHub
-claude plugin install gh:username/repo
-
-# Install from local path
-claude plugin install ./path/to/plugin
-
-# Install from npm
-claude plugin install npm:package-name
-
-# List installed plugins
-claude plugin list
-
-# Uninstall plugin
-claude plugin uninstall plugin-name
-```
-
-### Creating Plugin Marketplaces
-
-Organizations can create private plugin marketplaces:
-
-```json
-{
-  "marketplaces": [
-    {
-      "name": "company-internal",
-      "url": "https://plugins.company.com/catalog.json",
-      "auth": {
-        "type": "bearer",
-        "token": "${COMPANY_PLUGIN_TOKEN}"
-      }
-    }
-  ]
-}
-```
-
-## Configuration & Settings
-
-### Settings Hierarchy
-
-1. Global settings: `~/.claude/settings.json`
-2. Project settings: `.claude/settings.json`
-3. Environment variables
-4. Command-line flags
-
-### Key Settings
-
-```json
-{
-  "model": "claude-sonnet-4-5-20250929",
-  "maxTokens": 8192,
-  "temperature": 1.0,
-  "thinking": {
-    "enabled": true,
-    "budget": 10000
-  },
-  "sandboxing": {
-    "enabled": true,
-    "allowedPaths": ["/workspace"],
-    "networkAccess": "restricted"
-  },
-  "outputStyle": "default",
-  "memory": {
-    "enabled": true,
-    "location": "project"
-  }
-}
-```
-
-### Model Configuration
-
-Model aliases available:
-- `opusplan`: Claude Opus with extended thinking for planning
-- `sonnet`: Latest Claude Sonnet
-- `haiku`: Claude Haiku for fast responses
-
-### Output Styles
-
-Customize Claude's behavior for different use cases:
-
-```bash
-# List available output styles
-ls ~/.claude/output-styles/
-
-# Use specific output style
-claude --output-style technical-writer
-
-# Create custom output style
-cat > ~/.claude/output-styles/my-style.md <<EOF
-You are a [role]. Follow these guidelines:
-- [Guideline 1]
-- [Guideline 2]
-EOF
-```
-
-## Enterprise Features
-
-### Identity & Access Management
-
-**SSO Integration**: SAML 2.0 and OAuth 2.0 support
-**RBAC**: Role-based access control
-**User Management**: Centralized user provisioning
-
-### Security & Compliance
-
-**Sandboxing**: Filesystem and network isolation
-**Audit Logging**: Comprehensive activity logs
-**Data Residency**: Region-specific deployment options
-**Compliance**: SOC 2, HIPAA, GDPR compliant
-
-### Deployment Options
-
-**Amazon Bedrock**: Deploy via AWS Bedrock
-**Google Vertex AI**: Deploy via GCP Vertex AI
-**Self-hosted**: On-premises deployment with Docker/Kubernetes
-**LLM Gateway**: Integration with LiteLLM and other gateways
-
-### Monitoring & Analytics
-
-**OpenTelemetry**: Built-in telemetry support
-**Usage Analytics**: Track team productivity metrics
-**Cost Management**: Monitor and control API costs
-**Custom Dashboards**: Build org-specific dashboards
-
-### Network Configuration
-
-**Proxy Support**: HTTP/HTTPS proxy configuration
-**Custom CA**: Trust custom certificate authorities
-**mTLS**: Mutual TLS authentication
-**IP Allowlisting**: Restrict access by IP
-
-## IDE Integration
-
-### Visual Studio Code
-
-Install the official extension:
-1. Open VS Code
-2. Search for "Claude Code" in extensions
-3. Install and authenticate
-
-Features:
-- Inline chat
-- Code actions
-- Diff view
-- Terminal integration
-
-### JetBrains IDEs
-
-Supported IDEs:
-- IntelliJ IDEA
-- PyCharm
-- WebStorm
-- PhpStorm
-- GoLand
-- RubyMine
-
-Installation:
-1. Open Settings → Plugins
-2. Search for "Claude Code"
-3. Install and authenticate
-
-## CI/CD Integration
-
-### GitHub Actions
-
-Example workflow:
-
-```yaml
-name: Claude Code CI
-on: [push, pull_request]
-
-jobs:
-  claude-review:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: anthropic/claude-code-action@v1
-        with:
-          command: '/fix:types && /test'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-```
-
-### GitLab CI/CD
-
-Example pipeline:
-
-```yaml
-claude-review:
-  image: node:18
-  script:
-    - npm install -g @anthropic-ai/claude-code
-    - claude login --api-key $ANTHROPIC_API_KEY
-    - claude '/fix:types && /test'
-  only:
-    - merge_requests
-```
+See [examples/](examples/) for detailed workflow walkthroughs.
 
 ## Advanced Features
 
 ### Extended Thinking
 
-Enable deep reasoning for complex problems:
+Enable for complex problems requiring deep reasoning:
+- **10k tokens** - Moderate complexity
+- **20k tokens** - High complexity
+- **32k tokens** - Critical/architectural decisions
+
+### Plan Mode
+
+Use `EnterPlanMode` for:
+- Multi-file implementations
+- Architectural decisions
+- Unclear requirements
+- Multiple valid approaches
+
+### Parallel Execution
+
+Launch multiple independent operations simultaneously:
+- Multiple `Read` calls for different files
+- Multiple `Task` agents for independent research
+- Multiple `Grep` searches
+
+### Session Management
 
 ```bash
-# Enable extended thinking globally
-claude config set thinking.enabled true
-
-# Set thinking budget
-claude config set thinking.budget 15000
-
-# Use in API
-const response = await client.messages.create({
-  model: 'claude-sonnet-4-5-20250929',
-  thinking: {
-    type: 'enabled',
-    budget_tokens: 10000
-  },
-  messages: [...]
-});
-```
-
-### Prompt Caching
-
-Reduce costs by caching repeated context:
-
-```typescript
-const response = await client.messages.create({
-  model: 'claude-sonnet-4-5-20250929',
-  system: [
-    {
-      type: 'text',
-      text: 'You are a coding assistant...',
-      cache_control: { type: 'ephemeral' }
-    }
-  ],
-  messages: [...]
-});
-```
-
-### Checkpointing
-
-Automatically track and rewind changes:
-
-```bash
-# Enable checkpointing
-claude config set checkpointing.enabled true
-
-# View checkpoints
-claude checkpoint list
-
-# Rewind to checkpoint
-claude checkpoint restore <checkpoint-id>
-
-# Create manual checkpoint
-claude checkpoint create "before refactoring"
-```
-
-### Memory Management
-
-Control how Claude remembers context:
-
-```bash
-# Enable memory
-claude config set memory.enabled true
-
-# Set memory location (global/project/none)
-claude config set memory.location project
-
-# View stored memories
-claude memory list
-
-# Clear memories
-claude memory clear
+claude -c                    # Continue last session
+claude -r "name" "query"     # Resume named session
+claude --fork-session        # Branch from existing
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**Authentication Failures**
-```bash
-# Re-login
-claude logout
-claude login
-
-# Verify API key
-echo $ANTHROPIC_API_KEY
-```
-
-**MCP Server Connection Issues**
-```bash
-# Test MCP server
-npx @modelcontextprotocol/inspector
-
-# Check MCP configuration
-cat .claude/mcp.json
-```
-
-**Performance Issues**
-- Reduce context window size
-- Enable prompt caching
-- Use appropriate model (Haiku for speed)
-- Clear memory cache
-
-**Permission Errors**
-- Check file permissions
-- Verify sandboxing settings
-- Review hook configurations
+| Issue | Solution |
+|-------|----------|
+| Tool not working | Check `--tools` flag, verify permissions |
+| MCP connection failed | Run `/mcp`, check config, verify server running |
+| Agent not triggering | Verify subagent_type spelling, check description match |
+| Hook not executing | Run `/hooks`, check JSON syntax, verify matcher |
+| Performance slow | Use appropriate model (haiku for simple), enable caching |
 
 ### Debug Mode
 
-Enable verbose logging:
-
 ```bash
-# Enable debug logging
-export CLAUDE_DEBUG=1
-claude
-
-# Or use debug flag
-claude --debug "implement feature"
+claude --debug              # Enable debug logging
+claude --debug "api,mcp"    # Specific categories
+claude --verbose            # Detailed turn output
 ```
 
-### Getting Help
+## Reference Index
 
-- Documentation: https://docs.claude.com/claude-code
-- GitHub Issues: https://github.com/anthropics/claude-code/issues
-- Support: support.claude.com
-- Community: discord.gg/anthropic
+| Document | Content |
+|----------|---------|
+| [references/tool-selection.md](references/tool-selection.md) | Complete tool decision matrix |
+| [references/agent-catalog.md](references/agent-catalog.md) | All 30+ agents by use case |
+| [references/mcp-guide.md](references/mcp-guide.md) | MCP configuration and selection |
+| [references/workflows.md](references/workflows.md) | Detailed workflow patterns |
+| [references/enterprise.md](references/enterprise.md) | Enterprise deployment guide |
 
-## Best Practices
+## Example Walkthroughs
 
-### 1. Project Organization
-- Keep `.claude/` directory in version control
-- Document custom commands and skills
-- Share plugin configurations with team
-- Use project-specific settings
+| Example | Description |
+|---------|-------------|
+| [examples/debugging-workflow.md](examples/debugging-workflow.md) | Complete debugging session |
+| [examples/feature-implementation.md](examples/feature-implementation.md) | End-to-end feature build |
+| [examples/research-exploration.md](examples/research-exploration.md) | Codebase exploration |
 
-### 2. Security
-- Never commit API keys
-- Use environment variables for secrets
-- Enable sandboxing in production
-- Review hook scripts before execution
-- Audit plugin sources
+---
 
-### 3. Performance Optimization
-- Use prompt caching for repeated context
-- Choose appropriate model for task
-- Implement rate limiting in hooks
-- Monitor token usage
-- Use batch processing for bulk operations
-
-### 4. Team Collaboration
-- Standardize slash commands across projects
-- Share useful skills via plugin marketplace
-- Document custom configurations
-- Set up CI/CD integration
-- Use consistent memory settings
-
-### 5. Cost Management
-- Set budget limits in hooks
-- Monitor usage via analytics API
-- Use Haiku for simple tasks
-- Implement caching strategies
-- Track per-project costs
-
-## API Reference
-
-### Admin API
-
-**Get Usage Report**
-```bash
-GET /v1/admin/claude-code/usage
-```
-
-**Get Cost Report**
-```bash
-GET /v1/admin/usage/cost
-```
-
-**List Users**
-```bash
-GET /v1/admin/users
-```
-
-### Messages API
-
-**Create Message**
-```bash
-POST /v1/messages
-```
-
-**Stream Message**
-```bash
-POST /v1/messages (with stream=true)
-```
-
-**Count Tokens**
-```bash
-POST /v1/messages/count_tokens
-```
-
-### Files API
-
-**Upload File**
-```bash
-POST /v1/files
-```
-
-**List Files**
-```bash
-GET /v1/files
-```
-
-**Delete File**
-```bash
-DELETE /v1/files/:file_id
-```
-
-### Models API
-
-**List Models**
-```bash
-GET /v1/models
-```
-
-**Get Model**
-```bash
-GET /v1/models/:model_id
-```
-
-### Skills API
-
-**Create Skill**
-```bash
-POST /v1/skills
-```
-
-**List Skills**
-```bash
-GET /v1/skills
-```
-
-**Update Skill**
-```bash
-PATCH /v1/skills/:skill_id
-```
-
-## Conclusion
-
-Claude Code is a powerful agentic coding tool that can significantly accelerate development workflows. By leveraging its extensibility through skills, plugins, MCP servers, and hooks, you can create a highly customized development environment tailored to your team's needs.
-
-Start simple with basic commands, then gradually adopt advanced features like custom skills, MCP integrations, and enterprise deployment options as your needs grow.
+*Last updated: 2025-12-18 | Source: code.claude.com/docs*

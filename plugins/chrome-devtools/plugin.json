@@ -9,14 +9,21 @@
   "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "license": "MIT",
-  "keywords": ["browser", "devtools", "testing", "automation", "chrome", "e2e"],
+  "keywords": [
+    "browser",
+    "devtools",
+    "testing",
+    "automation",
+    "chrome",
+    "e2e"
+  ],
   "category": "testing",
   "strict": false,
   "commands": [
     "./commands/browser-test.md"
   ],
-  "mcpServers": "./mcp-configs/chrome-devtools.json",
   "skills": [
     "./skills/e2e-testing-patterns"
-  ]
+  ],
+  "mcpServers": "./mcp-configs/chrome-devtools.json"
 }

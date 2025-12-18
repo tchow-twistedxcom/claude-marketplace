@@ -33,28 +33,19 @@
     {
       "name": "celigo-integration",
       "source": "./plugins/celigo-integration",
-      "description": "Celigo integration platform automation with 63 MCP tools for managing integrations, flows, connections, jobs, and errors",
-      "version": "1.0.0",
+      "description": "Celigo iPaaS integration via Python CLI and skills for managing integrations, flows, connections, jobs, and errors",
+      "version": "2.0.0",
       "category": "integration",
       "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "iPaaS"],
       "strict": false
     },
     {
-      "name": "personal-automation",
-      "source": "./plugins/personal-automation",
-      "description": "Custom infrastructure workflows, agents, and automation patterns (template for future additions)",
-      "version": "1.0.0",
-      "category": "automation",
-      "keywords": ["infrastructure", "automation", "custom"],
-      "strict": false
-    },
-    {
       "name": "claudekit-skills",
       "source": "./plugins/claudekit-skills",
-      "description": "Curated collection of 20+ specialized skills from ClaudeKit community: Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, problem-solving, debugging, and more",
-      "version": "1.0.0",
+      "description": "Curated collection of 20+ specialized skills from ClaudeKit community: Claude Code mastery (v2.0 with 30+ agents, tool selection, MCP guide), Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, problem-solving, debugging, and more",
+      "version": "1.1.0",
       "category": "skills",
-      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "design"],
+      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "design", "claude-code", "agents"],
       "strict": false
     },
     {

@@ -1,0 +1,12 @@
+{
+  "name": "plytix-skills",
+  "description": "Plytix PIM operations via REST API. Includes product management, digital asset handling, category organization, variant creation, and attribute schema management with multi-account support (production/staging)",
+  "version": "1.0.0",
+  "author": "tchow",
+  "license": "MIT",
+  "skills": [
+    "skills/plytix-api"
+  ],
+  "commands": [],
+  "mcpServers": []
+}

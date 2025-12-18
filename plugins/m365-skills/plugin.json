@@ -1,0 +1,28 @@
+{
+  "name": "m365-skills",
+  "version": "1.0.0",
+  "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, and directory management.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": [
+    "microsoft-365",
+    "m365",
+    "azure-ad",
+    "entra-id",
+    "graph-api",
+    "users",
+    "groups",
+    "devices",
+    "directory"
+  ],
+  "skills": [
+    "./skills/azure-ad"
+  ],
+  "commands": [],
+  "mcpServers": []
+}

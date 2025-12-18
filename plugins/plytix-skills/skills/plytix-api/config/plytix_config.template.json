@@ -1,0 +1,31 @@
+{
+  "accounts": {
+    "production": {
+      "name": "Production",
+      "api_url": "https://pim.plytix.com/api/v1",
+      "auth_url": "https://auth.plytix.com/auth/api/get-token",
+      "api_key": "YOUR_API_KEY",
+      "api_password": "YOUR_API_PASSWORD"
+    },
+    "staging": {
+      "name": "Staging",
+      "api_url": "https://pim.plytix.com/api/v1",
+      "auth_url": "https://auth.plytix.com/auth/api/get-token",
+      "api_key": "YOUR_STAGING_API_KEY",
+      "api_password": "YOUR_STAGING_API_PASSWORD"
+    }
+  },
+  "defaults": {
+    "account": "production",
+    "timeout": 30,
+    "max_retries": 3,
+    "retry_backoff": 1.0
+  },
+  "aliases": {
+    "prod": "production",
+    "production": "production",
+    "stg": "staging",
+    "stage": "staging",
+    "staging": "staging"
+  }
+}

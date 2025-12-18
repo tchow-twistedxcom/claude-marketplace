@@ -1,0 +1,11 @@
+{
+  "name": "ninjaone-skills",
+  "version": "1.0.0",
+  "description": "NinjaOne RMM API integration for device monitoring, management, ticketing, and reporting",
+  "skills": [
+    "./skills/ninjaone-api"
+  ],
+  "commands": [],
+  "mcpServers": [],
+  "globalInstructions": []
+}

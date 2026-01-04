@@ -204,7 +204,70 @@ git config --global git_protocol https 2>/dev/null || true
 git config --global url."https://github.com/".insteadOf git@github.com: 2>/dev/null || true
 echo -e "${GREEN}✅ Git protocol set to HTTPS${NC}"
 
-# 9. GitHub CLI authentication
+# 9. Install agent-deck
+echo ""
+echo "🎯 Installing agent-deck..."
+
+if [ -d "agent-deck" ]; then
+    # Install Go if not present (required for agent-deck)
+    if ! command -v go >/dev/null 2>&1; then
+        echo -e "  ${YELLOW}⚠️${NC} Go not installed - attempting to install..."
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Download and install latest Go
+            GO_VERSION="1.24.0"
+            wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go.tar.gz
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+            rm /tmp/go.tar.gz
+
+            # Add Go to PATH
+            if ! grep -q "/usr/local/go/bin" ~/.bashrc; then
+                echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
+            fi
+            export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+            echo -e "  ${GREEN}✅${NC} Installed Go ${GO_VERSION}"
+        else
+            echo -e "  ${RED}❌${NC} Please install Go manually: https://go.dev/dl/"
+            echo -e "  ${YELLOW}⚠️${NC} Skipping agent-deck installation"
+            SKIP_AGENT_DECK=1
+        fi
+    fi
+
+    if [ -z "$SKIP_AGENT_DECK" ]; then
+        # Copy agent-deck to home directory
+        rsync -av --exclude='.git' agent-deck/ ~/agent-deck/
+        echo -e "  ${GREEN}✅${NC} Copied agent-deck to ~/agent-deck"
+
+        # Build agent-deck
+        cd ~/agent-deck
+        if go build -o agent-deck .; then
+            echo -e "  ${GREEN}✅${NC} Built agent-deck binary"
+
+            # Add to PATH if not already there
+            if ! grep -q "$HOME/agent-deck" ~/.bashrc; then
+                echo 'export PATH=$PATH:$HOME/agent-deck' >> ~/.bashrc
+            fi
+            export PATH=$PATH:$HOME/agent-deck
+
+            # Initialize git if needed (for future updates)
+            if [ ! -d .git ]; then
+                git init
+                git remote add origin https://github.com/tchow-twistedxcom/agent-deck.git 2>/dev/null || true
+                echo -e "  ${GREEN}✅${NC} Initialized git repository"
+            fi
+
+            cd - > /dev/null
+            echo -e "  ${GREEN}✅${NC} agent-deck installed successfully"
+            echo -e "  ${YELLOW}ℹ️${NC}  Run 'agent-deck' to start the AI agent manager"
+        else
+            echo -e "  ${RED}❌${NC} Failed to build agent-deck"
+        fi
+    fi
+else
+    echo -e "  ${YELLOW}⚠️${NC} agent-deck directory not found in package"
+fi
+
+# 10. GitHub CLI authentication
 echo ""
 echo "🔑 GitHub CLI authentication..."
 
@@ -219,7 +282,7 @@ else
     echo -e "${YELLOW}⚠️ GitHub CLI not installed, skipping authentication${NC}"
 fi
 
-# 10. Install @owloops/claude-powerline if using it
+# 11. Install @owloops/claude-powerline if using it
 echo ""
 echo "📦 Installing statusline package..."
 
@@ -230,7 +293,7 @@ else
     echo -e "${YELLOW}⚠️ Statusline package not needed for current configuration${NC}"
 fi
 
-# 11. Validate installation
+# 12. Validate installation
 echo ""
 echo "✅ Running validation..."
 
@@ -241,7 +304,7 @@ else
     echo -e "${YELLOW}⚠️ Validation script not found${NC}"
 fi
 
-# 12. Final summary
+# 13. Final summary
 echo ""
 echo "════════════════════════════════════════"
 echo "✨ Setup Complete!"

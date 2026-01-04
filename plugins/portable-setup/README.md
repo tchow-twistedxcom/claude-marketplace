@@ -63,6 +63,7 @@ Checks if portable setup configuration has been properly applied - verifies secr
 - Claude Code settings.json and statusline scripts
 - System dotfiles (tmux, bash, git, npm)
 - Configuration templates (secrets stripped)
+- Agent-deck (tmux-based AI agent session manager)
 
 **Excluded** (User-Specific):
 - SuperClaude framework files

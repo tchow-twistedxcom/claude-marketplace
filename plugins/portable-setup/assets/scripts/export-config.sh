@@ -150,6 +150,27 @@ if [ -f ~/.config/gh/config.yml ]; then
     echo "  ✅ Copied gh config (requires re-authentication)"
 fi
 
+# Copy agent-deck (tmux-based AI agent session manager)
+echo "🎯 Copying agent-deck configuration..."
+if [ -d ~/agent-deck ]; then
+    mkdir -p "$EXPORT_DIR/agent-deck"
+
+    # Copy all agent-deck files
+    rsync -av --exclude='.git' ~/agent-deck/ "$EXPORT_DIR/agent-deck/"
+    echo "  ✅ Copied agent-deck directory"
+
+    # Document agent-deck version
+    if [ -d ~/agent-deck/.git ]; then
+        cd ~/agent-deck
+        AGENT_DECK_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+        AGENT_DECK_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+        cd - > /dev/null
+        echo "  📌 Version: $AGENT_DECK_BRANCH @ $AGENT_DECK_COMMIT"
+    fi
+else
+    echo "  ⚠️  ~/agent-deck/ directory not found"
+fi
+
 # Copy setup scripts
 echo "📜 Copying setup scripts..."
 cp "$SCRIPT_DIR/export-config.sh" "$EXPORT_DIR/scripts/" 2>/dev/null || true
@@ -212,6 +233,7 @@ Configuration Summary:
 - Custom agents: Excluded (user-specific)
 - Custom hooks: Excluded (user-specific)
 - Custom commands: Excluded (user-specific)
+- Agent-deck: $([ -d "$EXPORT_DIR/agent-deck" ] && echo "Included" || echo "Not found")
 EOF
 
 # Create tarball

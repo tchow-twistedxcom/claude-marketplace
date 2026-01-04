@@ -1,0 +1,20 @@
+{
+  "name": "mimecast-skills",
+  "version": "1.0.0",
+  "description": "Mimecast email security integration via Python CLI - 28 operations for email security, user/group management, policy management, and reporting",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": ["mimecast", "email-security", "ttp", "anti-phishing", "user-management", "policy", "siem", "cli"],
+  "commands": [
+    "./commands/mimecast-setup.md",
+    "./commands/mimecast-manage.md"
+  ],
+  "skills": [
+    "./skills/mimecast-api"
+  ]
+}

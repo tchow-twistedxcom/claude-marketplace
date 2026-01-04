@@ -17,8 +17,6 @@
     "chrome",
     "e2e"
   ],
-  "category": "testing",
-  "strict": false,
   "commands": [
     "./commands/browser-test.md"
   ],

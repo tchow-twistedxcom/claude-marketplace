@@ -1,0 +1,17 @@
+{
+  "run_id": "20251224_010632",
+  "phase": "extract",
+  "last_checkpoint": "2025-12-24T01:06:32.488669",
+  "processed_asins": [],
+  "pending_asins": [],
+  "failed_asins": {},
+  "parent_asins": [],
+  "canonical_index_built": false,
+  "results": {},
+  "stats": {
+    "processed_count": 0,
+    "pending_count": 0,
+    "failed_count": 0,
+    "parent_count": 0
+  }
+}

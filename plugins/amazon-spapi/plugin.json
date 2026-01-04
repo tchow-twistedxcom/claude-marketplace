@@ -1,0 +1,44 @@
+{
+  "name": "amazon-spapi",
+  "version": "1.0.0",
+  "description": "Amazon Selling Partner API integration via Python CLI - 66+ operations across 16 API categories with focus on Vendor (1P) workflows. Covers vendor orders, shipments, invoices, catalog, listings, pricing, reports, feeds, notifications, and multi-marketplace support.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://developer-docs.amazon.com/sp-api",
+  "repository": "https://github.com/amzn/selling-partner-api-models",
+  "license": "MIT",
+  "keywords": [
+    "amazon",
+    "spapi",
+    "selling-partner",
+    "vendor-central",
+    "1p-vendor",
+    "purchase-orders",
+    "asn",
+    "invoices",
+    "catalog",
+    "listings",
+    "fba",
+    "reports",
+    "feeds",
+    "ecommerce"
+  ],
+  "commands": [
+    "./commands/spapi-setup.md",
+    "./commands/spapi-manage.md"
+  ],
+  "skills": [
+    "./skills/amazon-plytix-sync",
+    "./skills/spapi-vendor-orders",
+    "./skills/spapi-vendor-shipments",
+    "./skills/spapi-vendor-invoices",
+    "./skills/spapi-catalog-listings",
+    "./skills/spapi-orders-fulfillment",
+    "./skills/spapi-reports-feeds",
+    "./skills/spapi-pricing-finances",
+    "./skills/spapi-notifications",
+    "./skills/spapi-integration-patterns"
+  ]
+}

@@ -1,0 +1,1207 @@
+[
+  {
+    "canonical_id": "610860233c932200cc945d74",
+    "amazon_product_ids": [
+      "694ba5b0619b65a1d659d55b"
+    ],
+    "error": "Rate limited. Retry after 148s"
+  },
+  {
+    "canonical_id": "6529b5f270ea796207364e92",
+    "amazon_product_ids": [
+      "694b5fd195c91bc68ced407a"
+    ],
+    "error": "Rate limited. Retry after 141s"
+  },
+  {
+    "canonical_id": "6529b5f370ea796207364e96",
+    "amazon_product_ids": [
+      "694ba8fab8727df327ea0a13"
+    ],
+    "error": "Rate limited. Retry after 134s"
+  },
+  {
+    "canonical_id": "60a67a2af551ca0d6d6ec52b",
+    "amazon_product_ids": [
+      "694d82b1595740a8c24b350f"
+    ],
+    "error": "Rate limited. Retry after 127s"
+  },
+  {
+    "canonical_id": "63e66553699043bffb8a1a9a",
+    "amazon_product_ids": [
+      "694b618f0ed1e7b0102f1a2e"
+    ],
+    "error": "Rate limited. Retry after 120s"
+  },
+  {
+    "canonical_id": "6529b5ef0e86f57f077770cd",
+    "amazon_product_ids": [
+      "694ba716619b65a1d659d598"
+    ],
+    "error": "Rate limited. Retry after 113s"
+  },
+  {
+    "canonical_id": "6529b5f10e86f57f077770fd",
+    "amazon_product_ids": [
+      "694bb6aeb8727df327ea0dae"
+    ],
+    "error": "Rate limited. Retry after 105s"
+  },
+  {
+    "canonical_id": "603ffc366558b13e7ab5d0c5",
+    "amazon_product_ids": [
+      "694bb2985eaf3b60ad097bb3"
+    ],
+    "error": "Rate limited. Retry after 98s"
+  },
+  {
+    "canonical_id": "64075eba980ce8bbba384e08",
+    "amazon_product_ids": [
+      "694bb4ec595740a8c24ada34"
+    ],
+    "error": "Rate limited. Retry after 91s"
+  },
+  {
+    "canonical_id": "62aa4ac83d84d89113cb315c",
+    "amazon_product_ids": [
+      "694ba715b8727df327ea09a9",
+      "694ac51825a4015eca664279"
+    ],
+    "error": "Rate limited. Retry after 84s"
+  },
+  {
+    "canonical_id": "6427422b6cc1527506c3824b",
+    "amazon_product_ids": [
+      "694ba7ec0ed1e7b0102f2675"
+    ],
+    "error": "Rate limited. Retry after 77s"
+  },
+  {
+    "canonical_id": "62ffbf5fb3ac6a5010efba79",
+    "amazon_product_ids": [
+      "694ac54f0ed1e7b0102f00a6"
+    ],
+    "error": "Rate limited. Retry after 70s"
+  },
+  {
+    "canonical_id": "60a67a2c38c6f1f16739ca98",
+    "amazon_product_ids": [
+      "694b617a1a733ae0ab27f589"
+    ],
+    "error": "Rate limited. Retry after 63s"
+  },
+  {
+    "canonical_id": "60a67a2af551ca0d6d6ec533",
+    "amazon_product_ids": [
+      "694bb3c3a10993d44fed12aa"
+    ],
+    "error": "Rate limited. Retry after 56s"
+  },
+  {
+    "canonical_id": "62aa4ac86dc4ca2ba34ef328",
+    "amazon_product_ids": [
+      "694ac56f619b65a1d659acfd"
+    ],
+    "error": "Rate limited. Retry after 49s"
+  },
+  {
+    "canonical_id": "64064a59b441ecfa0f0d4d01",
+    "amazon_product_ids": [
+      "694ac861b05ce9c57acf15ec"
+    ],
+    "error": "Rate limited. Retry after 42s"
+  },
+  {
+    "canonical_id": "642727f9812719c35e595313",
+    "amazon_product_ids": [
+      "694ba558b8727df327ea0942"
+    ],
+    "error": "Rate limited. Retry after 35s"
+  },
+  {
+    "canonical_id": "67a6908dca9dae150e6cb67e",
+    "amazon_product_ids": [
+      "694b6195619b65a1d659c719"
+    ],
+    "error": "Rate limited. Retry after 28s"
+  },
+  {
+    "canonical_id": "60a67a2b38c6f1f16739ca56",
+    "amazon_product_ids": [
+      "694d871da10993d44fed6efa"
+    ],
+    "error": "Rate limited. Retry after 21s"
+  },
+  {
+    "canonical_id": "5f40382934ed50d1c23117eb",
+    "amazon_product_ids": [
+      "694bb4a9595740a8c24ada04"
+    ],
+    "error": "Rate limited. Retry after 14s"
+  },
+  {
+    "canonical_id": "61aa9a8e3b0c0c29f99e3553",
+    "amazon_product_ids": [
+      "694ac5ed25a4015eca6642a6"
+    ],
+    "error": "Rate limited. Retry after 7s"
+  },
+  {
+    "canonical_id": "5c9d0620cc9d4c05775c6114",
+    "amazon_product_ids": [
+      "694eabb1b8727df327ea8aab"
+    ],
+    "error": "Rate limited. Retry after 1806s"
+  },
+  {
+    "canonical_id": "60c78ca4c016ba5cf7f4b73a",
+    "amazon_product_ids": [
+      "694ac77925a4015eca664308"
+    ],
+    "error": "Rate limited. Retry after 1799s"
+  },
+  {
+    "canonical_id": "610855d0c9bf5f6ef7cb16df",
+    "amazon_product_ids": [
+      "694b5e8d5235f0b4a8d123df"
+    ],
+    "error": "Rate limited. Retry after 1792s"
+  },
+  {
+    "canonical_id": "603ffc37705293d0a9b5d119",
+    "amazon_product_ids": [
+      "694b5dc225fdfb70600c4b53"
+    ],
+    "error": "Rate limited. Retry after 1785s"
+  },
+  {
+    "canonical_id": "5f7b3d2a397a4918eb56acc6",
+    "amazon_product_ids": [
+      "694b5f64b83dbd72fa8ee80b"
+    ],
+    "error": "Rate limited. Retry after 1777s"
+  },
+  {
+    "canonical_id": "6529b5eebd9a0729147e7521",
+    "amazon_product_ids": [
+      "694bb3d2595740a8c24ad97d"
+    ],
+    "error": "Rate limited. Retry after 1770s"
+  },
+  {
+    "canonical_id": "61aa9a8fcd6e85437b883e2d",
+    "amazon_product_ids": [
+      "694ac7dd25a4015eca664317"
+    ],
+    "error": "Rate limited. Retry after 1763s"
+  },
+  {
+    "canonical_id": "5cf9481ed643ef0c57a45c2e",
+    "amazon_product_ids": [
+      "694ac75c0ed1e7b0102f012b"
+    ],
+    "error": "Rate limited. Retry after 1756s"
+  },
+  {
+    "canonical_id": "6532c1c4bd8a3c075aca4fdd",
+    "amazon_product_ids": [
+      "694b5def9effbea964e1ee62"
+    ],
+    "error": "Rate limited. Retry after 1749s"
+  },
+  {
+    "canonical_id": "64cc098fcb9c2df87eb6019b",
+    "amazon_product_ids": [
+      "694ac625595740a8c24aafc2"
+    ],
+    "error": "Rate limited. Retry after 1742s"
+  },
+  {
+    "canonical_id": "5d7921547caca2c980fbbb71",
+    "amazon_product_ids": [
+      "694c1b0fb8727df327ea392d"
+    ],
+    "error": "Rate limited. Retry after 1735s"
+  },
+  {
+    "canonical_id": "5cf9480fd643ef0c57a45bc8",
+    "amazon_product_ids": [
+      "694eabc40ed1e7b0102fa64f"
+    ],
+    "error": "Rate limited. Retry after 1728s"
+  },
+  {
+    "canonical_id": "64075ebbbeb889925fb82f4f",
+    "amazon_product_ids": [
+      "694c1835619b65a1d65a0583"
+    ],
+    "error": "Rate limited. Retry after 1721s"
+  },
+  {
+    "canonical_id": "60a67a2a22627598586f4aaf",
+    "amazon_product_ids": [
+      "694ba5bab8727df327ea094d"
+    ],
+    "error": "Rate limited. Retry after 1714s"
+  },
+  {
+    "canonical_id": "64c810e50e3ea4894ddf0a0c",
+    "amazon_product_ids": [
+      "694bb2daa10993d44fed1245"
+    ],
+    "error": "Rate limited. Retry after 1707s"
+  },
+  {
+    "canonical_id": "616477181e16b6f6910b91cf",
+    "amazon_product_ids": [
+      "694ba7be595740a8c24ad677"
+    ],
+    "error": "Rate limited. Retry after 1700s"
+  },
+  {
+    "canonical_id": "649de851dc921bb95697a2a6",
+    "amazon_product_ids": [
+      "694b604e0ed1e7b0102f19ec"
+    ],
+    "error": "Rate limited. Retry after 1693s"
+  },
+  {
+    "canonical_id": "64064a58b441ecfa0f0d4cf9",
+    "amazon_product_ids": [
+      "694bb3c25eaf3b60ad097c3b"
+    ],
+    "error": "Rate limited. Retry after 1686s"
+  },
+  {
+    "canonical_id": "5e5fc55ecf1a64149fddc38c",
+    "amazon_product_ids": [
+      "694b6149eb473d2915759cde"
+    ],
+    "error": "Rate limited. Retry after 1679s"
+  },
+  {
+    "canonical_id": "5d7921562479623473fbb9f8",
+    "amazon_product_ids": [
+      "694ba48ba10993d44fed0f8a"
+    ],
+    "error": "Rate limited. Retry after 1672s"
+  },
+  {
+    "canonical_id": "6529b5f0bd9a0729147e755f",
+    "amazon_product_ids": [
+      "694ac598619b65a1d659ad09"
+    ],
+    "error": "Rate limited. Retry after 1665s"
+  },
+  {
+    "canonical_id": "6529b5f40e86f57f07777145",
+    "amazon_product_ids": [
+      "694b5ebb9f310f90e0a4d011"
+    ],
+    "error": "Rate limited. Retry after 1658s"
+  },
+  {
+    "canonical_id": "6529b5f73c4b22ea6c333510",
+    "amazon_product_ids": [
+      "694bb56d5eaf3b60ad097d78"
+    ],
+    "error": "Rate limited. Retry after 1651s"
+  },
+  {
+    "canonical_id": "5ec6a57c8e9fafdfd0784138",
+    "amazon_product_ids": [
+      "694ac6ed619b65a1d659ad47"
+    ],
+    "error": "Rate limited. Retry after 1644s"
+  },
+  {
+    "canonical_id": "5eb99767f9a28e92332ae4c7",
+    "amazon_product_ids": [
+      "694ac7c69756263c75c61c36"
+    ],
+    "error": "Rate limited. Retry after 1637s"
+  },
+  {
+    "canonical_id": "60a53bcb22edc3071b7cdd44",
+    "amazon_product_ids": [
+      "694b5ec49f310f90e0a4d014"
+    ],
+    "error": "Rate limited. Retry after 1630s"
+  },
+  {
+    "canonical_id": "60a67a2838c6f1f16739c9bc",
+    "amazon_product_ids": [
+      "694eabd20ed1e7b0102fa650"
+    ],
+    "error": "Rate limited. Retry after 1623s"
+  },
+  {
+    "canonical_id": "689a4631dbd4e8fb648595c7",
+    "amazon_product_ids": [
+      "694bb1db619b65a1d659d713"
+    ],
+    "error": "Rate limited. Retry after 1616s"
+  },
+  {
+    "canonical_id": "5e5bf8c00345d36f836c2303",
+    "amazon_product_ids": [
+      "694b4160595740a8c24ac73d"
+    ],
+    "error": "Rate limited. Retry after 1609s"
+  },
+  {
+    "canonical_id": "60a67a2838c6f1f16739c9be",
+    "amazon_product_ids": [
+      "694b5f0fa10993d44fed0286"
+    ],
+    "error": "Rate limited. Retry after 1602s"
+  },
+  {
+    "canonical_id": "5c9d0616cc9d4c05775c60ae",
+    "amazon_product_ids": [
+      "694eabd65eaf3b60ad09fa64"
+    ],
+    "error": "Rate limited. Retry after 1595s"
+  },
+  {
+    "canonical_id": "610ab78f8a0d7e2c9b57c079",
+    "amazon_product_ids": [
+      "694b5e88b83dbd72fa8ee7ef"
+    ],
+    "error": "Rate limited. Retry after 1588s"
+  },
+  {
+    "canonical_id": "5c9d061fcc9d4c05815c619a",
+    "amazon_product_ids": [
+      "694bb64ab8727df327ea0d92"
+    ],
+    "error": "Rate limited. Retry after 1580s"
+  },
+  {
+    "canonical_id": "5ec6a5848e9fafdfd078414c",
+    "amazon_product_ids": [
+      "694ba80a5eaf3b60ad0979d2"
+    ],
+    "error": "Rate limited. Retry after 1573s"
+  },
+  {
+    "canonical_id": "5f40382980332224b00e2751",
+    "amazon_product_ids": [
+      "694b5f4eb83dbd72fa8ee803"
+    ],
+    "error": "Rate limited. Retry after 1566s"
+  },
+  {
+    "canonical_id": "61aa9a8f3b0c0c29f99e3555",
+    "amazon_product_ids": [
+      "694ac7cbb05ce9c57acf15c8"
+    ],
+    "error": "Rate limited. Retry after 1559s"
+  },
+  {
+    "canonical_id": "670ef58e9001959eea2bb380",
+    "amazon_product_ids": [
+      "694ac6fb25a4015eca6642ea"
+    ],
+    "error": "Rate limited. Retry after 1552s"
+  },
+  {
+    "canonical_id": "5c9d241bf2cafe051115df9d",
+    "amazon_product_ids": [
+      "694b5f1c3eca1bacb04949f6"
+    ],
+    "error": "Rate limited. Retry after 1545s"
+  },
+  {
+    "canonical_id": "612015384af2e3c3a89c6da4",
+    "amazon_product_ids": [
+      "694ba96e0ed1e7b0102f26d0"
+    ],
+    "error": "Rate limited. Retry after 1538s"
+  },
+  {
+    "canonical_id": "6583285b2519c5b6821e0183",
+    "amazon_product_ids": [
+      "694ac6cb0ed1e7b0102f010d"
+    ],
+    "error": "Rate limited. Retry after 1531s"
+  },
+  {
+    "canonical_id": "60c8fdf98c8bed84d0b3efaa",
+    "amazon_product_ids": [
+      "694ac7db25a4015eca664316"
+    ],
+    "error": "Rate limited. Retry after 1524s"
+  },
+  {
+    "canonical_id": "610ab78f9b31ac7bc4026a7d",
+    "amazon_product_ids": [
+      "694ba664595740a8c24ad621"
+    ],
+    "error": "Rate limited. Retry after 1517s"
+  },
+  {
+    "canonical_id": "61df13db881d17d9c86015e8",
+    "amazon_product_ids": [
+      "694bb1bf619b65a1d659d70c"
+    ],
+    "error": "Rate limited. Retry after 1510s"
+  },
+  {
+    "canonical_id": "5de6d48dcffb3747ee2d30d7",
+    "amazon_product_ids": [
+      "694baa165eaf3b60ad097a34"
+    ],
+    "error": "Rate limited. Retry after 1503s"
+  },
+  {
+    "canonical_id": "61eadd37f2b656a6c2bbf17e",
+    "amazon_product_ids": [
+      "694ba6560ed1e7b0102f2640"
+    ],
+    "error": "Rate limited. Retry after 1496s"
+  },
+  {
+    "canonical_id": "689a4633771e81a29aa4f69e",
+    "amazon_product_ids": [
+      "694b5f5081ada657ec3a5ccd"
+    ],
+    "error": "Rate limited. Retry after 1489s"
+  },
+  {
+    "canonical_id": "5ef4e5ba8433f8dde4faa0c0",
+    "amazon_product_ids": [
+      "694ba909619b65a1d659d5fc"
+    ],
+    "error": "Rate limited. Retry after 1482s"
+  },
+  {
+    "canonical_id": "60231ba34eb8830771dd8015",
+    "amazon_product_ids": [
+      "694ac614b05ce9c57acf1581"
+    ],
+    "error": "Rate limited. Retry after 1475s"
+  },
+  {
+    "canonical_id": "61b3a9a405c8dcf7396a8468",
+    "amazon_product_ids": [
+      "694ba3e1619b65a1d659d51a"
+    ],
+    "error": "Rate limited. Retry after 1468s"
+  },
+  {
+    "canonical_id": "64075eba648abea4ff0d54cc",
+    "amazon_product_ids": [
+      "694b5df25eaf3b60ad096cbb"
+    ],
+    "error": "Rate limited. Retry after 1461s"
+  },
+  {
+    "canonical_id": "6633acf64276df4b6408eb2a",
+    "amazon_product_ids": [
+      "694ac774619b65a1d659ad63"
+    ],
+    "error": "Rate limited. Retry after 1454s"
+  },
+  {
+    "canonical_id": "67a6908f74ffe5903a6f481b",
+    "amazon_product_ids": [
+      "694c142f5eaf3b60ad09a65d"
+    ],
+    "error": "Rate limited. Retry after 1447s"
+  },
+  {
+    "canonical_id": "5f873a224c1f2d126e8ed356",
+    "amazon_product_ids": [
+      "694b609d0ed1e7b0102f19f4"
+    ],
+    "error": "Rate limited. Retry after 1440s"
+  },
+  {
+    "canonical_id": "64ada6ada8445172e12f74dc",
+    "amazon_product_ids": [
+      "694c2bf95eaf3b60ad09acbc"
+    ],
+    "error": "Rate limited. Retry after 1433s"
+  },
+  {
+    "canonical_id": "5d792159444616afc8e7eb31",
+    "amazon_product_ids": [
+      "694c11e3619b65a1d65a0394"
+    ],
+    "error": "Rate limited. Retry after 1426s"
+  },
+  {
+    "canonical_id": "6466a2c8fcaf32203a2b9048",
+    "amazon_product_ids": [
+      "694ba3df595740a8c24ad5a1"
+    ],
+    "error": "Rate limited. Retry after 1419s"
+  },
+  {
+    "canonical_id": "5c9d0682f2cafe7a6346b872",
+    "amazon_product_ids": [
+      "694eabf85eaf3b60ad09fa67"
+    ],
+    "error": "Rate limited. Retry after 1412s"
+  },
+  {
+    "canonical_id": "5ee29bfad584e67736dca156",
+    "amazon_product_ids": [
+      "694ac446595740a8c24aaf69"
+    ],
+    "error": "Rate limited. Retry after 1405s"
+  },
+  {
+    "canonical_id": "60c8fdfa8c8bed84d0b3efde",
+    "amazon_product_ids": [
+      "694b60213eca1bacb0494a13"
+    ],
+    "error": "Rate limited. Retry after 1398s"
+  },
+  {
+    "canonical_id": "5e82133731b0e95ec6a9df20",
+    "amazon_product_ids": [
+      "694bb25ab8727df327ea0bf5"
+    ],
+    "error": "Rate limited. Retry after 1391s"
+  },
+  {
+    "canonical_id": "62bdf0f768ba0e2709689c7b",
+    "amazon_product_ids": [
+      "694ba57e595740a8c24ad5f6"
+    ],
+    "error": "Rate limited. Retry after 1384s"
+  },
+  {
+    "canonical_id": "60a67a28f551ca0d6d6ec4c5",
+    "amazon_product_ids": [
+      "694d81b5b8727df327ea671e"
+    ],
+    "error": "Rate limited. Retry after 1377s"
+  },
+  {
+    "canonical_id": "61aa9a8ecd6e85437b883e21",
+    "amazon_product_ids": [
+      "694b5d85b83dbd72fa8ee7cf"
+    ],
+    "error": "Rate limited. Retry after 1370s"
+  },
+  {
+    "canonical_id": "61eadd370518dc1d23ba1b4c",
+    "amazon_product_ids": [
+      "694b6025b8727df327e9fc49"
+    ],
+    "error": "Rate limited. Retry after 1363s"
+  },
+  {
+    "canonical_id": "5e013b4d9282d0e4ff5b6c5a",
+    "amazon_product_ids": [
+      "694b619e1a733ae0ab27f590"
+    ],
+    "error": "Rate limited. Retry after 1355s"
+  },
+  {
+    "canonical_id": "663d4cf17285764a613df546",
+    "amazon_product_ids": [
+      "694b60d1619b65a1d659c6fd"
+    ],
+    "error": "Rate limited. Retry after 1348s"
+  },
+  {
+    "canonical_id": "67a6908dca9dae150e6cb680",
+    "amazon_product_ids": [
+      "694b5f98b8727df327e9fc3b"
+    ],
+    "error": "Rate limited. Retry after 1341s"
+  },
+  {
+    "canonical_id": "6245bac1bfefcf60ce77c2b5",
+    "amazon_product_ids": [
+      "694ac5c80ed1e7b0102f00c8"
+    ],
+    "error": "Rate limited. Retry after 1334s"
+  },
+  {
+    "canonical_id": "6529b5ed067167b1c558d65a",
+    "amazon_product_ids": [
+      "694b5fbe619b65a1d659c6b4"
+    ],
+    "error": "Rate limited. Retry after 1327s"
+  },
+  {
+    "canonical_id": "60a67a29f551ca0d6d6ec505",
+    "amazon_product_ids": [
+      "694ac6a1b05ce9c57acf15aa"
+    ],
+    "error": "Rate limited. Retry after 1320s"
+  },
+  {
+    "canonical_id": "5ed574ac714ddd64e20fab64",
+    "amazon_product_ids": [
+      "694ba5f8595740a8c24ad616"
+    ],
+    "error": "Rate limited. Retry after 1313s"
+  },
+  {
+    "canonical_id": "5ec6a57a8e9fafdfd0784132",
+    "amazon_product_ids": [
+      "694ac72b9756263c75c61c19"
+    ],
+    "error": "Rate limited. Retry after 1306s"
+  },
+  {
+    "canonical_id": "642727f8812719c35e5952f7",
+    "amazon_product_ids": [
+      "694ba5c65eaf3b60ad09797e"
+    ],
+    "error": "Rate limited. Retry after 1299s"
+  },
+  {
+    "canonical_id": "5d7921512479623473fbb9e0",
+    "amazon_product_ids": [
+      "694ac745619b65a1d659ad58"
+    ],
+    "error": "Rate limited. Retry after 1292s"
+  },
+  {
+    "canonical_id": "60a53bca6c885768f16ec582",
+    "amazon_product_ids": [
+      "694ac50f25a4015eca664275"
+    ],
+    "error": "Rate limited. Retry after 1285s"
+  },
+  {
+    "canonical_id": "603ffc367590109deaa17054",
+    "amazon_product_ids": [
+      "694c1111595740a8c24b036a"
+    ],
+    "error": "Rate limited. Retry after 1278s"
+  },
+  {
+    "canonical_id": "5fb454aeae13dc0ef2a489cb",
+    "amazon_product_ids": [
+      "694ba9ad595740a8c24ad6f8"
+    ],
+    "error": "Rate limited. Retry after 1271s"
+  },
+  {
+    "canonical_id": "6529b5ecbd9a0729147e74ed",
+    "amazon_product_ids": [
+      "694ac640595740a8c24aafce"
+    ],
+    "error": "Rate limited. Retry after 1263s"
+  },
+  {
+    "canonical_id": "5df93f0622cb2127902571be",
+    "amazon_product_ids": [
+      "694eac1c595740a8c24b55f0"
+    ],
+    "error": "Rate limited. Retry after 1256s"
+  },
+  {
+    "canonical_id": "61798d43be957c22d909f4a8",
+    "amazon_product_ids": [
+      "694b5e619effbea964e1ee8c"
+    ],
+    "error": "Rate limited. Retry after 1249s"
+  },
+  {
+    "canonical_id": "5c9d0623cc9d4c057e5c613d",
+    "amazon_product_ids": [
+      "694d84455eaf3b60ad09d75d"
+    ],
+    "error": "Rate limited. Retry after 1242s"
+  },
+  {
+    "canonical_id": "66bd22bab768152a80eef74a",
+    "amazon_product_ids": [
+      "694b5e9eb83dbd72fa8ee7f1"
+    ],
+    "error": "Rate limited. Retry after 1235s"
+  },
+  {
+    "canonical_id": "6529ae321ec68d5aa158d8dd",
+    "amazon_product_ids": [
+      "694bb4705eaf3b60ad097c9e"
+    ],
+    "error": "Rate limited. Retry after 1228s"
+  },
+  {
+    "canonical_id": "6529b5f2bd9a0729147e758b",
+    "amazon_product_ids": [
+      "694ac6b125a4015eca6642d1"
+    ],
+    "error": "Rate limited. Retry after 1221s"
+  },
+  {
+    "canonical_id": "5d7921537caca2c980fbbb6b",
+    "amazon_product_ids": [
+      "694d80c40ed1e7b0102f8513"
+    ],
+    "error": "Rate limited. Retry after 1214s"
+  },
+  {
+    "canonical_id": "5ef4e5bc8433f8dde4faa0ca",
+    "amazon_product_ids": [
+      "694bb604a10993d44fed13b2"
+    ],
+    "error": "Rate limited. Retry after 1207s"
+  },
+  {
+    "canonical_id": "5cf948150d7a0406f1baf3b9",
+    "amazon_product_ids": [
+      "694ba7ce619b65a1d659d5bd"
+    ],
+    "error": "Rate limited. Retry after 1200s"
+  },
+  {
+    "canonical_id": "61798d43be957c22d909f4a4",
+    "amazon_product_ids": [
+      "694b5d97b05ce9c57acf2d2b"
+    ],
+    "error": "Rate limited. Retry after 1193s"
+  },
+  {
+    "canonical_id": "5e5fc55f65ebc786fbddc44e",
+    "amazon_product_ids": [
+      "694d86ce5eaf3b60ad09d771"
+    ],
+    "error": "Rate limited. Retry after 1186s"
+  },
+  {
+    "canonical_id": "6529b5f0bd9a0729147e7559",
+    "amazon_product_ids": [
+      "694b60d581ada657ec3a5d1b"
+    ],
+    "error": "Rate limited. Retry after 1179s"
+  },
+  {
+    "canonical_id": "649de850883e315b712f6684",
+    "amazon_product_ids": [
+      "694ba9700ed1e7b0102f26d1"
+    ],
+    "error": "Rate limited. Retry after 1172s"
+  },
+  {
+    "canonical_id": "5cf9481f0d7a0406f0baf3b9",
+    "amazon_product_ids": [
+      "694bb5215eaf3b60ad097d2b"
+    ],
+    "error": "Rate limited. Retry after 1165s"
+  },
+  {
+    "canonical_id": "6529b5f20e86f57f07777117",
+    "amazon_product_ids": [
+      "694d8d430ed1e7b0102f86a5"
+    ],
+    "error": "Rate limited. Retry after 1158s"
+  },
+  {
+    "canonical_id": "67a6909074ffe5903a6f4823",
+    "amazon_product_ids": [
+      "694b616fb83dbd72fa8ee83d"
+    ],
+    "error": "Rate limited. Retry after 1151s"
+  },
+  {
+    "canonical_id": "6631187a96564dafc8d5d40a",
+    "amazon_product_ids": [
+      "694b5f9fb05ce9c57acf2d7b"
+    ],
+    "error": "Rate limited. Retry after 1144s"
+  },
+  {
+    "canonical_id": "61aa9a8ecd6e85437b883e09",
+    "amazon_product_ids": [
+      "694b5ef3b05ce9c57acf2d6a"
+    ],
+    "error": "Rate limited. Retry after 1137s"
+  },
+  {
+    "canonical_id": "606b8aca5392ee68455c3b60",
+    "amazon_product_ids": [
+      "694ac5250ed1e7b0102f0097"
+    ],
+    "error": "Rate limited. Retry after 1130s"
+  },
+  {
+    "canonical_id": "5ed574ac714ddd64e20fab62",
+    "amazon_product_ids": [
+      "694bb58b595740a8c24ada68"
+    ],
+    "error": "Rate limited. Retry after 1123s"
+  },
+  {
+    "canonical_id": "60a67a2ef551ca0d6d6ec5df",
+    "amazon_product_ids": [
+      "694bb23fa10993d44fed11f4"
+    ],
+    "error": "Rate limited. Retry after 1116s"
+  },
+  {
+    "canonical_id": "60c78ca4c016ba5cf7f4b728",
+    "amazon_product_ids": [
+      "694ac7d825a4015eca664314"
+    ],
+    "error": "Rate limited. Retry after 1109s"
+  },
+  {
+    "canonical_id": "6478ed592e3d81e7bb49a899",
+    "amazon_product_ids": [
+      "694b60be25fdfb70600c4b95"
+    ],
+    "error": "Rate limited. Retry after 1102s"
+  },
+  {
+    "canonical_id": "5cf9481e0d7a0406f9baf3b7",
+    "amazon_product_ids": [
+      "694ba82fb8727df327ea09f4"
+    ],
+    "error": "Rate limited. Retry after 1094s"
+  },
+  {
+    "canonical_id": "67a6908c536a63ec0a3867e9",
+    "amazon_product_ids": [
+      "694bb608619b65a1d659d91a"
+    ],
+    "error": "Rate limited. Retry after 1087s"
+  },
+  {
+    "canonical_id": "5ed574b0714ddd64e20fab76",
+    "amazon_product_ids": [
+      "694bb38b619b65a1d659d831"
+    ],
+    "error": "Rate limited. Retry after 1080s"
+  },
+  {
+    "canonical_id": "60a67a2938c6f1f16739c9d0",
+    "amazon_product_ids": [
+      "694bb225619b65a1d659d746"
+    ],
+    "error": "Rate limited. Retry after 1073s"
+  },
+  {
+    "canonical_id": "62699a2bca2a16fd0a77aef5",
+    "amazon_product_ids": [
+      "694bb50f5eaf3b60ad097d12"
+    ],
+    "error": "Rate limited. Retry after 1066s"
+  },
+  {
+    "canonical_id": "610ab7909b31ac7bc4026aa1",
+    "amazon_product_ids": [
+      "694b60bb81ada657ec3a5d0c"
+    ],
+    "error": "Rate limited. Retry after 1059s"
+  },
+  {
+    "canonical_id": "61b3a9a305c8dcf7396a8454",
+    "amazon_product_ids": [
+      "694b608d595740a8c24ac8eb"
+    ],
+    "error": "Rate limited. Retry after 1052s"
+  },
+  {
+    "canonical_id": "60231ba2a5b9f9ab56ab18a2",
+    "amazon_product_ids": [
+      "694ba5ef595740a8c24ad614"
+    ],
+    "error": "Rate limited. Retry after 1045s"
+  },
+  {
+    "canonical_id": "61defff722e3624e7604b584",
+    "amazon_product_ids": [
+      "694bb4d2595740a8c24ada12"
+    ],
+    "error": "Rate limited. Retry after 1038s"
+  },
+  {
+    "canonical_id": "6283c97b682b32c7b786b552",
+    "amazon_product_ids": [
+      "694ac6670ed1e7b0102f00eb"
+    ],
+    "error": "Rate limited. Retry after 1031s"
+  },
+  {
+    "canonical_id": "5ee29befd584e67736dca12c",
+    "amazon_product_ids": [
+      "694ac5a925a4015eca664299"
+    ],
+    "error": "Rate limited. Retry after 1024s"
+  },
+  {
+    "canonical_id": "5f317dd29de7c76f6435b734",
+    "amazon_product_ids": [
+      "694ba51ea10993d44fed0fa9"
+    ],
+    "error": "Rate limited. Retry after 1017s"
+  },
+  {
+    "canonical_id": "60a67a2d22627598586f4b49",
+    "amazon_product_ids": [
+      "694ba6a6a10993d44fed1006"
+    ],
+    "error": "Rate limited. Retry after 1010s"
+  },
+  {
+    "canonical_id": "5d79215a97b08b5ab3e7e969",
+    "amazon_product_ids": [
+      "694b5eb495c91bc68ced4034"
+    ],
+    "error": "Rate limited. Retry after 1003s"
+  },
+  {
+    "canonical_id": "5ec6a58e8e9fafdfd078416a",
+    "amazon_product_ids": [
+      "694b6187eb473d2915759cf3"
+    ],
+    "error": "Rate limited. Retry after 996s"
+  },
+  {
+    "canonical_id": "6452d3974026a3071d38df21",
+    "amazon_product_ids": [
+      "694ac7130ed1e7b0102f0116"
+    ],
+    "error": "Rate limited. Retry after 989s"
+  },
+  {
+    "canonical_id": "67a6908d7aa6ab5d65c081c9",
+    "amazon_product_ids": [
+      "694ac53b9756263c75c61bc6"
+    ],
+    "error": "Rate limited. Retry after 982s"
+  },
+  {
+    "canonical_id": "64b6cbba244a676eb6e5102b",
+    "amazon_product_ids": [
+      "694d866b595740a8c24b352c"
+    ],
+    "error": "Rate limited. Retry after 975s"
+  },
+  {
+    "canonical_id": "616477171e16b6f6910b91bb",
+    "amazon_product_ids": [
+      "694b5e945235f0b4a8d123e1"
+    ],
+    "error": "Rate limited. Retry after 968s"
+  },
+  {
+    "canonical_id": "5e5fc55e0ec09b2e68ddc5b9",
+    "amazon_product_ids": [
+      "694eac60b8727df327ea8ab2"
+    ],
+    "error": "Rate limited. Retry after 961s"
+  },
+  {
+    "canonical_id": "5d24e009a168ef146a6ab73d",
+    "amazon_product_ids": [
+      "694eac60b8727df327ea8ab1"
+    ],
+    "error": "Rate limited. Retry after 954s"
+  },
+  {
+    "canonical_id": "61798d469f13a831e184a735",
+    "amazon_product_ids": [
+      "694ba9735eaf3b60ad097a18"
+    ],
+    "error": "Rate limited. Retry after 947s"
+  },
+  {
+    "canonical_id": "5c9d062bf2cafe050d46c8b0",
+    "amazon_product_ids": [
+      "694bb2bc595740a8c24ad8db"
+    ],
+    "error": "Rate limited. Retry after 940s"
+  },
+  {
+    "canonical_id": "5c9d0621f2cafe051c46c801",
+    "amazon_product_ids": [
+      "694ba9ed5eaf3b60ad097a2e"
+    ],
+    "error": "Rate limited. Retry after 933s"
+  },
+  {
+    "canonical_id": "65b2b32feb46041c03b2346d",
+    "amazon_product_ids": [
+      "694b5fb3619b65a1d659c6a7"
+    ],
+    "error": "Rate limited. Retry after 926s"
+  },
+  {
+    "canonical_id": "6529b5f270ea796207364e94",
+    "amazon_product_ids": [
+      "694bb5a5a10993d44fed1376"
+    ],
+    "error": "Rate limited. Retry after 919s"
+  },
+  {
+    "canonical_id": "5ec6a57b4fd86a44de91d748",
+    "amazon_product_ids": [
+      "694d8c580ed1e7b0102f864e"
+    ],
+    "error": "Rate limited. Retry after 912s"
+  },
+  {
+    "canonical_id": "6631187a96564dafc8d5d3fc",
+    "amazon_product_ids": [
+      "694bb3e35eaf3b60ad097c60"
+    ],
+    "error": "Rate limited. Retry after 905s"
+  },
+  {
+    "canonical_id": "616477183cb87bb6e019eed5",
+    "amazon_product_ids": [
+      "694ac61f619b65a1d659ad1a"
+    ],
+    "error": "Rate limited. Retry after 898s"
+  },
+  {
+    "canonical_id": "642727f9812719c35e595315",
+    "amazon_product_ids": [
+      "694ba7da5eaf3b60ad0979cf"
+    ],
+    "error": "Rate limited. Retry after 891s"
+  },
+  {
+    "canonical_id": "6466be0a246b7f01afe4040e",
+    "amazon_product_ids": [
+      "694ba40fb8727df327ea08f5"
+    ],
+    "error": "Rate limited. Retry after 884s"
+  },
+  {
+    "canonical_id": "5cf94822d643ef077aa45cf2",
+    "amazon_product_ids": [
+      "694eac6b5eaf3b60ad09fa71"
+    ],
+    "error": "Rate limited. Retry after 877s"
+  },
+  {
+    "canonical_id": "5c9d0622f2cafe050d46c882",
+    "amazon_product_ids": [
+      "694d90eda10993d44fed70b5"
+    ],
+    "error": "Rate limited. Retry after 870s"
+  },
+  {
+    "canonical_id": "60a53bca22edc3071b7cdd0a",
+    "amazon_product_ids": [
+      "694b5f8525fdfb70600c4b62"
+    ],
+    "error": "Rate limited. Retry after 863s"
+  },
+  {
+    "canonical_id": "66340d574098b0805c84da82",
+    "amazon_product_ids": [
+      "694b610ab83dbd72fa8ee82b"
+    ],
+    "error": "Rate limited. Retry after 856s"
+  },
+  {
+    "canonical_id": "6245bac634d87aa6d9a458f9",
+    "amazon_product_ids": [
+      "694ac4f0b05ce9c57acf1561"
+    ],
+    "error": "Rate limited. Retry after 849s"
+  },
+  {
+    "canonical_id": "62c76340a632469c72220c64",
+    "amazon_product_ids": [
+      "694bb613619b65a1d659d923"
+    ],
+    "error": "Rate limited. Retry after 842s"
+  },
+  {
+    "canonical_id": "616477181e16b6f6910b91d9",
+    "amazon_product_ids": [
+      "694ba948b8727df327ea0a1f"
+    ],
+    "error": "Rate limited. Retry after 834s"
+  },
+  {
+    "canonical_id": "62571557f8ab98d1389d858d",
+    "amazon_product_ids": [
+      "694bb5ba0ed1e7b0102f29f5"
+    ],
+    "error": "Rate limited. Retry after 827s"
+  },
+  {
+    "canonical_id": "5c9d061acc9d4c05715c60e4",
+    "amazon_product_ids": [
+      "694eac79b8727df327ea8ab9"
+    ],
+    "error": "Rate limited. Retry after 820s"
+  },
+  {
+    "canonical_id": "5fc7bdebaad913ce72192920",
+    "amazon_product_ids": [
+      "694b5ef45eaf3b60ad096cdf"
+    ],
+    "error": "Rate limited. Retry after 813s"
+  },
+  {
+    "canonical_id": "5c9d0666cc9d4c05385c511f",
+    "amazon_product_ids": [
+      "694eac7fb8727df327ea8aba"
+    ],
+    "error": "Rate limited. Retry after 806s"
+  },
+  {
+    "canonical_id": "5d7921502479623473fbb9dc",
+    "amazon_product_ids": [
+      "694ac86c619b65a1d659ad8c"
+    ],
+    "error": "Rate limited. Retry after 799s"
+  },
+  {
+    "canonical_id": "60a67a2838c6f1f16739c9ba",
+    "amazon_product_ids": [
+      "694b60712c3a969acd911262"
+    ],
+    "error": "Rate limited. Retry after 792s"
+  },
+  {
+    "canonical_id": "5ef4e5b98433f8dde4faa0be",
+    "amazon_product_ids": [
+      "694c1b47b8727df327ea3940"
+    ],
+    "error": "Rate limited. Retry after 785s"
+  },
+  {
+    "canonical_id": "61eadd3741dd3f32b7243ae5",
+    "amazon_product_ids": [
+      "694b60033eca1bacb0494a0c"
+    ],
+    "error": "Rate limited. Retry after 778s"
+  },
+  {
+    "canonical_id": "5e5bf8be79e467e0316c2025",
+    "amazon_product_ids": [
+      "694b40aa619b65a1d659c4b9"
+    ],
+    "error": "Rate limited. Retry after 771s"
+  },
+  {
+    "canonical_id": "5c9d061ccc9d4c05815c617c",
+    "amazon_product_ids": [
+      "694eac88595740a8c24b55f5"
+    ],
+    "error": "Rate limited. Retry after 764s"
+  },
+  {
+    "canonical_id": "6165e723510c013b951ef5c7",
+    "amazon_product_ids": [
+      "694ba92b5eaf3b60ad097a0c"
+    ],
+    "error": "Rate limited. Retry after 757s"
+  },
+  {
+    "canonical_id": "616477183cb87bb6e019eee3",
+    "amazon_product_ids": [
+      "694bb3cf0ed1e7b0102f2912"
+    ],
+    "error": "Rate limited. Retry after 750s"
+  }
+]

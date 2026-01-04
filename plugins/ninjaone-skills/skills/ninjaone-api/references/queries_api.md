@@ -2,11 +2,33 @@
 
 Reports and analytics across the device fleet.
 
+## Common Parameters
+
+All query commands support these filtering options:
+
+| Parameter | Description |
+|-----------|-------------|
+| `--filter`, `--df` | Device filter expression (e.g., `"class = WINDOWS_SERVER"`) |
+| `--org-id` | Filter by organization ID (convenience flag) |
+| `--org-name` | Filter by organization name (auto-resolves to ID) |
+
+**Examples:**
+```bash
+# Filter by organization ID
+python ninjaone_api.py queries volumes --org-id 2
+
+# Filter by organization name (case-insensitive, partial match)
+python ninjaone_api.py queries computer-systems --org-name "Twisted X"
+
+# Combine with device class filter
+python ninjaone_api.py queries software --org-id 2 --filter "class = WINDOWS_SERVER"
+```
+
 ## Endpoints
 
 ### Antivirus Status
 ```bash
-python ninjaone_api.py queries antivirus-status [--filter FILTER]
+python ninjaone_api.py queries antivirus-status [--filter FILTER] [--org-id ID] [--org-name NAME]
 ```
 
 Get antivirus status across all devices.

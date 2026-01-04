@@ -1,0 +1,77 @@
+{
+  "description": "Documentation sources for claude-code skill auto-update",
+  "version": "2.0.0",
+  "sources": {
+    "changelog": {
+      "type": "github_raw",
+      "description": "Official Claude Code changelog for version detection",
+      "url": "https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md",
+      "check_method": "head",
+      "enabled": true,
+      "primary_for_version": true
+    },
+    "github_docs": {
+      "type": "github_mirror",
+      "description": "ericbuess/claude-code-docs mirror (updated every 3 hours)",
+      "repo": "ericbuess/claude-code-docs",
+      "branch": "main",
+      "base_url": "https://raw.githubusercontent.com/ericbuess/claude-code-docs/main",
+      "docs": [
+        "docs/overview.md",
+        "docs/cli-reference.md",
+        "docs/sub-agents.md",
+        "docs/mcp.md",
+        "docs/hooks.md",
+        "docs/hooks-guide.md",
+        "docs/common-workflows.md",
+        "docs/settings.md",
+        "docs/skills.md",
+        "docs/plugins.md",
+        "docs/plugins-reference.md",
+        "docs/memory.md",
+        "docs/third-party-integrations.md",
+        "docs/security.md",
+        "docs/troubleshooting.md"
+      ],
+      "check_method": "head",
+      "enabled": true
+    }
+  },
+  "reference_mapping": {
+    "tool-selection.md": {
+      "sources": ["github_docs:docs/overview.md", "github_docs:docs/cli-reference.md"],
+      "description": "Native tool decision matrices"
+    },
+    "agent-catalog.md": {
+      "sources": ["github_docs:docs/sub-agents.md"],
+      "description": "30+ specialized agents by use case"
+    },
+    "mcp-guide.md": {
+      "sources": ["github_docs:docs/mcp.md"],
+      "description": "MCP server selection and configuration"
+    },
+    "hooks-reference.md": {
+      "sources": ["github_docs:docs/hooks.md", "github_docs:docs/hooks-guide.md"],
+      "description": "Hooks system reference"
+    },
+    "workflows.md": {
+      "sources": ["github_docs:docs/common-workflows.md"],
+      "description": "Common workflow patterns"
+    },
+    "cli-reference.md": {
+      "sources": ["github_docs:docs/cli-reference.md"],
+      "description": "CLI flags and commands"
+    },
+    "enterprise.md": {
+      "sources": ["github_docs:docs/third-party-integrations.md", "github_docs:docs/security.md"],
+      "description": "Enterprise deployment guide"
+    }
+  },
+  "settings": {
+    "cache_ttl_hours": 6,
+    "stale_ttl_days": 7,
+    "request_timeout_seconds": 15,
+    "max_retries": 3,
+    "retry_backoff_base": 2
+  }
+}

@@ -1,0 +1,285 @@
+{
+  "updated": [
+    {
+      "product_id": "5c9a2c31d6ec5f64de1f6ab5",
+      "sku": "MCA0032-W-12",
+      "asin": "B07X8Z63ZL",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_parent_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_variation_theme",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c394a6c255eae53b7fc",
+      "sku": "MCA0032-M-13",
+      "asin": "B07TBFZL3N",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_parent_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_variation_theme",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c374a6c255eae53b7f0",
+      "sku": "MCA0032-M-09.5",
+      "asin": "B07T89PYFX",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sku",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c384a6c255eae53b7f8",
+      "sku": "MCA0032-M-11.5",
+      "asin": "B07T89PSKR",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c30d6ec5f64de1f6ab1",
+      "sku": "MCA0032-W-11",
+      "asin": "B07XB3N4CR",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c3a4a6c255eae53b7fe",
+      "sku": "MCA0032-M-14",
+      "asin": "B07TDLZWKL",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c31d6ec5f64de1f6ab9",
+      "sku": "MCA0032-W-14",
+      "asin": "B07XC3MXP3",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c354a6c255eae53b7e8",
+      "sku": "MCA0032-M-07.5",
+      "asin": "B07TDLZMNM",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c31d6ec5f64de1f6ab7",
+      "sku": "MCA0032-W-13",
+      "asin": "B07XC3MJ9Y",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c2ed6ec5f64de1f6aa9",
+      "sku": "MCA0032-W-09",
+      "asin": "B07XD6H4NX",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sku",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c354a6c255eae53b7e6",
+      "sku": "MCA0032-M-07",
+      "asin": "B07TFKKMF3",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c2fd6ec5f64de1f6aad",
+      "sku": "MCA0032-W-10",
+      "asin": "B07XG2JH56",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c2ed6ec5f64de1f6aa7",
+      "sku": "MCA0032-W-08.5",
+      "asin": "B07XF729K1",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c2ed6ec5f64de1f6aa5",
+      "sku": "MCA0032-W-08",
+      "asin": "B07XC3L53T",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c2dd6ec5f64de1f6aa3",
+      "sku": "MCA0032-W-07.5",
+      "asin": "B07XD6JSQG",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    },
+    {
+      "product_id": "5c9a2c3a4a6c255eae53b800",
+      "sku": "MCA0032-W-07",
+      "asin": "B07X8Z652J",
+      "attributes_updated": [
+        "amazon_asin",
+        "amazon_upc_imported",
+        "amazon_ean_imported",
+        "amazon_title_imported",
+        "amazon_size",
+        "amazon_color",
+        "amazon_last_synced",
+        "amazon_sync_status",
+        "amazon_sync_conflict"
+      ],
+      "dry_run": false
+    }
+  ],
+  "conflicts": [],
+  "errors": [],
+  "skipped": []
+}

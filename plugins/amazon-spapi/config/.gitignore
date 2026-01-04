@@ -1,0 +1,6 @@
+# Ignore actual config with credentials
+spapi_config.json
+.spapi_token_cache.json
+
+# Keep template
+!spapi_config.template.json

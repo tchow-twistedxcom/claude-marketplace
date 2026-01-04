@@ -29,8 +29,6 @@
     "canvas-design",
     "remix-icon"
   ],
-  "category": "skills",
-  "strict": false,
   "commands": [
     "./commands/git/cp.md",
     "./commands/git/cm.md",

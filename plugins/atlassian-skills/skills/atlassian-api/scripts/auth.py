@@ -18,7 +18,7 @@ from urllib.parse import urlencode
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'atlassian_config.json'
 
 # Persistent token cache location (survives restarts)
-TOKEN_CACHE_PATH = Path(__file__).parent.parent / 'config' / '.token_cache.json'
+TOKEN_CACHE_PATH = Path(__file__).parent.parent / 'config' / '.atlassian_tokens.json'
 
 # Token refresh buffer (refresh 5 minutes before expiry)
 TOKEN_REFRESH_BUFFER = 300

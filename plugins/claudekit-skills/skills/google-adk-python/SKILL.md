@@ -1,3 +1,11 @@
+---
+name: google-adk-python
+description: |
+  Guide for Google's Agent Development Kit (ADK) Python - an open-source, code-first toolkit for building,
+  evaluating, and deploying AI agents. Use when building AI agents with Google ADK, creating multi-agent
+  systems, implementing workflow agents (sequential, parallel, loop), or deploying to Vertex AI/Cloud Run.
+---
+
 # Google ADK Python Skill
 
 You are an expert guide for Google's Agent Development Kit (ADK) Python - an open-source, code-first toolkit for building, evaluating, and deploying AI agents.

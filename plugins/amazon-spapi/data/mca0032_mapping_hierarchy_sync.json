@@ -1,0 +1,11 @@
+{
+  "parents_found": 1,
+  "parents_updated": 1,
+  "variants_linked": 2,
+  "errors": [],
+  "metadata": {
+    "source_file": "../data/mca0032_mapping.json",
+    "sync_date": "2025-12-23T00:19:36.350835+00:00",
+    "dry_run": false
+  }
+}

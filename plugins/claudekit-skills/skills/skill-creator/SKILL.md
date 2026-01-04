@@ -1,6 +1,6 @@
 ---
 name: skill-creator
-description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
+description: Guide for creating effective skills with marketplace integration. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations. Includes steps for skill router configuration, documentation updates, and version management.
 license: Complete terms in LICENSE.txt
 ---
 
@@ -198,7 +198,47 @@ The packaging script will:
 
 If validation fails, the script will report the errors and exit without creating a package. Fix any validation errors and run the packaging command again.
 
-### Step 6: Iterate
+### Step 6: Marketplace Integration (tchow-essentials)
+
+**Important**: When creating skills for the tchow-essentials marketplace, complete these integration steps to ensure proper discovery and documentation.
+
+See `references/tchow-marketplace-integration.md` for detailed templates and examples.
+
+#### 6.1 Update Skill Router
+
+Add pattern matching to `scripts/skill-router.py` for automatic skill activation:
+
+```python
+"<skill-name>": {
+    "patterns": [
+        r"\b(<keyword1>)\b.*\b(<keyword2>)\b",
+        # Add patterns that capture different ways users might request the skill
+    ],
+    "skill_name": "<plugin-name>:<skill-name>",
+    "priority": 3,
+},
+```
+
+Test patterns: `python3 scripts/skill-router.py --test "<user query>"`
+
+#### 6.2 Update Documentation
+
+| File | Update |
+|------|--------|
+| `docs/USAGE.md` | Add skill section with capabilities, examples, activation triggers |
+| `README.md` | Add to "What's Included" and "Plugin Details" sections |
+| `docs/INSTALLATION.md` | Add setup steps if skill requires configuration |
+| `.claude-plugin/marketplace.json` | Update plugin version and description |
+
+#### 6.3 Version Bump
+
+| Change | Version Bump |
+|--------|--------------|
+| New skill | Patch (x.x.+1) |
+| New plugin | Minor (x.+1.0) |
+| Major change | Major (+1.0.0) |
+
+### Step 7: Iterate
 
 After testing the skill, users may request improvements. Often this happens right after using the skill, with fresh context of how the skill performed.
 

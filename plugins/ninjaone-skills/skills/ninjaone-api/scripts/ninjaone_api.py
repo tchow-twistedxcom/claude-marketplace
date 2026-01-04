@@ -199,6 +199,33 @@ class NinjaOneAPI:
         }
         return self.get('/v2/organizations', params)
 
+    def find_organization_by_name(self, name):
+        """
+        Find organization by name (case-insensitive partial match).
+
+        Returns:
+            Organization dict if found, None otherwise
+        """
+        orgs = self.list_organizations(page_size=1000)
+        name_lower = name.lower()
+
+        # Try exact match first
+        for org in orgs:
+            if org.get('name', '').lower() == name_lower:
+                return org
+
+        # Try partial match
+        matches = [org for org in orgs if name_lower in org.get('name', '').lower()]
+        if len(matches) == 1:
+            return matches[0]
+        elif len(matches) > 1:
+            raise NinjaOneAPIError(
+                f"Multiple organizations match '{name}': " +
+                ", ".join(f"{o.get('name')} (ID: {o.get('id')})" for o in matches[:5])
+            )
+
+        return None
+
     def get_organization(self, org_id):
         """Get organization by ID."""
         return self.get(f'/v2/organization/{org_id}')
@@ -721,7 +748,12 @@ def create_parser():
                        'logged-on-users', 'operating-systems', 'raid-controllers',
                        'raid-drives', 'backup-usage', 'policy-overrides']:
         q = queries_sub.add_parser(query_name, help=f'Run {query_name} query')
-        q.add_argument('--filter', '--df', dest='df', help='Device filter')
+        q.add_argument('--filter', '--df', dest='df',
+                       help='Device filter (e.g., "class = WINDOWS_SERVER")')
+        q.add_argument('--org-id', type=int, dest='org_id',
+                       help='Filter by organization ID (convenience for --filter "org = ID")')
+        q.add_argument('--org-name', dest='org_name',
+                       help='Filter by organization name (looks up ID automatically)')
 
     # ==================== MANAGEMENT ====================
     mgmt = subparsers.add_parser('management', aliases=['mgmt'], help='Management operations')
@@ -927,6 +959,28 @@ def create_parser():
     roles_sub.add_parser('list', help='List roles')
     roles_sub.add_parser('node-roles', help='List node roles')
 
+    # ==================== REPORTS ====================
+    reports = subparsers.add_parser('reports', help='Generate reports')
+    reports_sub = reports.add_subparsers(dest='action')
+
+    # reports hardware
+    hw_report = reports_sub.add_parser('hardware',
+        help='Hardware utilization report (storage & memory)')
+    hw_report.add_argument('--org-id', type=int, dest='org_id',
+                           help='Filter by organization ID')
+    hw_report.add_argument('--org-name', dest='org_name',
+                           help='Filter by organization name')
+    hw_report.add_argument('--filter', '--df', dest='df',
+                           help='Device filter')
+    hw_report.add_argument('--storage-warning', type=int, default=80,
+                           help='Storage warning threshold %% (default: 80)')
+    hw_report.add_argument('--storage-critical', type=int, default=90,
+                           help='Storage critical threshold %% (default: 90)')
+    hw_report.add_argument('--memory-warning', type=int, default=16,
+                           help='Memory warning threshold GB (default: 16)')
+    hw_report.add_argument('--memory-critical', type=int, default=8,
+                           help='Memory critical threshold GB (default: 8)')
+
     return parser
 
 
@@ -1006,6 +1060,20 @@ def main():
         # ==================== QUERIES ====================
         elif args.command == 'queries':
             resource_type = f'query-{args.action}'
+
+            # Build device filter from org_id, org_name, or df
+            df = args.df
+            if hasattr(args, 'org_name') and args.org_name:
+                org = api.find_organization_by_name(args.org_name)
+                if not org:
+                    raise NinjaOneAPIError(f"Organization not found: {args.org_name}")
+                org_filter = f"org = {org['id']}"
+                df = f"{df} AND {org_filter}" if df else org_filter
+                print(f"Resolved '{args.org_name}' to organization ID {org['id']}", file=sys.stderr)
+            elif hasattr(args, 'org_id') and args.org_id:
+                org_filter = f"org = {args.org_id}"
+                df = f"{df} AND {org_filter}" if df else org_filter
+
             query_map = {
                 'antivirus-status': api.query_antivirus_status,
                 'antivirus-threats': api.query_antivirus_threats,
@@ -1028,7 +1096,7 @@ def main():
                 'policy-overrides': api.query_policy_overrides,
             }
             if args.action in query_map:
-                result = query_map[args.action](df=args.df)
+                result = query_map[args.action](df=df)
 
         # ==================== MANAGEMENT ====================
         elif args.command in ('management', 'mgmt'):
@@ -1157,6 +1225,152 @@ def main():
                 result = api.list_roles()
             elif args.action == 'node-roles':
                 result = api.list_node_roles()
+
+        # ==================== REPORTS ====================
+        elif args.command == 'reports':
+            if args.action == 'hardware':
+                # Build device filter
+                df = args.df
+                org_name_resolved = None
+                if args.org_name:
+                    org = api.find_organization_by_name(args.org_name)
+                    if not org:
+                        raise NinjaOneAPIError(f"Organization not found: {args.org_name}")
+                    org_filter = f"org = {org['id']}"
+                    df = f"{df} AND {org_filter}" if df else org_filter
+                    org_name_resolved = org.get('name', args.org_name)
+                elif args.org_id:
+                    org_filter = f"org = {args.org_id}"
+                    df = f"{df} AND {org_filter}" if df else org_filter
+
+                # Gather data
+                print("Gathering hardware data...", file=sys.stderr)
+                volumes_response = api.query_volumes(df=df)
+                systems_response = api.query_computer_systems(df=df)
+
+                # Handle wrapped results
+                volumes_data = volumes_response.get('results', volumes_response) if isinstance(volumes_response, dict) else volumes_response
+                systems_data = systems_response.get('results', systems_response) if isinstance(systems_response, dict) else systems_response
+
+                # Build device lookup from systems
+                device_info = {}
+                for sys_rec in systems_data:
+                    dev_id = sys_rec.get('deviceId')
+                    if dev_id:
+                        ram_gb = sys_rec.get('totalPhysicalMemory', 0) / (1024**3)
+                        device_info[dev_id] = {
+                            'name': sys_rec.get('name', sys_rec.get('dnsHostName', f'Device {dev_id}')),
+                            'ram_gb': ram_gb,
+                            'manufacturer': sys_rec.get('manufacturer', 'Unknown'),
+                            'model': sys_rec.get('model', 'Unknown'),
+                        }
+
+                # System partition patterns to ignore
+                system_partition_patterns = [
+                    'Recovery',           # Windows Recovery partition
+                    'EFI',                # EFI System Partition
+                    'SYSTEM_DRV',         # Dell system partition
+                    'System Reserved',    # Windows system reserved
+                    'LVM2_member',        # Linux LVM metadata
+                    '/boot',              # Linux boot partition
+                    '/System/Volumes',    # macOS system volumes
+                    'Preboot',            # macOS preboot
+                    'VM',                 # macOS VM partition
+                    'Update',             # macOS/Windows update partitions
+                ]
+
+                def is_system_partition(vol):
+                    """Check if volume is a system/recovery partition to ignore."""
+                    name = vol.get('name', '')
+                    label = vol.get('label', '')
+                    drive_letter = vol.get('driveLetter', '')
+                    capacity = vol.get('capacity', 0)
+
+                    # Skip very small partitions (< 1GB) - likely system partitions
+                    if capacity < 1 * (1024**3):
+                        return True
+
+                    # Skip partitions with no drive letter on Windows (except named data volumes)
+                    if not drive_letter and vol.get('deviceType') == 'Local Disk':
+                        return True
+
+                    # Check against known system partition patterns
+                    for pattern in system_partition_patterns:
+                        if pattern.lower() in name.lower() or pattern.lower() in label.lower():
+                            return True
+
+                    return False
+
+                # Analyze storage
+                storage_issues = {'critical': [], 'warning': []}
+                for vol in volumes_data:
+                    # Skip system partitions
+                    if is_system_partition(vol):
+                        continue
+
+                    dev_id = vol.get('deviceId')
+                    capacity = vol.get('capacity', 0)
+                    free_space = vol.get('freeSpace', 0)
+                    if capacity > 0:
+                        used_pct = ((capacity - free_space) / capacity) * 100
+                        vol_info = {
+                            'device_id': dev_id,
+                            'device_name': device_info.get(dev_id, {}).get('name', f'Device {dev_id}'),
+                            'drive': vol.get('driveLetter') or vol.get('name', 'Unknown'),
+                            'label': vol.get('label', ''),
+                            'capacity_gb': round(capacity / (1024**3), 1),
+                            'free_gb': round(free_space / (1024**3), 1),
+                            'used_pct': round(used_pct, 1),
+                        }
+                        if used_pct >= args.storage_critical:
+                            storage_issues['critical'].append(vol_info)
+                        elif used_pct >= args.storage_warning:
+                            storage_issues['warning'].append(vol_info)
+
+                # Analyze memory
+                memory_issues = {'critical': [], 'warning': []}
+                for dev_id, info in device_info.items():
+                    ram_gb = info['ram_gb']
+                    mem_info = {
+                        'device_id': dev_id,
+                        'device_name': info['name'],
+                        'ram_gb': round(ram_gb, 1),
+                        'manufacturer': info['manufacturer'],
+                        'model': info['model'],
+                    }
+                    if ram_gb < args.memory_critical:
+                        memory_issues['critical'].append(mem_info)
+                    elif ram_gb < args.memory_warning:
+                        memory_issues['warning'].append(mem_info)
+
+                # Generate report
+                org_display = org_name_resolved if org_name_resolved else (f'Org ID {args.org_id}' if args.org_id else 'All Organizations')
+                report = {
+                    'summary': {
+                        'organization': org_display,
+                        'total_devices': len(device_info),
+                        'storage_critical_count': len(storage_issues['critical']),
+                        'storage_warning_count': len(storage_issues['warning']),
+                        'memory_critical_count': len(memory_issues['critical']),
+                        'memory_warning_count': len(memory_issues['warning']),
+                        'thresholds': {
+                            'storage_warning_pct': args.storage_warning,
+                            'storage_critical_pct': args.storage_critical,
+                            'memory_warning_gb': args.memory_warning,
+                            'memory_critical_gb': args.memory_critical,
+                        }
+                    },
+                    'storage_issues': storage_issues,
+                    'memory_issues': memory_issues,
+                }
+
+                # Sort by severity
+                for level in ['critical', 'warning']:
+                    report['storage_issues'][level].sort(key=lambda x: -x['used_pct'])
+                    report['memory_issues'][level].sort(key=lambda x: x['ram_gb'])
+
+                result = report
+                resource_type = 'hardware-report'
 
         # Output result
         if result is not None:

@@ -10,8 +10,6 @@
   "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "license": "MIT",
   "keywords": ["shopify", "ecommerce", "graphql", "admin-api", "automation", "content", "marketing"],
-  "category": "ecommerce",
-  "strict": false,
   "skills": [
     "./skills/shopify-content-creator",
     "./skills/shopify-merchant-daily",

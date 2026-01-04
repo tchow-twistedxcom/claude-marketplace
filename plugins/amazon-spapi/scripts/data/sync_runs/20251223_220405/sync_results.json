@@ -1,0 +1,23 @@
+{
+  "run_id": "20251223_220405",
+  "started_at": "2025-12-23T22:04:05.580607",
+  "completed_at": "2025-12-23T23:10:15.434588",
+  "total_items": 0,
+  "processed_items": 999,
+  "successful_items": 0,
+  "failed_items": 0,
+  "skipped_items": 0,
+  "products_created": 28,
+  "products_updated": 971,
+  "images_uploaded": 0,
+  "hierarchies_linked": 0,
+  "canonicals_linked": 0,
+  "current_phase": 0,
+  "is_complete": false,
+  "is_failed": true,
+  "duration_seconds": 3969.853981,
+  "success_rate": 0.0,
+  "errors": [
+    "[Errno 32] Broken pipe"
+  ]
+}

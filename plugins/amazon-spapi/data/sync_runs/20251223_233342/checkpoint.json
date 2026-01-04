@@ -1,0 +1,21 @@
+{
+  "run_id": "20251223_233342",
+  "phase": "complete",
+  "last_checkpoint": "2025-12-23T23:34:09.636883",
+  "processed_asins": [],
+  "pending_asins": [
+    "B0DGPLXG9R",
+    "B0DGPJZ1L1",
+    "B0DGPF5L77"
+  ],
+  "failed_asins": {},
+  "parent_asins": [],
+  "canonical_index_built": true,
+  "results": {},
+  "stats": {
+    "processed_count": 0,
+    "pending_count": 3,
+    "failed_count": 0,
+    "parent_count": 0
+  }
+}

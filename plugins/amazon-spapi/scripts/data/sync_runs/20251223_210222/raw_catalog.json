@@ -1,0 +1,44 @@
+[
+  {
+    "asin": "B01EU4OJU8",
+    "parent_asin": null,
+    "item_name": "Twisted X Men's Chukka Driving Moc, Moc Toe, Bomber & Tan, 13 M",
+    "brand": "Twisted X",
+    "manufacturer": "Twisted X",
+    "model_number": "MDM0033",
+    "product_type": "BOOT",
+    "upc": "884882194794",
+    "ean": "0884882194794",
+    "gtin": null,
+    "variation_theme": null,
+    "color": "Bomber & Tan",
+    "size": "13",
+    "is_parent": false,
+    "child_asins": [],
+    "bullet_points": [
+      "Full-grain leather upper.",
+      "Removable, liquid-wicking, and machine washable contoured footbed.",
+      "Three-quarter length composite insole provides unrivaled support and stability.",
+      "Rubber outsole provides durability."
+    ],
+    "product_description": null,
+    "item_dimensions": {
+      "height": null,
+      "width": null,
+      "length": null,
+      "weight": null
+    },
+    "image_urls": [
+      "https://m.media-amazon.com/images/I/41BmjsZJSRL._SL75_.jpg",
+      "https://m.media-amazon.com/images/I/41BmjsZJSRL.jpg",
+      "https://m.media-amazon.com/images/I/81R4yVeetUL.jpg",
+      "https://m.media-amazon.com/images/I/810+oCDzhFL.jpg",
+      "https://m.media-amazon.com/images/I/31bGTA4Y9DL.jpg",
+      "https://m.media-amazon.com/images/I/31bGTA4Y9DL._SL75_.jpg",
+      "https://m.media-amazon.com/images/I/71CidZGzGPL.jpg",
+      "https://m.media-amazon.com/images/I/31bbLFQJKIL.jpg",
+      "https://m.media-amazon.com/images/I/31bbLFQJKIL._SL75_.jpg",
+      "https://m.media-amazon.com/images/I/91k2DRzVMsL.jpg"
+    ]
+  }
+]

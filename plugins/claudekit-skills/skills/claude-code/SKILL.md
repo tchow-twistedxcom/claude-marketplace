@@ -251,6 +251,50 @@ claude --debug "api,mcp"    # Specific categories
 claude --verbose            # Detailed turn output
 ```
 
+## Auto-Update
+
+This skill automatically syncs with official Claude Code documentation via GitHub mirrors.
+
+### How It Works
+
+1. **On Activation**: Background check runs with < 50ms latency
+2. **Version Detection**: Parses official CHANGELOG.md for version numbers
+3. **Content Sync**: Fetches documentation from GitHub mirror (updated every 3 hours)
+4. **Notification**: Shows update prompt when new content is available
+
+### Sources
+
+| Source | URL | Purpose |
+|--------|-----|---------|
+| Changelog | `anthropics/claude-code/CHANGELOG.md` | Version detection |
+| Docs Mirror | `ericbuess/claude-code-docs` | Documentation content |
+
+### Commands
+
+```bash
+# Check current status
+python3 scripts/skill_autoupdate.py --status
+
+# Force update now
+python3 scripts/skill_autoupdate.py --update
+
+# Quick check (runs automatically on activation)
+python3 scripts/skill_autoupdate.py --check
+```
+
+### What Gets Updated
+
+| File | Description |
+|------|-------------|
+| `references/*.md` | Regenerated from GitHub docs mirror |
+| `skill.json` | Version synced to match Claude Code release |
+
+### Cache Behavior
+
+- **Fresh** (< 6 hours): No network check
+- **Stale** (6h - 7 days): Background refresh, serve cached
+- **Expired** (> 7 days): Force refresh attempt
+
 ## Reference Index
 
 | Document | Content |
@@ -271,4 +315,4 @@ claude --verbose            # Detailed turn output
 
 ---
 
-*Last updated: 2025-12-18 | Source: code.claude.com/docs*
+*Last updated: 2025-12-20*

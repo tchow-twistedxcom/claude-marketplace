@@ -1,0 +1,139 @@
+# Amazon → Plytix Sync Configuration
+# =================================
+
+sync:
+  # Marketplace settings
+  marketplace: "US"
+  sku_prefix: "AMZN"
+  sku_format: "{prefix}-{marketplace}-{asin}"  # e.g., AMZN-US-B07X8Z63ZL
+
+  # Batch processing
+  batch_size: 50                    # ASINs per SP-API batch
+  checkpoint_interval: 100          # Save checkpoint every N items
+  max_retries: 3                    # Retry failed operations
+  retry_delay_seconds: 5            # Delay between retries
+
+  # Rate limiting (requests per second)
+  spapi_rate_limit: 5               # SP-API catalog endpoint
+  plytix_rate_limit: 3              # Plytix API
+  delay_between_batches: 0.5        # Seconds between batch operations
+
+plytix:
+  # Product family for Amazon products
+  product_family_id: "694a3a2d665d9e1363da7922"  # "8 - Amazon"
+  product_family_name: "8 - Amazon"
+
+  # Relationships
+  amazon_hierarchy_relationship: "amazon_hierarchy"   # Parent → Child variations
+  amazon_listings_relationship: "amazon_listings"     # Canonical → Amazon product
+
+  # Media gallery attribute for Amazon images
+  amazon_images_attribute: "amazon_images"
+
+  # Status for new products
+  default_status: "draft"
+
+# Attribute mapping: Amazon field → Plytix attribute
+# NOTE: Only use attributes that exist in the Amazon product family!
+# Check with: plytix_api.py families get-all-attributes 694a3a2d665d9e1363da7922
+attribute_mapping:
+  # Core identification
+  asin: "amazon_asin"
+  parent_asin: "amazon_parent_asin"
+
+  # Product info
+  item_name: "amazon_title_imported"
+  brand: "amazon_brand"
+  model_number: "amazon_model_number"
+  manufacturer: "amazon_manufacturer"
+  # product_type: not available - needs to be created in Plytix
+
+  # Identifiers - critical for canonical matching
+  upc: "amazon_upc_imported"
+  ean: "amazon_ean_imported"
+  gtin: "amazon_gtin"
+
+  # Variation info
+  variation_theme: "amazon_variation_theme"
+  color: "amazon_color"
+  size: "amazon_size"
+
+  # Additional data - not available, comment out for now
+  # bullet_points: "amazon_bullet_points"
+  # product_description: "amazon_description"
+  # item_dimensions: "amazon_dimensions"
+  # item_weight: "amazon_weight"
+
+  # Sync metadata
+  last_synced: "amazon_last_synced"
+
+# Write behavior rules
+write_rules:
+  # These attributes are ALWAYS overwritten from Amazon
+  always_write:
+    - "amazon_asin"
+    - "amazon_parent_asin"
+    - "amazon_title_imported"
+    - "amazon_brand"
+    - "amazon_model_number"
+    - "amazon_manufacturer"
+    - "amazon_variation_theme"
+    - "amazon_color"
+    - "amazon_size"
+    - "amazon_last_synced"
+
+  # These are only written if Plytix field is empty
+  fill_empty:
+    - "amazon_upc_imported"
+    - "amazon_ean_imported"
+    - "amazon_gtin"
+
+# Canonical matching priority (highest to lowest)
+canonical_matching:
+  priority:
+    - "upc"            # Primary - most reliable for US products
+    - "gtin"           # Global identifier
+    - "ean"            # European standard
+    - "model_size"     # Pattern: {model}-{width}-{size} (for Twisted X SKUs like MDM0033-M-13)
+    - "model_number"   # Manufacturer model (matches canonical model_number attr)
+    - "model_to_sku"   # Amazon model_number matches canonical SKU directly
+    - "sku"            # Last resort (brand + model combination)
+
+  # Normalize identifiers before matching
+  normalize_identifiers: true    # Strip leading zeros, standardize format
+
+  # What to do with unmatched Amazon products
+  orphan_handling: "create"      # create | skip | flag
+
+# Image sync settings
+images:
+  sync_enabled: true
+  max_images_per_product: 10
+  skip_existing: true            # Don't re-upload existing URLs
+  set_first_as_thumbnail: true   # First image becomes product thumbnail
+  main_image_attribute: "amazon_main_image_test"  # Attribute to store main image
+
+# Hierarchy settings (parent-child relationships)
+hierarchy:
+  sync_enabled: true
+  relationship_type: "amazon_hierarchy"
+  link_direction: "parent_to_child"
+  fail_on_missing_relationships: false  # Skip relationship validation for image-only reruns
+
+# State/checkpoint settings
+state:
+  data_dir: "data/sync_runs"
+  checkpoint_file: "checkpoint.json"
+  progress_file: "progress.json"
+  results_file: "sync_results.json"
+
+  # Files generated during sync
+  raw_catalog_file: "raw_catalog.json"
+  transformed_file: "transformed.json"
+  matched_file: "matched.json"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s [%(levelname)s] %(message)s"
+  file: "sync.log"

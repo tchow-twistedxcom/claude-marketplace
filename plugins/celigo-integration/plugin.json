@@ -10,8 +10,6 @@
   "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "license": "MIT",
   "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "automation", "iPaaS", "cli"],
-  "category": "integration",
-  "strict": false,
   "commands": [
     "./commands/celigo-setup.md",
     "./commands/celigo-manage.md"

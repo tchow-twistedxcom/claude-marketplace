@@ -1,0 +1,29 @@
+{
+  "run_id": "20251225_034618",
+  "started_at": "2025-12-25T03:46:18.841283",
+  "completed_at": "2025-12-25T03:46:32.878616",
+  "total_items": 0,
+  "processed_items": 0,
+  "successful_items": 0,
+  "failed_items": 0,
+  "skipped_items": 0,
+  "products_created": 0,
+  "products_updated": 0,
+  "images_uploaded": 0,
+  "images_failed": 0,
+  "hierarchies_linked": 0,
+  "canonicals_linked": 0,
+  "current_phase": 0,
+  "is_complete": false,
+  "is_failed": true,
+  "duration_seconds": 14.037333,
+  "success_rate": 0.0,
+  "errors": [
+    "Missing required Plytix relationships: 'amazon_hierarchy', 'amazon_listings'. Create them in Plytix or set fail_on_missing_relationships: false in config."
+  ],
+  "transform_failures": [],
+  "family_assignment_failures": [],
+  "image_upload_failures": [],
+  "hierarchy_failures": [],
+  "canonical_failures": []
+}

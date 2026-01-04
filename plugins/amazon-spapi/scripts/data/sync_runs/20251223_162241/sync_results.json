@@ -1,0 +1,21 @@
+{
+  "run_id": "20251223_162241",
+  "started_at": "2025-12-23T16:22:42.000558",
+  "completed_at": "2025-12-23T18:34:02.969238",
+  "total_items": 0,
+  "processed_items": 1000,
+  "successful_items": 0,
+  "failed_items": 0,
+  "skipped_items": 0,
+  "products_created": 983,
+  "products_updated": 17,
+  "images_uploaded": 0,
+  "hierarchies_linked": 0,
+  "canonicals_linked": 0,
+  "current_phase": 0,
+  "is_complete": true,
+  "is_failed": false,
+  "duration_seconds": 7880.96868,
+  "success_rate": 0.0,
+  "errors": []
+}

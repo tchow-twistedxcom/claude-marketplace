@@ -409,53 +409,418 @@ Skill content...
 
 ---
 
-## Curated Community Plugins
+## Celigo Integration
 
-### Anthropic Skills
+Enterprise iPaaS integration with 63 MCP tools for managing integrations, flows, connections, jobs, and errors.
 
-#### document-skills
-Excel, Word, PowerPoint, PDF processing
+### Commands
+
+#### `/celigo-setup`
+Configure Celigo CLI and API authentication.
 
 **Usage:**
-Skills activate automatically when working with documents.
+```
+/celigo-setup
+Configure API keys for production environment
+```
+
+#### `/celigo-manage`
+Manage integrations, flows, and connections via CLI.
+
+**Usage:**
+```
+/celigo-manage
+List all active integrations and their status
+```
+
+### Skills
+
+#### Integration Patterns
+Automatically activates when:
+- Designing data integrations
+- Building ETL workflows
+- Connecting business applications
+
+**Provides:**
+- Best practices for Celigo integrations
+- Error handling patterns
+- Rate limiting strategies
+- Data transformation templates
+
+### MCP Tools Available
+| Category | Tools |
+|----------|-------|
+| Integrations | List, get, create, update, clone, delete |
+| Flows | List, get, enable, disable, run, schedule |
+| Connections | List, get, create, test, update |
+| Jobs | List, get, rerun, retry errors |
+| Errors | List, get, acknowledge, reprocess |
+| Lookup Caches | List, manage, refresh |
+| Tags | List, apply, remove |
+
+---
+
+## Shopify Workflows
+
+Shopify Admin API workflow automation with 5 specialized skills.
+
+### Skills
+
+#### Content Creator
+For blog articles, pages, and theme assets.
+
+**Activates when:**
+- Creating blog posts
+- Managing pages
+- Publishing content
 
 **Example:**
 ```
-Create an Excel financial model with formulas
-[xlsx skill activates automatically]
+Create a blog post about our new product launch
+[content-creator skill activates]
 ```
 
-#### example-skills
-Templates for creating skills, MCPs, canvas designs
+#### Merchant Operations
+For inventory, orders, and product management.
 
-**Usage:**
+**Activates when:**
+- Managing products
+- Processing orders
+- Updating inventory
+
+#### Marketing Campaigns
+For discounts, promotions, and customer engagement.
+
+**Activates when:**
+- Creating discount codes
+- Setting up promotions
+- Building marketing campaigns
+
+#### Developer Integrations
+For webhooks, metafields, and custom apps.
+
+**Activates when:**
+- Building Shopify integrations
+- Setting up webhooks
+- Developing custom functionality
+
+#### Analytics
+For sales reports and performance metrics.
+
+**Activates when:**
+- Generating reports
+- Analyzing trends
+- Querying performance metrics
+
+---
+
+## Atlassian Skills
+
+Confluence and Jira operations via REST API with OAuth authentication.
+
+### Skills
+
+#### Atlassian API
+Full coverage for Confluence and Jira operations.
+
+**Confluence Operations:**
+- Page creation, update, archive
+- Space management
+- Search functionality
+- Attachment handling
+- Markdown-to-Confluence conversion with Mermaid diagram support
+
+**Jira Operations:**
+- Issue management (create, update, transition)
+- JQL queries
+- Comment handling
+- Workflow transitions
+
+**Activates when:**
 ```
-Help me create a new skill
-[skill-creator activates automatically]
+Create a Confluence page documenting the API
+[atlassian-api skill activates]
+
+Search Jira for all open bugs assigned to me
+[atlassian-api skill activates]
 ```
 
-### Seth Hobson's Workflows
+---
 
-#### backend-development
-API design, architecture, microservices
+## Plytix PIM Skills
 
-**Usage:**
-Skills activate for backend work.
+Product Information Management operations via REST API with multi-account support.
 
-**Example:**
+### Skills
+
+#### Plytix PIM
+Full coverage for PIM operations.
+
+**Capabilities:**
+- Product management (CRUD, bulk operations)
+- Digital asset handling (upload, organize, link)
+- Category organization (hierarchies, assignments)
+- Variant creation and management
+- Attribute schema management
+
+**Activates when:**
 ```
-Design a REST API for user management
-[API design principles skill activates]
+Upload product images to Plytix
+[plytix-pim skill activates]
+
+Create product variants for size options
+[plytix-pim skill activates]
 ```
 
-#### security-scanning
-Security auditing, SAST configuration
+**Supports:**
+- Multi-account (production/staging)
+- Bulk operations
+- Asset workflows
 
-**Usage:**
+---
+
+## NinjaOne RMM Skills
+
+Remote Monitoring and Management API integration with 70+ endpoints.
+
+### Skills
+
+#### NinjaOne API
+Full coverage across 9 domains.
+
+| Domain | Capabilities |
+|--------|-------------|
+| Devices | List, get, manage, monitor |
+| Alerts | Create, acknowledge, resolve |
+| Ticketing | Create, update, assign tickets |
+| Patching | Scan, approve, deploy patches |
+| Reports | Generate, schedule, export |
+| Groups | Create, manage, assign devices |
+| Policies | Create, apply, manage |
+| Users | List, manage, permissions |
+| Automation | Scripts, scheduled tasks |
+
+**Activates when:**
 ```
-Audit this codebase for security vulnerabilities
-[Security scanning agent activates]
+Get status of all Windows devices
+[ninjaone-api skill activates]
+
+Create a patch approval for Microsoft updates
+[ninjaone-api skill activates]
 ```
+
+---
+
+## M365 / Azure AD Skills
+
+Microsoft 365 and Azure integrations via Microsoft Graph API.
+
+### Skills
+
+#### Azure AD / Entra ID
+Directory operations for users, groups, and devices.
+
+**Capabilities:**
+- User management (create, update, disable, license)
+- Group management (create, membership, dynamic groups)
+- Device management (list, compliance, policies)
+- Directory queries and reports
+
+**Authentication:**
+- MSAL OAuth 2.0
+- Delegated and application permissions
+- Token caching
+
+**Activates when:**
+```
+List all users in the Engineering group
+[m365-azuread skill activates]
+
+Disable account and revoke sessions for terminated employee
+[m365-azuread skill activates]
+```
+
+---
+
+## Amazon SP-API Skills
+
+Amazon Selling Partner API integration via Python CLI.
+
+### Skills
+
+9 specialized skills covering Vendor (1P) and Seller operations.
+
+| Skill | Coverage |
+|-------|----------|
+| Vendor Orders | Purchase orders, acknowledgments |
+| Vendor Shipments | ASN creation, shipment tracking |
+| Vendor Invoices | Invoice submission, reconciliation |
+| Seller Orders | Order management, fulfillment |
+| Catalog | Product listing, content management |
+| Inventory | FBA inventory, replenishment |
+| Reports | Sales reports, inventory reports |
+| Feeds | Bulk operations, feed submission |
+| Pricing | Competitive pricing, repricing |
+
+**Features:**
+- LWA OAuth authentication
+- Rate limiting with exponential backoff
+- Multi-region support (NA, EU, FE)
+
+**Activates when:**
+```
+Submit ASN for PO-12345 to Amazon
+[amazon-spapi skill activates]
+
+Check FBA inventory levels for ASIN B08XYZ123
+[amazon-spapi skill activates]
+```
+
+---
+
+## Mimecast Skills
+
+Email security integration with 28 operations.
+
+### Skills
+
+#### Mimecast Security
+Full coverage for email security operations.
+
+| Category | Operations |
+|----------|------------|
+| TTP URL Protection | Decode, analyze, report |
+| TTP Attachment Protection | Scan, quarantine, release |
+| Held Messages | List, release, reject |
+| User Management | Create, update, groups |
+| Blocked Senders | Add, remove, list |
+| Permitted Senders | Add, remove, list |
+| Audit Logs | Query, export |
+| SIEM Integration | Log streaming, events |
+
+**Authentication:**
+- HMAC-SHA1 signing
+- Multi-region support
+
+**Activates when:**
+```
+Release held message for user@company.com
+[mimecast-security skill activates]
+
+Add sender to blocked list
+[mimecast-security skill activates]
+```
+
+---
+
+## ClaudeKit Skills
+
+Curated collection of 35+ specialized skills for development workflows.
+
+### Claude Code Mastery
+
+Expert guidance for Claude Code usage (auto-updates to match official releases).
+
+**Covers:**
+- Tool selection (Read vs Bash, Edit vs MultiEdit)
+- Agent orchestration (30+ subagent types)
+- MCP integration and configuration
+- Hooks system
+- CLI mastery
+
+**Activates when:**
+```
+Which tool should I use to edit multiple files?
+[claude-code skill activates]
+
+How do I configure an MCP server?
+[claude-code skill activates]
+```
+
+### Framework Skills
+
+| Skill | Usage |
+|-------|-------|
+| `nextjs` | Next.js App Router, server components, data fetching |
+| `tailwindcss` | Utility-first styling, responsive design, dark mode |
+| `shadcn-ui` | UI components with Radix + Tailwind |
+| `better-auth` | Authentication framework for TypeScript |
+| `turborepo` | Monorepo build system |
+
+### Tool Skills
+
+| Skill | Usage |
+|-------|-------|
+| `ffmpeg` | Video/audio encoding, conversion, streaming |
+| `imagemagick` | Image processing, format conversion, batch ops |
+| `repomix` | Repository packaging for AI analysis |
+| `mcp-builder` | Creating MCP servers (Python/TypeScript) |
+
+### Debugging Methodologies
+
+4 systematic approaches to debugging:
+
+| Skill | When to Use |
+|-------|-------------|
+| `systematic-debugging` | Structured investigation process |
+| `root-cause-tracing` | Finding underlying causes |
+| `defense-in-depth` | Layered error prevention |
+| `verification-before-completion` | Ensuring fixes are complete |
+
+**Activates when:**
+```
+Help me debug this authentication failure
+[debugging skill activates]
+```
+
+### Problem-Solving Techniques
+
+6 techniques for complex problems:
+
+| Technique | Description |
+|-----------|-------------|
+| `when-stuck` | Strategies for breaking through blocks |
+| `inversion-exercise` | Solving by considering opposites |
+| `collision-zone-thinking` | Finding points of conflict |
+| `minimum-viable-change` | Smallest effective solution |
+| `evidence-based-diagnosis` | Data-driven problem solving |
+| `problem-loop-detection` | Identifying circular issues |
+
+**Activates when:**
+```
+I'm stuck on how to approach this refactoring
+[problem-solving skill activates]
+```
+
+### Document Processing
+
+| Skill | Formats | Operations |
+|-------|---------|------------|
+| `docx` | Word documents | Create, edit, track changes, comments |
+| `xlsx` | Excel spreadsheets | Formulas, formatting, data analysis |
+| `pptx` | PowerPoint | Create, edit, layouts, notes |
+| `pdf` | PDF documents | Extract, create, merge, forms |
+
+**Activates when:**
+```
+Create an Excel report with pivot tables
+[xlsx skill activates]
+
+Fill out this PDF form
+[pdf skill activates]
+```
+
+### Additional Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `google-adk` | Google Agent Development Kit for AI agents |
+| `remix-icon` | Icon library integration (3100+ icons) |
+| `shopify` | Shopify app/extension development |
+| `skill-creator` | Creating new Claude Code skills |
+| `docs-seeker` | Finding documentation via llms.txt |
+| `canvas-design` | Creating visual art and designs |
+| `frontend-design` | Production-grade UI development |
 
 ---
 
@@ -484,6 +849,25 @@ Audit this codebase for security vulnerabilities
 2. **Test in sandbox** - Never deploy untested to production
 3. **Use skills for patterns** - SDF and customization skills guide
 4. **Document customizations** - Maintain clear records
+
+### Enterprise Integrations (Celigo, Shopify, Atlassian, etc.)
+1. **Set up authentication first** - Run `/celigo-setup` or equivalent before operations
+2. **Use read-only operations initially** - List and get before create/update
+3. **Test in staging/sandbox** - Most integrations support multi-environment
+4. **Handle rate limits** - Skills include built-in throttling strategies
+5. **Check audit logs** - Most integrations log operations for troubleshooting
+
+### Amazon SP-API
+1. **Use correct endpoint region** - NA, EU, or FE depending on marketplace
+2. **Handle throttling gracefully** - Built-in exponential backoff
+3. **Validate ASNs before submission** - Check carton/pallet counts
+4. **Monitor report generation** - Reports are async, check status
+
+### ClaudeKit Skills
+1. **Let skills auto-activate** - Don't force activation unnecessarily
+2. **Use debugging skills early** - Systematic approach saves time
+3. **Combine problem-solving techniques** - When stuck, try multiple approaches
+4. **Keep claude-code skill updated** - Auto-sync with official releases
 
 ## Next Steps
 

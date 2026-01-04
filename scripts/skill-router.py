@@ -8,6 +8,11 @@ for any matching skills from the tchow-essentials marketplace.
 import json
 import sys
 import re
+import subprocess
+from pathlib import Path
+
+# Claude-code skill auto-update script location
+CLAUDE_CODE_UPDATE_SCRIPT = Path(__file__).parent.parent / 'plugins' / 'claudekit-skills' / 'skills' / 'claude-code' / 'scripts' / 'skill_autoupdate.py'
 
 # Skill detection patterns and metadata
 SKILLS = {
@@ -228,17 +233,71 @@ SKILLS = {
         "skill_name": "shopify-workflows:shopify-developer",
         "description": "Shopify Admin API (products, orders, discounts, GraphQL)"
     },
-    "netsuite-skills": {
+    "netsuite-sdf-deployment": {
         "patterns": [
-            r"\b(netsuite)\b",
-            r"\b(erp|suitescript|sdf|suiteql)\b",
-            r"\b(invoice|purchase\s*order|vendor\s*bill)\b",
-            r"\b(saved\s*search|workflow|script)\b.*\b(netsuite|erp)\b",
+            r"\b(twx[-\s]?deploy|netsuite[-\s]?deploy)\b",
+            r"\b(@twisted-x/netsuite-deploy)\b",
+            r"\b(sdf|suitecloud)\b.*\b(deploy|bundle|project)\b",
+            r"\b(certificate.*auth|tba|machine[-\s]?to[-\s]?machine)\b",
+            r"\b(authid|auth[-\s]?id|ci[-\s]?passkey)\b",
+            r"\b(monorepo|multi[-\s]?project)\b.*\b(deploy|sdf|netsuite)\b",
+            r"\b(github.*action|ci/cd)\b.*\b(netsuite|sdf)\b",
+            r"\b(twx-sdf\.config|\.sdfcli\.json|project\.json)\b",
+            r"\b(credential.*refresh|stale.*credential)\b",
             r"\b(deploy|bundle)\b.*\b(netsuite|sdf)\b",
-            r"\b(pri|prolecto|container)\b",
         ],
         "skill_name": "netsuite-skills:netsuite-sdf-deployment",
-        "description": "NetSuite ERP (SuiteScript, SDF deployment, SuiteQL, Prolecto)"
+        "description": "NetSuite SDF deployment (twx-deploy, CI/CD, TBA auth, monorepo)"
+    },
+    "netsuite-suiteql": {
+        "patterns": [
+            r"\b(suiteql)\b",
+            r"\b(execute|test|run)\b.*\b(query)\b.*\b(netsuite)\b",
+            r"\b(netsuite)\b.*\b(query|data)\b",
+            r"\b(record\s*display)\b.*\b(query|data)\b",
+            r"\b(transaction.*chain|flowchart.*data)\b",
+            r"\b(suitescript)\b.*\b(query|search)\b",
+            r"\b(saved\s*search|workflow|script)\b.*\b(netsuite|erp)\b",
+        ],
+        "skill_name": "netsuite-skills:netsuite-suiteql",
+        "description": "NetSuite SuiteQL queries (Record Display, data validation, saved searches)"
+    },
+    "netsuite-file-cabinet": {
+        "patterns": [
+            r"\b(upload|find|search)\b.*\b(file|script)\b.*\b(netsuite|file\s*cabinet)\b",
+            r"\b(netsuite)\b.*\b(file\s*cabinet|upload|find\s*file)\b",
+            r"\b(fileCreate|fileUpdate|fileGet)\b",
+            r"\b(deploy|push)\b.*\b(script|suitescript)\b.*\b(prod|production|sandbox)\b",
+            r"\b(folder[-\s]?id)\b.*\b(netsuite)\b",
+        ],
+        "skill_name": "netsuite-skills:netsuite-file-cabinet",
+        "description": "NetSuite File Cabinet (upload, find, list files)"
+    },
+    "netsuite-script-deployments": {
+        "patterns": [
+            r"\b(script)\b.*\b(deployment|deployed|active|inactive)\b",
+            r"\b(list|check|find)\b.*\b(deployment)\b",
+            r"\b(user\s*event|restlet|suitelet|scheduled)\b.*\b(deployment|deployed)\b",
+            r"\b(active[-\s]?only|isdeployed)\b",
+            r"\b(record[-\s]?type)\b.*\b(script|deployment)\b",
+            r"\b(which\s*script|wrong\s*script|inactive\s*script)\b",
+        ],
+        "skill_name": "netsuite-skills:netsuite-script-deployments",
+        "description": "NetSuite script deployments (active/inactive, record types)"
+    },
+    "pri-container-tracking": {
+        "patterns": [
+            r"\b(pri|prolecto)\b",
+            r"\b(container|freight|vessel)\b.*\b(tracking|status|lock|sync)\b",
+            r"\b(queue.*stuck|stuck.*queue|dates.*not.*syncing)\b",
+            r"\b(application.*setting)\b.*\b(pri|container|netsuite)\b",
+            r"\b(landed.*cost|lc.*template|allocation)\b",
+            r"\b(production.*po|blanket.*po|item.*version)\b",
+            r"\b(ir.*to.*linker|container.*distribution)\b",
+            r"\b(bundle\s*125246|bundle\s*132118|bundle\s*168443)\b",
+        ],
+        "skill_name": "netsuite-skills:pri-container-tracking",
+        "description": "PRI Container Tracking (logistics, PPO, landed cost, app settings)"
     },
     "celigo-integration": {
         "patterns": [
@@ -253,6 +312,159 @@ SKILLS = {
         ],
         "skill_name": "celigo-integration:celigo-integrator",
         "description": "Celigo Integrator.io REST API (full CRUD for integrations, flows, connections, jobs, errors, scripts, lookups)"
+    },
+    "plytix-skills": {
+        "patterns": [
+            r"\b(plytix)\b",
+            r"\b(pim)\b.*\b(product|asset|catalog)\b",
+            r"\b(product\s*information\s*management)\b",
+            r"\b(product)\b.*\b(catalog|attribute|variant)\b.*\b(manage|create|update)\b",
+            r"\b(digital\s*asset)\b.*\b(manage|upload|product)\b",
+            r"\b(sku|gtin|ean|upc)\b.*\b(product|catalog)\b",
+        ],
+        "skill_name": "plytix-skills:plytix-api",
+        "description": "Plytix PIM operations (products, assets, categories, variants, attributes)"
+    },
+    "ninjaone-skills": {
+        "patterns": [
+            r"\b(ninjaone|ninja\s*one|ninjarmm|ninja\s*rmm)\b",
+            r"\b(rmm)\b.*\b(device|endpoint|monitor|agent)\b",
+            r"\b(remote\s*monitoring)\b.*\b(management|device)\b",
+            r"\b(it\s*management)\b.*\b(device|endpoint|patch|alert)\b",
+            r"\b(msp)\b.*\b(device|endpoint|ticket|alert)\b",
+            r"\b(endpoint)\b.*\b(monitor|manage|patch|alert)\b",
+        ],
+        "skill_name": "ninjaone-skills:ninjaone-api",
+        "description": "NinjaOne RMM operations (devices, alerts, patches, ticketing, management)"
+    },
+    "m365-skills": {
+        "patterns": [
+            r"\b(azure\s*ad|entra\s*id|entra|azure\s*active\s*directory)\b",
+            r"\b(microsoft\s*365|m365|office\s*365|o365)\b.*\b(user|group|directory)\b",
+            r"\b(aad)\b.*\b(user|group|device|directory)\b",
+            r"\b(graph\s*api)\b.*\b(user|group|device)\b",
+            r"\b(tenant)\b.*\b(user|group|directory|license)\b",
+            r"\b(entra)\b.*\b(user|group|device|role)\b",
+            r"\b(directory\s*role|admin\s*role)\b.*\b(azure|entra|m365)\b",
+        ],
+        "skill_name": "m365-skills:azure-ad",
+        "description": "Azure AD/Entra ID operations (users, groups, devices, directory, licenses)"
+    },
+    "amazon-spapi": {
+        "patterns": [
+            r"\b(amazon)\b.*\b(sp[-\s]?api|selling\s*partner)\b",
+            r"\b(amazon)\b.*\b(vendor|seller)\b.*\b(api|order|ship|invoice)\b",
+            r"\b(vendor\s*central|seller\s*central)\b.*\b(api|order|report)\b",
+            r"\b(amazon)\b.*\b(po|purchase\s*order|asn|invoice)\b",
+            r"\b(amazon)\b.*\b(catalog|listing|inventory|fulfillment)\b",
+            r"\b(amazon)\b.*\b(report|feed|notification)\b",
+            r"\b(lwa|login\s*with\s*amazon)\b.*\b(oauth|auth)\b",
+            r"\b(asin|fnsku|msku)\b.*\b(amazon)\b",
+        ],
+        "skill_name": "amazon-spapi:spapi-integration-patterns",
+        "description": "Amazon SP-API (Vendor/Seller orders, shipments, catalog, inventory, reports, feeds)"
+    },
+    "mimecast-skills": {
+        "patterns": [
+            r"\b(mimecast)\b",
+            r"\b(email\s*security)\b.*\b(protection|gateway|filter)\b",
+            r"\b(ttp)\b.*\b(url|attachment|protection)\b",
+            r"\b(targeted\s*threat\s*protection)\b",
+            r"\b(held\s*message|quarantine)\b.*\b(email)\b",
+            r"\b(blocked\s*sender|permitted\s*sender)\b",
+            r"\b(email)\b.*\b(policy|audit|siem)\b",
+            r"\b(anti[-\s]?phishing|anti[-\s]?malware)\b.*\b(email)\b",
+        ],
+        "skill_name": "mimecast-skills:mimecast-api",
+        "description": "Mimecast email security (TTP, held messages, policies, SIEM integration)"
+    },
+
+    # ============================================================
+    # DEBUGGING & PROBLEM SOLVING
+    # ============================================================
+    "debugging-systematic": {
+        "patterns": [
+            r"\b(debug|debugging)\b.*\b(systematic|methodical|approach)\b",
+            r"\b(systematic)\b.*\b(debug|troubleshoot|diagnose)\b",
+            r"\b(bug|error|issue)\b.*\b(systematic|step[-\s]?by[-\s]?step)\b",
+            r"\b(root\s*cause)\b.*\b(analysis|trace|find)\b",
+            r"\b(defense\s*in\s*depth)\b",
+            r"\b(verification)\b.*\b(before\s*completion|complete)\b",
+        ],
+        "skill_name": "claudekit-skills:debugging/systematic-debugging",
+        "description": "Systematic debugging approach (root cause, defense in depth, verification)"
+    },
+    "problem-solving": {
+        "patterns": [
+            r"\b(stuck|blocked)\b.*\b(how|what|help)\b",
+            r"\b(problem[-\s]?solving)\b.*\b(technique|approach|method)\b",
+            r"\b(inversion)\b.*\b(thinking|exercise|approach)\b",
+            r"\b(collision\s*zone|scale\s*game)\b",
+            r"\b(simplification)\b.*\b(cascade|approach)\b",
+            r"\b(meta[-\s]?pattern)\b.*\b(recognition)\b",
+            r"\b(think|approach)\b.*\b(different|creative|lateral)\b",
+        ],
+        "skill_name": "claudekit-skills:problem-solving/when-stuck",
+        "description": "Problem-solving techniques (inversion, collision zone, simplification, meta-patterns)"
+    },
+
+    # ============================================================
+    # DOCUMENT PROCESSING
+    # ============================================================
+    "document-docx": {
+        "patterns": [
+            r"\b(docx|word\s*document)\b.*\b(create|edit|read|convert|export)\b",
+            r"\b(create|generate|make)\b.*\b(docx|word\s*document)\b",
+            r"\b(microsoft\s*word|ms\s*word)\b.*\b(file|document)\b",
+            r"\b(tracked\s*changes|comments)\b.*\b(document|word)\b",
+        ],
+        "skill_name": "claudekit-skills:document-skills/docx",
+        "description": "Word document processing (create, edit, tracked changes, comments)"
+    },
+    "document-xlsx": {
+        "patterns": [
+            r"\b(xlsx|excel|spreadsheet)\b.*\b(create|edit|read|analyze|formula)\b",
+            r"\b(create|generate|make)\b.*\b(xlsx|excel|spreadsheet)\b",
+            r"\b(formula|pivot|chart)\b.*\b(excel|spreadsheet)\b",
+            r"\b(csv|tsv)\b.*\b(import|export|convert)\b.*\b(excel)\b",
+        ],
+        "skill_name": "claudekit-skills:document-skills/xlsx",
+        "description": "Excel/spreadsheet processing (formulas, charts, data analysis, CSV import)"
+    },
+    "document-pptx": {
+        "patterns": [
+            r"\b(pptx|powerpoint|presentation)\b.*\b(create|edit|read|slide)\b",
+            r"\b(create|generate|make)\b.*\b(pptx|powerpoint|presentation|slides)\b",
+            r"\b(slide)\b.*\b(deck|presentation|template)\b",
+            r"\b(speaker\s*notes)\b.*\b(presentation)\b",
+        ],
+        "skill_name": "claudekit-skills:document-skills/pptx",
+        "description": "PowerPoint/presentation processing (create, edit, layouts, speaker notes)"
+    },
+    "document-pdf": {
+        "patterns": [
+            r"\b(pdf)\b.*\b(create|edit|read|fill|merge|split|extract)\b",
+            r"\b(create|generate|make)\b.*\b(pdf)\b",
+            r"\b(pdf\s*form)\b.*\b(fill|create|extract)\b",
+            r"\b(merge|split|combine)\b.*\b(pdf)\b",
+            r"\b(extract)\b.*\b(text|table|image)\b.*\b(pdf)\b",
+        ],
+        "skill_name": "claudekit-skills:document-skills/pdf",
+        "description": "PDF processing (create, fill forms, merge, split, extract text/tables)"
+    },
+
+    # ============================================================
+    # GOOGLE AI & AGENTS
+    # ============================================================
+    "google-adk": {
+        "patterns": [
+            r"\b(google\s*adk|agent\s*development\s*kit)\b",
+            r"\b(google)\b.*\b(agent|adk)\b.*\b(python|build|create)\b",
+            r"\b(vertex\s*ai)\b.*\b(agent)\b",
+            r"\b(gemini)\b.*\b(agent|function|tool)\b",
+        ],
+        "skill_name": "claudekit-skills:google-adk-python",
+        "description": "Google Agent Development Kit (agents, Gemini integration, Vertex AI)"
     },
 }
 
@@ -273,6 +485,29 @@ def detect_skills(prompt: str) -> list:
                 break  # Only match once per skill
 
     return detected
+
+
+def spawn_claude_code_update_check():
+    """
+    Spawn background update check for claude-code skill.
+
+    This runs asynchronously and doesn't block skill activation.
+    Uses stale-while-revalidate pattern for minimal latency.
+    """
+    if not CLAUDE_CODE_UPDATE_SCRIPT.exists():
+        return
+
+    try:
+        subprocess.Popen(
+            [sys.executable, str(CLAUDE_CODE_UPDATE_SCRIPT), '--check'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True
+        )
+    except Exception:
+        # Silently fail - don't block skill activation
+        pass
 
 
 def build_activation_context(detected_skills: list) -> str:
@@ -340,6 +575,10 @@ def main():
         if not detected:
             # No skills detected, pass through
             sys.exit(0)
+
+        # Spawn background update check if claude-code skill detected
+        if any(s['id'] == 'claude-code' for s in detected):
+            spawn_claude_code_update_check()
 
         # Build activation context
         context = build_activation_context(detected)

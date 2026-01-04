@@ -1,0 +1,12 @@
+{
+  "total": 20,
+  "created": 3,
+  "exists": 17,
+  "linked": 0,
+  "errors": [],
+  "metadata": {
+    "source_file": "../data/mca0032_mapping_v3.json",
+    "sync_date": "2025-12-23T05:59:15.152656+00:00",
+    "dry_run": false
+  }
+}

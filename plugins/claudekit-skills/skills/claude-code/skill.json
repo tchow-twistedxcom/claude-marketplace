@@ -1,8 +1,41 @@
 {
   "name": "claude-code",
   "description": "Comprehensive guide for expert Claude Code usage including tool selection, agent orchestration, MCP integration, hooks, CLI mastery, and advanced workflows. This skill should be used when choosing between native tools (Read vs Bash, Edit vs MultiEdit), selecting specialized agents for tasks, configuring MCP servers, writing hooks, optimizing Claude Code performance, or debugging Claude Code issues.",
-  "version": "2.0.0",
+  "version": "2.0.74",
   "author": "ClaudeKit Community",
   "license": "MIT",
-  "keywords": ["claude-code", "tool-selection", "agents", "mcp", "mastery", "workflows", "hooks"]
+  "keywords": [
+    "claude-code",
+    "tool-selection",
+    "agents",
+    "mcp",
+    "mastery",
+    "workflows",
+    "hooks"
+  ],
+  "update": {
+    "auto_check": true,
+    "auto_update": false,
+    "check_interval_hours": 6,
+    "sources": [
+      {
+        "type": "github_raw",
+        "name": "changelog",
+        "url": "https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md",
+        "description": "Official changelog for version detection"
+      },
+      {
+        "type": "github_mirror",
+        "name": "github_docs",
+        "repo": "ericbuess/claude-code-docs",
+        "base_url": "https://raw.githubusercontent.com/ericbuess/claude-code-docs/main/docs",
+        "description": "Documentation mirror updated every 3 hours"
+      }
+    ],
+    "scripts": {
+      "check": "scripts/skill_autoupdate.py --check",
+      "update": "scripts/skill_autoupdate.py --update",
+      "status": "scripts/skill_autoupdate.py --status"
+    }
+  }
 }

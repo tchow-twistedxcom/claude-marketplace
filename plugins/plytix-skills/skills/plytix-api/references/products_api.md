@@ -137,12 +137,68 @@ python scripts/plytix_api.py products add-categories <product_id> --category-ids
 
 ## Product Object
 
+### ⚠️ CRITICAL: Top-Level Fields vs Attributes
+
+Products have **two types of fields**:
+
+1. **Top-Level Fields** - Built-in system fields set directly on the product
+2. **Attributes** - Custom/configurable fields set inside the `attributes` object
+
+**This distinction is crucial when updating products:**
+
+```python
+# CORRECT - product_family is a top-level field
+api.update_product(product_id, {
+    'product_family': '694a3a2d665d9e1363da7922'  # Direct on product
+})
+
+# WRONG - product_family is NOT an attribute
+api.update_product(product_id, {
+    'attributes': {'family': '8 - Amazon'}  # Will fail: "label does not exist"
+})
+```
+
+### Top-Level Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Product UUID (read-only) |
+| `sku` | string | Unique product identifier |
+| `label` | string | Product display name |
+| `status` | string | Product status |
+| `product_family` | string | **Family ID** (not name!) - determines available attributes |
+| `thumbnail` | object | `{"id": "asset_id"}` or string (auto-wrapped) |
+| `gtin` | string | Global Trade Item Number |
+| `created` | datetime | Creation timestamp (read-only) |
+| `modified` | datetime | Last modified timestamp (read-only) |
+| `categories` | array | Category IDs |
+| `assets` | array | Asset IDs |
+| `variants` | array | Variant IDs |
+
+### Attributes Object
+
+Custom fields go inside `attributes`. Their availability depends on the product's `product_family`:
+
+```json
+"attributes": {
+  "description": "Product description",
+  "price": 99.99,
+  "amazon_asin": "B07X8Z63ZL",
+  "custom_field": "value"
+}
+```
+
+### Full Product Object Example
+
 ```json
 {
   "id": "product-uuid",
   "sku": "SKU-001",
   "label": "Product Name",
   "status": "active",
+  "product_family": "694a3a2d665d9e1363da7922",
+  "gtin": "1234567890123",
+  "thumbnail": {"id": "asset-uuid"},
   "created": "2024-01-15T10:30:00Z",
   "modified": "2024-01-20T14:45:00Z",
   "attributes": {

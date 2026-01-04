@@ -1,0 +1,23 @@
+{
+  "default_profile": "production",
+  "profiles": {
+    "production": {
+      "name": "Production",
+      "region": "us",
+      "base_url": "https://us-api.mimecast.com",
+      "app_id": "YOUR_APP_ID",
+      "app_key": "YOUR_APP_KEY",
+      "access_key": "YOUR_ACCESS_KEY",
+      "secret_key": "YOUR_SECRET_KEY"
+    },
+    "sandbox": {
+      "name": "Sandbox",
+      "region": "sandbox",
+      "base_url": "https://sandbox-api.mimecast.com",
+      "app_id": "YOUR_SANDBOX_APP_ID",
+      "app_key": "YOUR_SANDBOX_APP_KEY",
+      "access_key": "YOUR_SANDBOX_ACCESS_KEY",
+      "secret_key": "YOUR_SANDBOX_SECRET_KEY"
+    }
+  }
+}

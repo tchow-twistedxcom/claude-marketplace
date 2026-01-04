@@ -1,0 +1,5 @@
+# Ignore actual config with credentials
+mimecast_config.json
+
+# Keep template
+!mimecast_config.template.json

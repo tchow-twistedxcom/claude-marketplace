@@ -1,0 +1,75 @@
+{
+  "default_profile": "production",
+  "profiles": {
+    "production": {
+      "name": "Production - US",
+      "description": "Production environment for US marketplace",
+      "region": "NA",
+      "marketplace": "US",
+      "lwa_client_id": "YOUR_LWA_CLIENT_ID",
+      "lwa_client_secret": "YOUR_LWA_CLIENT_SECRET",
+      "refresh_token": "YOUR_LWA_REFRESH_TOKEN",
+      "selling_partner_id": "YOUR_SELLING_PARTNER_ID"
+    },
+    "sandbox": {
+      "name": "Sandbox - US",
+      "description": "Sandbox environment for testing",
+      "region": "NA",
+      "marketplace": "US",
+      "lwa_client_id": "YOUR_SANDBOX_CLIENT_ID",
+      "lwa_client_secret": "YOUR_SANDBOX_CLIENT_SECRET",
+      "refresh_token": "YOUR_SANDBOX_REFRESH_TOKEN",
+      "selling_partner_id": "YOUR_SANDBOX_SP_ID"
+    },
+    "eu_production": {
+      "name": "Production - EU (UK)",
+      "description": "Production environment for UK marketplace",
+      "region": "EU",
+      "marketplace": "UK",
+      "lwa_client_id": "YOUR_EU_CLIENT_ID",
+      "lwa_client_secret": "YOUR_EU_CLIENT_SECRET",
+      "refresh_token": "YOUR_EU_REFRESH_TOKEN",
+      "selling_partner_id": "YOUR_EU_SP_ID"
+    },
+    "eu_de": {
+      "name": "Production - EU (Germany)",
+      "description": "Production environment for Germany marketplace",
+      "region": "EU",
+      "marketplace": "DE",
+      "lwa_client_id": "YOUR_EU_CLIENT_ID",
+      "lwa_client_secret": "YOUR_EU_CLIENT_SECRET",
+      "refresh_token": "YOUR_EU_REFRESH_TOKEN",
+      "selling_partner_id": "YOUR_EU_SP_ID"
+    },
+    "fe_jp": {
+      "name": "Production - Far East (Japan)",
+      "description": "Production environment for Japan marketplace",
+      "region": "FE",
+      "marketplace": "JP",
+      "lwa_client_id": "YOUR_FE_CLIENT_ID",
+      "lwa_client_secret": "YOUR_FE_CLIENT_SECRET",
+      "refresh_token": "YOUR_FE_REFRESH_TOKEN",
+      "selling_partner_id": "YOUR_FE_SP_ID"
+    }
+  },
+  "defaults": {
+    "timeout": 30,
+    "max_retries": 5,
+    "rate_limit_buffer": 0.1
+  },
+  "notifications": {
+    "sqs_queue_arn": "",
+    "eventbridge_bus_arn": "",
+    "eventbridge_region": ""
+  },
+  "_comments": {
+    "regions": "NA (North America), EU (Europe), FE (Far East)",
+    "na_marketplaces": "US, CA, MX, BR",
+    "eu_marketplaces": "UK, GB, DE, FR, IT, ES, NL, SE, PL, TR, AE, SA, EG, IN, BE",
+    "fe_marketplaces": "JP, AU, SG",
+    "lwa_setup": "Create LWA app at https://sellercentral.amazon.com/apps/develop/lwa",
+    "refresh_token": "Generate via OAuth authorization flow or self-authorization for private apps",
+    "selling_partner_id": "Required for Listings API. Find it in Seller Central: Settings > Account Info > Merchant Token (format: AXXXXXXXXXX). For Vendor Central, this is not used - vendor content is managed via Vendor Central portal.",
+    "account_types": "Seller Central (3P) = Listings API for product updates. Vendor Central (1P) = Vendor APIs or portal for content updates."
+  }
+}

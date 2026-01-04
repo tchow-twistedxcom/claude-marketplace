@@ -12,7 +12,7 @@ Complete installation instructions for the tchow-essentials marketplace.
 ### Optional (depending on plugins)
 - **Chrome Browser** (for Chrome DevTools MCP)
 - **NetSuite SDF CLI** (for NetSuite workflows)
-- **Python 3.8+** (for certain MCP servers)
+- **Python 3.10+** (for Celigo, Atlassian, Plytix, NinjaOne, M365, Amazon SP-API, Mimecast integrations)
 
 ## Installation Methods
 
@@ -24,11 +24,13 @@ Once you push this repository to GitHub:
 # Add marketplace
 /plugin marketplace add tchow-twistedxcom/claude-marketplace
 
-# Install all your custom plugins
-/plugin install superclaude-framework chrome-devtools netsuite-workflows
+# Install all plugins
+/plugin install superclaude-framework chrome-devtools netsuite-skills celigo-integration claudekit-skills shopify-workflows atlassian-skills plytix-skills ninjaone-skills m365-skills amazon-spapi mimecast-skills
 
 # Or install selectively
 /plugin install superclaude-framework
+/plugin install celigo-integration
+/plugin install claudekit-skills
 ```
 
 ### Method 2: Install from Local Directory
@@ -143,6 +145,83 @@ To add custom content:
 2. Update `plugin.json` to reference new files
 3. Reload plugin: `/plugin reload personal-automation`
 
+### Celigo Integration
+
+**Setup:**
+
+1. **Get API credentials from Celigo:**
+   - Log in to Celigo integrator.io
+   - Go to Settings > API Tokens
+   - Create a new token with appropriate permissions
+
+2. **Configure via command:**
+   ```bash
+   /celigo-setup
+   ```
+   - Enter API key and region
+
+**Verify Installation:**
+```bash
+/celigo-manage
+List all integrations
+```
+
+### Enterprise Integrations (Atlassian, Shopify, Plytix, NinjaOne, M365)
+
+**Common Setup Pattern:**
+
+Each integration requires API credentials stored in its config directory:
+
+1. **Atlassian Skills:**
+   - OAuth app credentials from Atlassian Developer Console
+   - Config: `plugins/atlassian-skills/skills/atlassian-api/config/`
+
+2. **Shopify Workflows:**
+   - Shopify Admin API credentials
+   - Config: Use environment variables or skill config
+
+3. **Plytix Skills:**
+   - API key from Plytix account settings
+   - Supports production/staging environments
+
+4. **NinjaOne Skills:**
+   - OAuth 2.0 credentials from NinjaOne
+   - Config: `plugins/ninjaone-skills/skills/ninjaone-api/config/`
+
+5. **M365 Skills:**
+   - Azure AD app registration with Graph API permissions
+   - MSAL authentication
+
+### Amazon SP-API
+
+**Setup:**
+
+1. **Register as Amazon Developer:**
+   - Create seller/vendor account
+   - Register application in Seller Central
+
+2. **Get LWA credentials:**
+   - Client ID
+   - Client Secret
+   - Refresh Token
+
+3. **Configure:**
+   - Set environment variables or config file
+   - Specify marketplace region (NA, EU, FE)
+
+### Mimecast Skills
+
+**Setup:**
+
+1. **Get Mimecast API credentials:**
+   - Access Key
+   - Secret Key
+   - Application ID/Key
+
+2. **Configure:**
+   - Set region (us, eu, de, au, za)
+   - Store credentials securely
+
 ## Verifying Installation
 
 ### Check Installed Plugins
@@ -150,12 +229,20 @@ To add custom content:
 /plugin list
 ```
 
-Expected output:
+Expected output (all plugins):
 ```
 ✓ superclaude-framework (1.0.0)
 ✓ chrome-devtools (1.0.0)
-✓ netsuite-workflows (1.0.0)
-✓ personal-automation (1.0.0)
+✓ netsuite-skills (1.3.0)
+✓ celigo-integration (2.0.0)
+✓ claudekit-skills (1.2.0)
+✓ shopify-workflows (1.0.0)
+✓ atlassian-skills (1.1.0)
+✓ plytix-skills (1.0.0)
+✓ ninjaone-skills (1.0.0)
+✓ m365-skills (1.0.0)
+✓ amazon-spapi (1.0.0)
+✓ mimecast-skills (1.0.0)
 ```
 
 ### Check Available Commands
@@ -164,6 +251,8 @@ Expected output:
 /sc:load
 /sc:save
 /sc:analyze
+/sc:implement
+/sc:test
 
 # Chrome DevTools commands
 /browser-test
@@ -171,6 +260,16 @@ Expected output:
 # NetSuite commands
 /deploy-netsuite
 /netsuite-setup
+
+# Celigo commands
+/celigo-setup
+/celigo-manage
+
+# ClaudeKit Git commands
+/git/cp
+/git/cm
+/git/pr
+/skill/create
 ```
 
 ### Check MCP Servers

@@ -38,24 +38,60 @@ filters: [ [AND_group_1], [AND_group_2], ... ]
 }
 ```
 
-## Standard Operators
+## Complete Operator List
 
+**All available operators** (from Plytix API validation):
+
+### Text/String Operators
 | Operator | Description | Example |
 |----------|-------------|---------|
-| `like` | Contains text (case-insensitive) | `{"field": "sku", "operator": "like", "value": "ABC"}` |
+| `like` | Contains text (case-insensitive) | `{"field": "sku", "operator": "like", "value": "AMZN"}` |
 | `!like` | Does not contain text | `{"field": "sku", "operator": "!like", "value": "TEST"}` |
 | `eq` | Equals exactly | `{"field": "status", "operator": "eq", "value": "active"}` |
 | `!eq` | Not equal to | `{"field": "status", "operator": "!eq", "value": "draft"}` |
-| `in` | In list of values | `{"field": "category", "operator": "in", "value": ["cat1", "cat2"]}` |
-| `!in` | Not in list | `{"field": "category", "operator": "!in", "value": ["archived"]}` |
+| `text_search` | Full-text search (requires field) | `{"field": "label", "operator": "text_search", "value": "boot"}` |
+
+### List/Array Operators
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `in` | Value is in list | `{"field": "status", "operator": "in", "value": ["active", "pending"]}` |
+| `!in` | Value is not in list | `{"field": "status", "operator": "!in", "value": ["archived"]}` |
+| `by_in` | By value in list | `{"field": "created_by", "operator": "by_in", "value": ["user1"]}` |
+| `!by_in` | By value not in list | `{"field": "created_by", "operator": "!by_in", "value": ["user1"]}` |
+| `cat_in` | Category in list | `{"field": "categories", "operator": "cat_in", "value": ["cat-id"]}` |
+| `cat_!in` | Category not in list | `{"field": "categories", "operator": "cat_!in", "value": ["cat-id"]}` |
+
+### Numeric/Comparison Operators
+| Operator | Description | Example |
+|----------|-------------|---------|
 | `gt` | Greater than | `{"field": "price", "operator": "gt", "value": 100}` |
 | `gte` | Greater than or equal | `{"field": "stock", "operator": "gte", "value": 10}` |
 | `lt` | Less than | `{"field": "price", "operator": "lt", "value": 50}` |
 | `lte` | Less than or equal | `{"field": "weight", "operator": "lte", "value": 5.0}` |
-| `last_days` | Within last N days | `{"field": "modified", "operator": "last_days", "value": 7}` |
+
+### Length Operators (for arrays/strings)
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `len_eq` | Length equals | `{"field": "assets", "operator": "len_eq", "value": 5}` |
+| `!len_eq` | Length not equals | `{"field": "assets", "operator": "!len_eq", "value": 0}` |
+| `len_gt` | Length greater than | `{"field": "categories", "operator": "len_gt", "value": 2}` |
+| `len_gte` | Length greater than or equal | `{"field": "assets", "operator": "len_gte", "value": 1}` |
+| `len_lt` | Length less than | `{"field": "variants", "operator": "len_lt", "value": 10}` |
+| `len_lte` | Length less than or equal | `{"field": "categories", "operator": "len_lte", "value": 5}` |
+
+### Existence Operators
+| Operator | Description | Example |
+|----------|-------------|---------|
 | `exists` | Field has a value (not empty) | `{"field": "description", "operator": "exists"}` |
 | `!exists` | Field is empty/null | `{"field": "thumbnail", "operator": "!exists"}` |
-| `text_search` | Multi-field text search | `{"operator": "text_search", "value": "boot leather"}` |
+
+### Date Operators
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `last_days` | Within last N days | `{"field": "modified", "operator": "last_days", "value": 7}` |
+| `eq` | On exact date | `{"field": "created", "operator": "eq", "value": "2024-01-15"}` |
+| `gt` | After date | `{"field": "modified", "operator": "gt", "value": "2024-01-01"}` |
+| `lt` | Before date | `{"field": "created", "operator": "lt", "value": "2024-06-01"}` |
 
 ## Special Operators
 

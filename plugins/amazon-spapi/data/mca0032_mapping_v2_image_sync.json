@@ -1,0 +1,19 @@
+{
+  "total_products": 16,
+  "products_with_images": 16,
+  "total_image_refs": 108,
+  "unique_images": 12,
+  "images_uploaded": 0,
+  "images_skipped": 12,
+  "links_created": 108,
+  "errors": [],
+  "main_image_links": 16,
+  "parent_links_created": 0,
+  "parent_main_image_links": 0,
+  "metadata": {
+    "source_file": "../data/mca0032_mapping_v2.json",
+    "sync_date": "2025-12-23T05:03:45.088434+00:00",
+    "dry_run": false,
+    "skip_existing": true
+  }
+}

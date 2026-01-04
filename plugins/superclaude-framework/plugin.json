@@ -16,8 +16,6 @@
     "orchestration",
     "superclaude"
   ],
-  "category": "framework",
-  "strict": false,
   "commands": [
     "./commands/sc/analyze.md",
     "./commands/sc/brainstorm.md",

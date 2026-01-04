@@ -1,0 +1,41 @@
+BRAND REGISTRY CASE: Variation Relationship Update
+==================================================
+
+Subject: Add 16 child ASINs to parent ASIN B0F5BDG84W
+
+Brand: Twisted X
+Product: Men's 4" Wedge Sole Boot (MCA0032 - Woven Saddle & Oiled Saddle)
+
+REQUEST:
+Please add the following 16 child ASINs to parent ASIN B0F5BDG84W.
+
+PARENT ASIN: B0F5BDG84W
+Title: Twisted X Men's 4" Wedge Sole Boot, Round Toe
+
+CHILD ASINs TO ADD (16 total):
+1.  B07X8Z63ZL (MCA0032-W-12)
+2.  B07TBFZL3N (MCA0032-M-13)
+3.  B07T89PYFX (MCA0032-M-9.5)
+4.  B07T89PSKR (MCA0032-M-11.5)
+5.  B07XB3N4CR (MCA0032-W-11)
+6.  B07TDLZWKL (MCA0032-M-14)
+7.  B07XC3MXP3 (MCA0032-W-14)
+8.  B07TDLZMNM (MCA0032-M-7.5)
+9.  B07XC3MJ9Y (MCA0032-W-13)
+10. B07XD6H4NX (MCA0032-W-9)
+11. B07TFKKMF3 (MCA0032-M-7)
+12. B07XG2JH56 (MCA0032-W-10)
+13. B07XF729K1 (MCA0032-W-8.5)
+14. B07XC3L53T (MCA0032-W-8)
+15. B07XD6JSQG (MCA0032-W-7.5)
+16. B07X8Z652J (MCA0032-W-7)
+
+VARIATION THEME: SIZE_NAME (or COLOR_NAME/SIZE_NAME)
+
+NOTES:
+- 14 of these ASINs are currently orphaned (no parent)
+- 2 ASINs (B07X8Z63ZL, B07TBFZL3N) are incorrectly linked to B077QMJFG9 and need to be moved to B0F5BDG84W
+- All ASINs are the same product style (MCA0032) with different size/width variations
+- I am the brand owner of Twisted X
+
+Thank you.

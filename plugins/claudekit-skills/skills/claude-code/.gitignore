@@ -1,0 +1,10 @@
+# Auto-update cache (runtime generated)
+config/.update_cache.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary files from atomic writes
+config/.update_cache_*.json

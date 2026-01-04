@@ -71,12 +71,17 @@ ENV/
 # Claude Code specific
 .claude-cache/
 
-# Atlassian credentials (real config with secrets)
-**/atlassian_config.json
-
-# Shopify credentials and tokens
+# Skill credentials (live configs - NOT templates)
 **/shopify_config.json
-**/.shopify_tokens.json
+**/plytix_config.json
+**/atlassian_config.json
+**/celigo_config.json
+**/ninjaone_config.json
+**/azure_config.json
+
+# Token caches (all skills use .<skill>_tokens.json pattern)
+**/*_tokens.json
+**/.azure_tokens.json
 
 # User-specific files (customize as needed)
 TODO.md

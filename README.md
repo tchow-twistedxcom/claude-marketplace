@@ -1,6 +1,6 @@
 # tchow-essentials
 
-**Personal curated collection for Claude Code**: SuperClaude framework + Chrome DevTools + NetSuite skills + Celigo integration + ClaudeKit skills + Shopify workflows + Atlassian skills + Plytix PIM + NinjaOne RMM + Microsoft 365/Azure AD
+**Personal curated collection for Claude Code**: SuperClaude framework + Chrome DevTools + NetSuite skills + Celigo integration + ClaudeKit skills (35+) + Shopify workflows + Atlassian skills + Plytix PIM + NinjaOne RMM + Microsoft 365/Azure AD + Amazon SP-API + Mimecast Security
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -11,7 +11,7 @@
 /plugin marketplace add tchow-twistedxcom/claude-marketplace
 
 # Install everything
-/plugin install superclaude-framework chrome-devtools netsuite-skills celigo-integration claudekit-skills shopify-workflows atlassian-skills plytix-skills ninjaone-skills m365-skills
+/plugin install superclaude-framework chrome-devtools netsuite-skills celigo-integration claudekit-skills shopify-workflows atlassian-skills plytix-skills ninjaone-skills m365-skills amazon-spapi mimecast-skills
 
 # Or install selectively
 /plugin install superclaude-framework
@@ -111,17 +111,46 @@ Microsoft 365 and Azure integrations via Microsoft Graph API.
 - Directory operations
 - MSAL OAuth 2.0 authentication
 
+#### Amazon SP-API Skills
+Amazon Selling Partner API integration via Python CLI.
+
+**Includes:**
+- 9 specialized skills for Vendor (1P) and Seller operations
+- Purchase orders, shipments, invoices (Vendor)
+- Orders, inventory, catalog, reports (Seller)
+- LWA OAuth authentication
+- Rate limiting with exponential backoff
+- Multi-region support (NA, EU, FE)
+
+#### Mimecast Skills
+Email security integration with 28 operations.
+
+**Includes:**
+- TTP URL and attachment protection
+- Held message management
+- User and group management
+- Blocked/permitted sender policies
+- Audit logs and SIEM integration
+- HMAC-SHA1 authentication
+- Multi-region support
+
 ---
 
 ### Community Skills
 
 #### ClaudeKit Skills
-Curated collection of 20+ specialized skills from the ClaudeKit community.
+Curated collection of 35+ specialized skills from the ClaudeKit community.
 
 **Includes:**
 - `/git/cp`, `/git/cm`, `/git/pr` commands (git commit patterns, pull requests)
 - `/skill/create` command (create custom skills)
-- **20 Skills**: Next.js, Tailwind CSS, shadcn-ui, Turborepo, better-auth, FFmpeg, ImageMagick, Google ADK, MCP builder, document processing, problem-solving, debugging, canvas design, Remix Icon, and more
+- **Claude Code Mastery**: Tool selection, agent orchestration, MCP guide (auto-updates)
+- **Framework Skills**: Next.js, Tailwind CSS, shadcn-ui, Turborepo, better-auth
+- **Tool Skills**: FFmpeg, ImageMagick, Repomix, MCP builder
+- **Debugging**: 4 systematic methodologies for structured investigation
+- **Problem-Solving**: 6 techniques for complex problems
+- **Document Processing**: docx, xlsx, pptx, pdf
+- **Design**: Canvas design, Remix Icon, frontend design
 - Community-maintained patterns and workflows
 
 ---
@@ -270,6 +299,36 @@ Curated collection of 20+ specialized skills from the ClaudeKit community.
 - Device management
 - Directory queries and reporting
 
+### Amazon SP-API Skills
+
+**Skills (9):**
+- **Vendor**: Orders, shipments, invoices
+- **Seller**: Orders, inventory, catalog
+- **Reports & Feeds**: Sales reports, bulk operations
+- **Pricing**: Competitive pricing, repricing
+
+**Features:**
+- LWA OAuth authentication
+- Rate limiting with exponential backoff
+- Multi-region support (NA, EU, FE)
+
+### Mimecast Skills
+
+**Skills:**
+- **Mimecast Security** - Email security operations
+
+**Capabilities (28 operations):**
+- TTP URL/attachment protection
+- Held message management
+- User/group management
+- Blocked/permitted sender policies
+- Audit logs
+- SIEM integration
+
+**Authentication:**
+- HMAC-SHA1 signing
+- Multi-region support
+
 ### ClaudeKit Skills
 
 **Commands:**
@@ -278,18 +337,20 @@ Curated collection of 20+ specialized skills from the ClaudeKit community.
 - `/git/pr` - Pull request creation
 - `/skill/create` - Create custom Claude Code skills
 
-**Skills (20):**
+**Skills (35+):**
+- **Claude Code Mastery**: Tool selection, 30+ agents, MCP guide, hooks, CLI reference (auto-updates to v2.0.74+)
 - **Development**: nextjs, tailwindcss, shadcn-ui, turborepo, better-auth
 - **Media**: ffmpeg, imagemagick
-- **AI/Agents**: google-adk-python, mcp-builder, claude-code
-- **Documents**: document-skills (PDF, Excel, PowerPoint, Word)
-- **Problem-Solving**: problem-solving frameworks, debugging
-- **Design**: canvas-design, remix-icon (3,100+ icons)
+- **AI/Agents**: google-adk-python, mcp-builder
+- **Debugging (4)**: systematic-debugging, root-cause-tracing, defense-in-depth, verification-before-completion
+- **Problem-Solving (6)**: when-stuck, inversion-exercise, collision-zone-thinking, minimum-viable-change, evidence-based-diagnosis, problem-loop-detection
+- **Documents**: docx, xlsx, pptx, pdf (create, edit, process)
+- **Design**: canvas-design, remix-icon (3,100+ icons), frontend-design
 - **Utilities**: docs-seeker, repomix, shopify, skill-creator
 
 **Source:**
 - Original repository: https://github.com/mrgoonie/claudekit-skills
-- 20+ curated skills from the ClaudeKit community
+- 35+ curated skills from the ClaudeKit community
 
 ## Full Marketplace Access
 
@@ -381,4 +442,4 @@ MIT License - see [LICENSE](./LICENSE) for details
 
 ---
 
-**Made with care by tchow** | v1.5.0
+**Made with care by tchow** | v1.8.0

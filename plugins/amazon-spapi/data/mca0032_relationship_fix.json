@@ -1,0 +1,328 @@
+{
+  "header": {
+    "sellerId": "A2UBJ56KSNNCVC",
+    "version": "2.0"
+  },
+  "messages": [
+    {
+      "messageId": 1,
+      "sku": "MCA0032-M-9.5",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 2,
+      "sku": "MCA0032-M-11.5",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 3,
+      "sku": "MCA0032-W-11",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 4,
+      "sku": "MCA0032-M-14",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 5,
+      "sku": "MCA0032-W-14",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 6,
+      "sku": "MCA0032-M-07.5",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 7,
+      "sku": "MCA0032-W-13",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 8,
+      "sku": "MCA0032-W-9",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 9,
+      "sku": "MCA0032-M-07",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 10,
+      "sku": "MCA0032-W-10",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 11,
+      "sku": "MCA0032-W-08.5",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 12,
+      "sku": "MCA0032-W-08",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 13,
+      "sku": "MCA0032-W-07.5",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 14,
+      "sku": "MCA0032-W-07",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 15,
+      "sku": "MCA0032-W-12",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    },
+    {
+      "messageId": 16,
+      "sku": "MCA0032-M-13",
+      "operationType": "PARTIAL_UPDATE",
+      "attributes": {
+        "parentage_level": [
+          {
+            "value": "child",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ],
+        "child_parent_sku_relationship": [
+          {
+            "child_relationship_type": "variation",
+            "parent_asin": "B0F5BDG84W",
+            "marketplace_id": "ATVPDKIKX0DER"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -7,8 +7,15 @@ Synchronize your Claude Code configuration across all environments using git. Th
 ## Instructions
 
 1. **Locate the plugin directory:**
-   - Use `Bash`: `find ~/.claude/plugins -name "portable-setup" -type d | head -1`
-   - Store as `PLUGIN_DIR`
+   - Search marketplace first: `PLUGIN_DIR=$(find ~/.claude/plugins/marketplaces -path "*/plugins/portable-setup" -type d | head -1)`
+   - If not found in marketplace, search elsewhere excluding cache: `if [ -z "$PLUGIN_DIR" ]; then PLUGIN_DIR=$(find ~/.claude/plugins -name "portable-setup" -type d -not -path "*/cache/*" | head -1); fi`
+   - If still not found, show error and exit:
+     ```
+     ❌ portable-setup plugin not found
+
+     The plugin should be installed in a marketplace directory.
+     Expected location: ~/.claude/plugins/marketplaces/<marketplace-name>/plugins/portable-setup
+     ```
 
 2. **Validate git repository:**
    - Check if plugin is in git repo: `git -C $PLUGIN_DIR rev-parse --git-dir`

@@ -2,14 +2,10 @@
   "name": "portable-setup",
   "version": "1.0.2",
   "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers",
-  "license": "MIT",
-  "category": "utilities",
-  "strict": false,
   "author": {
     "name": "tchow",
     "email": "tchow@example.com"
   },
-  "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization"],
   "commands": [
     "./commands/install.md",
     "./commands/export.md",

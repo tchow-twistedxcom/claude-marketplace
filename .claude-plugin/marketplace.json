@@ -5,8 +5,8 @@
     "url": "https://github.com/tchow-twistedxcom"
   },
   "metadata": {
-    "description": "Personal curated collection: SuperClaude framework + Chrome DevTools + NetSuite skills (with PRI Application Settings & SuiteQL) + Celigo integration + ClaudeKit skills + Shopify workflows + Atlassian skills + Plytix PIM + NinjaOne RMM + Microsoft 365/Azure AD",
-    "version": "1.5.0",
+    "description": "Comprehensive plugin marketplace: SuperClaude framework (5 modes, 6 MCPs) + ClaudeKit skills (35+ skills: Claude Code mastery, debugging, problem-solving, document processing, frontend frameworks) + Enterprise integrations (NetSuite/SDF, Celigo iPaaS, Shopify, Atlassian, Plytix PIM, NinjaOne RMM, M365/Azure AD, Amazon SP-API, Mimecast) + Chrome DevTools MCP",
+    "version": "1.8.0",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "license": "MIT"
@@ -42,10 +42,10 @@
     {
       "name": "claudekit-skills",
       "source": "./plugins/claudekit-skills",
-      "description": "Curated collection of 20+ specialized skills from ClaudeKit community: Claude Code mastery (v2.0 with 30+ agents, tool selection, MCP guide), Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, problem-solving, debugging, and more",
-      "version": "1.1.0",
+      "description": "Curated collection of 35+ specialized skills: Claude Code mastery (v2.0.74 with auto-update, 30+ agents, tool selection, MCP guide), Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, problem-solving (6 techniques), debugging (4 methodologies), document processing (docx/xlsx/pptx/pdf), Google ADK, and more",
+      "version": "1.2.0",
       "category": "skills",
-      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "design", "claude-code", "agents"],
+      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "problem-solving", "documents", "claude-code", "agents", "auto-update"],
       "strict": false
     },
     {
@@ -100,6 +100,33 @@
       "version": "1.0.0",
       "category": "skills",
       "keywords": ["microsoft-365", "m365", "azure-ad", "entra-id", "graph-api", "users", "groups", "devices", "directory", "oauth", "msal"],
+      "strict": false
+    },
+    {
+      "name": "amazon-spapi",
+      "source": "./plugins/amazon-spapi",
+      "description": "Amazon Selling Partner API integration via Python CLI. Full coverage for Vendor (1P) operations including POs, shipments, invoices, plus Seller APIs for orders, catalog, inventory, reports, feeds, pricing, finances, and notifications with LWA OAuth, rate limiting, and multi-region support",
+      "version": "1.0.0",
+      "category": "ecommerce",
+      "keywords": ["amazon", "sp-api", "selling-partner", "vendor", "seller", "marketplace", "ecommerce", "orders", "inventory", "reports", "feeds", "oauth", "lwa"],
+      "strict": false
+    },
+    {
+      "name": "mimecast-skills",
+      "source": "./plugins/mimecast-skills",
+      "description": "Mimecast email security integration via Python CLI. 28 operations for TTP URL/attachment protection, held messages, user/group management, blocked/permitted sender policies, audit logs, and SIEM integration with HMAC-SHA1 authentication and multi-region support",
+      "version": "1.0.0",
+      "category": "security",
+      "keywords": ["mimecast", "email-security", "ttp", "anti-phishing", "anti-malware", "user-management", "policy", "siem", "audit", "held-messages", "threat-intel"],
+      "strict": false
+    },
+    {
+      "name": "portable-setup",
+      "source": "./plugins/portable-setup",
+      "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers via git",
+      "version": "1.0.0",
+      "category": "utilities",
+      "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization", "git", "backup"],
       "strict": false
     }
   ]

@@ -150,25 +150,25 @@ if [ -f ~/.config/gh/config.yml ]; then
     echo "  ✅ Copied gh config (requires re-authentication)"
 fi
 
-# Copy agent-deck (tmux-based AI agent session manager)
-echo "🎯 Copying agent-deck configuration..."
-if [ -d ~/agent-deck ]; then
-    mkdir -p "$EXPORT_DIR/agent-deck"
+# Document agent-deck (will be cloned during installation)
+echo "🎯 Documenting agent-deck..."
+if [ -d ~/agent-deck/.git ]; then
+    cd ~/agent-deck
+    AGENT_DECK_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    AGENT_DECK_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+    AGENT_DECK_REMOTE=$(git remote get-url origin 2>/dev/null || echo "https://github.com/tchow-twistedxcom/agent-deck.git")
+    cd - > /dev/null
+    echo "  📌 Current version: $AGENT_DECK_BRANCH @ $AGENT_DECK_COMMIT"
+    echo "  📍 Repository: $AGENT_DECK_REMOTE"
+    echo "  ⏭️  Will be cloned during installation (not included in tarball)"
 
-    # Copy all agent-deck files
-    rsync -av --exclude='.git' ~/agent-deck/ "$EXPORT_DIR/agent-deck/"
-    echo "  ✅ Copied agent-deck directory"
-
-    # Document agent-deck version
-    if [ -d ~/agent-deck/.git ]; then
-        cd ~/agent-deck
-        AGENT_DECK_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-        AGENT_DECK_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
-        cd - > /dev/null
-        echo "  📌 Version: $AGENT_DECK_BRANCH @ $AGENT_DECK_COMMIT"
-    fi
+    # Store repo URL in a config file for installation
+    mkdir -p "$EXPORT_DIR/config/agent-deck"
+    echo "$AGENT_DECK_REMOTE" > "$EXPORT_DIR/config/agent-deck/repo.txt"
 else
-    echo "  ⚠️  ~/agent-deck/ directory not found"
+    echo "  ⚠️  ~/agent-deck/.git not found, using default repo"
+    mkdir -p "$EXPORT_DIR/config/agent-deck"
+    echo "https://github.com/tchow-twistedxcom/agent-deck.git" > "$EXPORT_DIR/config/agent-deck/repo.txt"
 fi
 
 # Copy setup scripts
@@ -233,7 +233,7 @@ Configuration Summary:
 - Custom agents: Excluded (user-specific)
 - Custom hooks: Excluded (user-specific)
 - Custom commands: Excluded (user-specific)
-- Agent-deck: $([ -d "$EXPORT_DIR/agent-deck" ] && echo "Included" || echo "Not found")
+- Agent-deck: Will be cloned from $(cat "$EXPORT_DIR/config/agent-deck/repo.txt" 2>/dev/null || echo "default repo")
 EOF
 
 # Create tarball

@@ -208,36 +208,59 @@ echo -e "${GREEN}✅ Git protocol set to HTTPS${NC}"
 echo ""
 echo "🎯 Installing agent-deck..."
 
-if [ -d "agent-deck" ]; then
-    # Install Go if not present (required for agent-deck)
-    if ! command -v go >/dev/null 2>&1; then
-        echo -e "  ${YELLOW}⚠️${NC} Go not installed - attempting to install..."
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            # Download and install latest Go
-            GO_VERSION="1.24.0"
-            wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go.tar.gz
-            sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf /tmp/go.tar.gz
-            rm /tmp/go.tar.gz
+# Get repository URL from config
+if [ -f "config/agent-deck/repo.txt" ]; then
+    AGENT_DECK_REPO=$(cat config/agent-deck/repo.txt)
+    echo -e "  📍 Repository: $AGENT_DECK_REPO"
+else
+    AGENT_DECK_REPO="https://github.com/tchow-twistedxcom/agent-deck.git"
+    echo -e "  📍 Using default repository: $AGENT_DECK_REPO"
+fi
 
-            # Add Go to PATH
-            if ! grep -q "/usr/local/go/bin" ~/.bashrc; then
-                echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
-            fi
-            export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
-            echo -e "  ${GREEN}✅${NC} Installed Go ${GO_VERSION}"
+# Install Go if not present (required for agent-deck)
+if ! command -v go >/dev/null 2>&1; then
+    echo -e "  ${YELLOW}⚠️${NC} Go not installed - attempting to install..."
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Download and install latest Go
+        GO_VERSION="1.24.0"
+        wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go.tar.gz
+        sudo rm -rf /usr/local/go
+        sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+        rm /tmp/go.tar.gz
+
+        # Add Go to PATH
+        if ! grep -q "/usr/local/go/bin" ~/.bashrc; then
+            echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
+        fi
+        export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+        echo -e "  ${GREEN}✅${NC} Installed Go ${GO_VERSION}"
+    else
+        echo -e "  ${RED}❌${NC} Please install Go manually: https://go.dev/dl/"
+        echo -e "  ${YELLOW}⚠️${NC} Skipping agent-deck installation"
+        SKIP_AGENT_DECK=1
+    fi
+fi
+
+if [ -z "$SKIP_AGENT_DECK" ]; then
+    # Clone agent-deck from repository
+    if [ -d ~/agent-deck ]; then
+        echo -e "  ${YELLOW}ℹ️${NC}  ~/agent-deck already exists"
+        read -p "  Update existing installation? (y/n) " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            cd ~/agent-deck
+            git pull
+            echo -e "  ${GREEN}✅${NC} Updated agent-deck from repository"
         else
-            echo -e "  ${RED}❌${NC} Please install Go manually: https://go.dev/dl/"
-            echo -e "  ${YELLOW}⚠️${NC} Skipping agent-deck installation"
+            echo -e "  ${YELLOW}⚠️${NC} Skipping agent-deck update"
             SKIP_AGENT_DECK=1
         fi
+    else
+        git clone "$AGENT_DECK_REPO" ~/agent-deck
+        echo -e "  ${GREEN}✅${NC} Cloned agent-deck from repository"
     fi
 
     if [ -z "$SKIP_AGENT_DECK" ]; then
-        # Copy agent-deck to home directory
-        rsync -av --exclude='.git' agent-deck/ ~/agent-deck/
-        echo -e "  ${GREEN}✅${NC} Copied agent-deck to ~/agent-deck"
-
         # Build agent-deck
         cd ~/agent-deck
         if go build -o agent-deck .; then
@@ -249,22 +272,14 @@ if [ -d "agent-deck" ]; then
             fi
             export PATH=$PATH:$HOME/agent-deck
 
-            # Initialize git if needed (for future updates)
-            if [ ! -d .git ]; then
-                git init
-                git remote add origin https://github.com/tchow-twistedxcom/agent-deck.git 2>/dev/null || true
-                echo -e "  ${GREEN}✅${NC} Initialized git repository"
-            fi
-
             cd - > /dev/null
             echo -e "  ${GREEN}✅${NC} agent-deck installed successfully"
             echo -e "  ${YELLOW}ℹ️${NC}  Run 'agent-deck' to start the AI agent manager"
+            echo -e "  ${YELLOW}ℹ️${NC}  Update anytime with: cd ~/agent-deck && git pull && go build"
         else
             echo -e "  ${RED}❌${NC} Failed to build agent-deck"
         fi
     fi
-else
-    echo -e "  ${YELLOW}⚠️${NC} agent-deck directory not found in package"
 fi
 
 # 10. GitHub CLI authentication

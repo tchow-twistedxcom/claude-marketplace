@@ -41,13 +41,13 @@ Creates a timestamped tarball (24KB) of your current Claude Code configuration.
 3. Commits and pushes to git
 4. Other environments pull and install
 
-### Validate Installation
+### Validate Configuration
 
 ```bash
 /portable:validate
 ```
 
-Checks for missing dependencies, configuration issues, and provides fix suggestions.
+Checks if portable setup configuration has been properly applied - verifies secrets are configured (not placeholders), configuration files are in place, and dotfiles were installed correctly.
 
 ### View Documentation
 

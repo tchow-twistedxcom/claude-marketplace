@@ -1,0 +1,8 @@
+{
+  "name": "portable-setup",
+  "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers",
+  "author": {
+    "name": "tchow",
+    "email": "tchow@example.com"
+  }
+}

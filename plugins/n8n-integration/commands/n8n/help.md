@@ -106,28 +106,37 @@ Knowledge base for workflow patterns, best practices, and architecture guidance.
 | `--fix` | validate | Auto-fix common issues |
 | `--examples` | find | Include usage examples |
 
-## MCP Tools Reference
+## CLI Tools Reference
 
-The n8n MCP server provides 38 tools:
+The n8n integration provides Python CLI scripts:
 
-**Workflow Management**
-- `n8n_create_workflow`, `n8n_get_workflow`, `n8n_update_partial_workflow`
-- `n8n_delete_workflow`, `n8n_list_workflows`, `n8n_validate_workflow`
+**Account Management** (`scripts/n8n_config.py`)
+- `--list-accounts` - List all configured accounts
+- `--add <id>` - Add new account
+- `--remove <id>` - Remove account
+- `--set-default <id>` - Set default account
 
-**Node Discovery**
-- `search_nodes`, `list_nodes`, `get_node_essentials`
-- `get_node_documentation`, `list_ai_tools`
+**API Operations** (`scripts/n8n_api.py`)
+- `workflows list` - List workflows
+- `workflows get <id>` - Get workflow details
+- `workflows create` - Create workflow from JSON
+- `workflows update <id>` - Update workflow
+- `executions list` - List executions
+- `executions get <id>` - Get execution details
+- `health` - Health check
+- `webhook <url>` - Trigger webhook
 
-**Templates**
-- `search_templates`, `get_templates_for_task`, `get_template`
+**Authentication** (`scripts/n8n_auth.py`)
+- `--test` - Test connection
+- `--info` - Show config info
 
-**Execution**
-- `n8n_trigger_webhook_workflow`, `n8n_list_executions`, `n8n_get_execution`
+### Example Usage
 
-**Validation**
-- `validate_workflow`, `validate_node_operation`, `n8n_autofix_workflow`
-
-Use `mcp__n8n__tools_documentation` for full tool documentation.
+```bash
+python3 scripts/n8n_api.py workflows list
+python3 scripts/n8n_api.py executions list --status error
+python3 scripts/n8n_auth.py --test --account production
+```
 
 ## API Limitations
 
@@ -147,9 +156,12 @@ Use `mcp__n8n__tools_documentation` for full tool documentation.
 /n8n:help troubleshooting # Common issues
 ```
 
-### n8n MCP Documentation
-```
-Use: mcp__n8n__tools_documentation({topic: "overview", depth: "full"})
+### n8n CLI Documentation
+```bash
+# View CLI help
+python3 scripts/n8n_api.py --help
+python3 scripts/n8n_config.py --help
+python3 scripts/n8n_auth.py --help
 ```
 
 ### Official n8n Docs

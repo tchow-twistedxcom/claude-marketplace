@@ -1,7 +1,7 @@
 {
   "name": "n8n-integration",
-  "version": "1.0.0",
-  "description": "n8n workflow automation via MCP - 38 tools for workflow management, node discovery, validation, templates, and execution monitoring",
+  "version": "2.0.0",
+  "description": "n8n workflow automation via Python CLI and MCP - workflows, executions, webhooks, and multi-account support",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -19,6 +19,12 @@
     "orchestration",
     "webhook"
   ],
+  "mcpServers": {
+    "n8n": {
+      "command": "python3",
+      "args": ["./scripts/n8n_mcp_wrapper.py"]
+    }
+  },
   "commands": [
     "./commands/n8n/setup.md",
     "./commands/n8n/status.md",

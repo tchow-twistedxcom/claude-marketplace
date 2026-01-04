@@ -41,20 +41,46 @@ Comprehensive skill for managing existing n8n workflows through the n8n MCP serv
 - Bulk tag management
 - Workflow inventory reports
 
-## MCP Tools Available
+## CLI Tools Available
 
-| Tool | Operation | Usage |
-|------|-----------|-------|
-| `n8n_list_workflows` | List | Get workflow inventory |
-| `n8n_get_workflow` | Read | Full workflow JSON |
-| `n8n_get_workflow_details` | Read | Details with metadata |
-| `n8n_get_workflow_structure` | Read | Nodes and connections only |
-| `n8n_get_workflow_minimal` | Read | ID, name, status only |
-| `n8n_update_full_workflow` | Update | Complete workflow replacement |
-| `n8n_update_partial_workflow` | Update | Incremental changes |
-| `n8n_delete_workflow` | Delete | Remove workflow |
-| `n8n_validate_workflow` | Validate | Check configuration |
-| `n8n_autofix_workflow` | Fix | Auto-repair issues |
+| Script | Operation | Usage |
+|--------|-----------|-------|
+| `scripts/n8n_api.py workflows list` | List | Get workflow inventory |
+| `scripts/n8n_api.py workflows get <id>` | Read | Full workflow JSON |
+| `scripts/n8n_api.py workflows create` | Create | Create new workflow |
+| `scripts/n8n_api.py workflows update <id>` | Update | Modify workflow |
+| `scripts/n8n_api.py workflows delete <id>` | Delete | Remove workflow |
+| `scripts/n8n_api.py workflows add-node <id>` | Update | Add node to workflow |
+| `scripts/n8n_api.py executions list` | List | Execution history |
+| `scripts/n8n_api.py health` | Check | Instance status |
+
+### Example CLI Commands
+
+```bash
+# List all workflows
+python3 scripts/n8n_api.py workflows list
+
+# List active workflows only
+python3 scripts/n8n_api.py workflows list --active true
+
+# Get workflow details as JSON
+python3 scripts/n8n_api.py workflows get <id> --json
+
+# Update workflow from modified JSON
+python3 scripts/n8n_api.py workflows update <id> --file updated_workflow.json
+
+# Delete workflow (permanent!)
+python3 scripts/n8n_api.py workflows delete <id>
+```
+
+### API Limitations
+
+**Note**: The n8n REST API does not provide:
+- Built-in validation endpoints (validate locally by analyzing JSON)
+- Auto-fix capabilities (manual fixes via workflow update)
+- Partial updates (must update full workflow JSON)
+
+For validation, fetch workflow and analyze structure locally.
 
 ## Workflow Patterns
 

@@ -185,29 +185,33 @@ use_case: "Multi-system updates requiring consistency"
 
 ## Tool Usage
 
-### Pattern Research
-```yaml
-templates:
-  tool: search_templates
-  params:
-    query: "<pattern type>"
-  purpose: "Find real-world pattern implementations"
+### CLI Commands for Pattern Implementation
 
-documentation:
-  tool: get_node_documentation
-  params:
-    nodeType: "<relevant node>"
-  purpose: "Understand node capabilities for pattern"
+```bash
+# List existing workflows for pattern examples
+python3 scripts/n8n_api.py workflows list
+
+# Get workflow JSON to study patterns
+python3 scripts/n8n_api.py workflows get <id> --json > pattern_example.json
+
+# Create pattern-based workflow
+python3 scripts/n8n_api.py workflows create --file my_pattern.json
+
+# Check n8n health before implementation
+python3 scripts/n8n_api.py health
 ```
 
-### Pattern Validation
-```yaml
-validation:
-  tool: validate_workflow
-  params:
-    workflow: "<workflow JSON>"
-  purpose: "Verify pattern implementation"
-```
+### Pattern Research Resources
+
+| Resource | URL | Purpose |
+|----------|-----|---------|
+| Official Templates | https://n8n.io/workflows/ | Find real-world pattern implementations |
+| Node Documentation | https://docs.n8n.io/integrations/builtin/ | Understand node capabilities |
+| Community Forum | https://community.n8n.io/ | Learn from community patterns |
+
+### API Limitations
+
+**Note**: The n8n REST API does not provide template search or node documentation endpoints. Use the official n8n documentation and template library for pattern research.
 
 ## Best Practices Summary
 

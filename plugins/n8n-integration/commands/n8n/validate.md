@@ -172,17 +172,44 @@ Re-validation Status: ⚠️ Needs Attention
 | `ai-friendly` | Optimized for AI agent use | AI workflow validation |
 | `minimal` | Required fields only | Quick checks |
 
-## MCP Tools Used
+## API Limitations
 
-| Tool | Purpose |
-|------|---------|
-| `mcp__n8n__n8n_get_workflow` | Fetch workflow for validation |
-| `mcp__n8n__n8n_validate_workflow` | Run comprehensive validation |
-| `mcp__n8n__validate_workflow` | Validate workflow JSON directly |
-| `mcp__n8n__validate_workflow_connections` | Check connections only |
-| `mcp__n8n__validate_workflow_expressions` | Check expressions only |
-| `mcp__n8n__validate_node_operation` | Validate individual node |
-| `mcp__n8n__n8n_autofix_workflow` | Apply automatic fixes |
+**Note**: The n8n REST API does not provide built-in validation endpoints. Validation is performed locally by:
+
+1. **Fetching workflow JSON** via API
+2. **Analyzing structure** (nodes, connections, expressions)
+3. **Checking for common issues** programmatically
+
+Auto-fix capabilities are limited to what can be done via the `workflows update` endpoint.
+
+## CLI Tools Used
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_api.py workflows get` | Fetch workflow JSON for analysis |
+| `scripts/n8n_api.py workflows update` | Apply fixes via workflow update |
+
+### Example CLI Commands
+
+```bash
+# Get workflow to inspect structure
+python3 scripts/n8n_api.py workflows get <workflow-id>
+
+# Get workflow as JSON for analysis
+python3 scripts/n8n_api.py workflows get <workflow-id> --json
+
+# Update workflow after manual fixes
+python3 scripts/n8n_api.py workflows update <workflow-id> --file fixed_workflow.json
+```
+
+## Validation Approach
+
+Since the API doesn't have validation endpoints, validation involves:
+
+1. **Fetch**: Get workflow JSON via `workflows get`
+2. **Analyze**: Check nodes have required fields, connections are valid
+3. **Report**: Show errors, warnings, and recommendations
+4. **Fix**: Apply fixes via `workflows update` (limited to JSON structure changes)
 
 ## Examples
 

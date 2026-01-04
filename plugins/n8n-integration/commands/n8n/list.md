@@ -38,28 +38,50 @@ Quick listing of workflows and executions with filtering and pagination.
 ### List Workflows (Default)
 
 1. **Fetch Workflows**
-   - Call `mcp__n8n__n8n_list_workflows`
-   - Apply filters (active, tags)
+   - Call `python3 scripts/n8n_api.py workflows list`
+   - Apply filters (--active, --tags)
 
 2. **Format Output**
    - Show ID, name, active status
    - Include tags if present
-   - Show creation/update dates in verbose mode
+   - Show node count
 
 3. **Pagination**
-   - Handle cursor for large result sets
-   - Report total count
+   - Use --limit flag to control result count
 
 ### List Executions
 
 1. **Fetch Executions**
-   - Call `mcp__n8n__n8n_list_executions`
-   - Apply filters (status, workflow ID)
+   - Call `python3 scripts/n8n_api.py executions list`
+   - Apply filters (--status, --workflow)
 
 2. **Format Output**
    - Show execution ID, workflow name, status
    - Include timestamp and duration
    - Show error summary for failed executions
+
+## CLI Tools Used
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_api.py workflows list` | List workflows with filtering |
+| `scripts/n8n_api.py executions list` | List executions with filtering |
+
+### Example CLI Commands
+
+```bash
+# List all workflows
+python3 scripts/n8n_api.py workflows list
+
+# List active workflows only
+python3 scripts/n8n_api.py workflows list --active true
+
+# List failed executions
+python3 scripts/n8n_api.py executions list --status error
+
+# List executions for specific workflow
+python3 scripts/n8n_api.py executions list --workflow abc123
+```
 
 ## Output Format
 

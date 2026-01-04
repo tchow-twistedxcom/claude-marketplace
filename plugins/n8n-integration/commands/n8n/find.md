@@ -153,18 +153,39 @@ Popular AI Tool Nodes:
 Note: ANY node can be AI tool! Connect to AI Agent's tool port.
 ```
 
-## MCP Tools Used
+## API Limitations
 
-| Tool | Purpose |
-|------|---------|
-| `mcp__n8n__search_nodes` | Search nodes by keyword |
-| `mcp__n8n__list_nodes` | List nodes by category |
-| `mcp__n8n__get_node_essentials` | Get node summary with examples |
-| `mcp__n8n__get_node_documentation` | Get full node documentation |
-| `mcp__n8n__search_templates` | Search templates by keyword |
-| `mcp__n8n__get_templates_for_task` | Get templates by task type |
-| `mcp__n8n__list_ai_tools` | List AI-capable nodes |
-| `mcp__n8n__search_node_properties` | Search node properties |
+**Note**: The n8n REST API does not provide node/template search endpoints. This command relies on:
+
+1. **Official n8n Documentation**: https://docs.n8n.io/integrations/builtin/
+2. **n8n Templates Library**: https://n8n.io/workflows/
+3. **Web Search**: For discovering nodes and templates by keyword
+
+## CLI Tools Used
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_api.py workflows list` | List workflows (for finding examples) |
+| `scripts/n8n_api.py workflows get` | Get workflow details with node info |
+
+### Example CLI Commands
+
+```bash
+# List all workflows to see node usage
+python3 scripts/n8n_api.py workflows list
+
+# Get specific workflow to inspect nodes
+python3 scripts/n8n_api.py workflows get <workflow-id>
+```
+
+## Alternative Discovery Methods
+
+Since the n8n API doesn't expose node/template search:
+
+1. **Browse n8n UI**: Use the node palette in the workflow editor
+2. **Official Docs**: https://docs.n8n.io/integrations/builtin/
+3. **Template Library**: https://n8n.io/workflows/
+4. **Community Forum**: https://community.n8n.io/
 
 ## Examples
 

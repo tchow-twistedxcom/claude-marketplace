@@ -244,11 +244,14 @@ Error: ETIMEDOUT
 |-----------|---------|
 | Workflow CRUD | Full |
 | Execution Monitoring | Full |
-| Workflow Activation | Full (via API) |
-| Credential Management | Limited |
+| Workflow Activation | Limited (set during create/update, no toggle endpoint) |
+| Credential Management | Read-only (list only, cannot create/modify) |
 | Execution Control | Cannot stop/retry |
+| Direct Execution | Not supported (webhook trigger only) |
 
-See `docs/API_LIMITATIONS.md` for workarounds.
+**Note**: Workflows must be manually activated in the n8n UI. The API can set the `active` field during workflow create/update, but there's no dedicated activation endpoint.
+
+See `docs/API_LIMITATIONS.md` for detailed workarounds.
 
 ## Related Commands
 

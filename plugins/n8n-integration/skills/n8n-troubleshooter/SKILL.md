@@ -41,18 +41,40 @@ Comprehensive skill for diagnosing and resolving n8n workflow issues.
 - Recommend best practices
 - Apply auto-fixes when possible
 
-## MCP Tools Available
+## CLI Tools Available
 
-| Tool | Purpose |
-|------|---------|
-| `n8n_health_check` | Check n8n instance status |
-| `n8n_diagnostic` | Detailed environment diagnostics |
-| `n8n_list_executions` | Find failed executions |
-| `n8n_get_execution` | Analyze execution details |
-| `n8n_validate_workflow` | Validate workflow configuration |
-| `n8n_autofix_workflow` | Apply automatic fixes |
-| `get_node_info` | Get node documentation |
-| `get_property_dependencies` | Understand node dependencies |
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_api.py health` | Check n8n instance status |
+| `scripts/n8n_api.py executions list` | Find failed executions |
+| `scripts/n8n_api.py executions get <id>` | Analyze execution details |
+| `scripts/n8n_api.py workflows get <id>` | Get workflow for analysis |
+| `scripts/n8n_auth.py --test` | Test connection |
+
+### Example CLI Commands
+
+```bash
+# Health check
+python3 scripts/n8n_api.py health
+
+# List failed executions
+python3 scripts/n8n_api.py executions list --status error
+
+# Get execution details
+python3 scripts/n8n_api.py executions get <execution-id>
+
+# Get workflow for analysis
+python3 scripts/n8n_api.py workflows get <workflow-id> --json
+```
+
+### API Limitations
+
+**Note**: The n8n REST API does not provide:
+- Built-in validation endpoints
+- Auto-fix capabilities
+- Node documentation lookup
+
+For node documentation, see: https://docs.n8n.io/integrations/builtin/
 
 ## Troubleshooting Workflow
 

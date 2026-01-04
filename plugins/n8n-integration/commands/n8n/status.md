@@ -23,19 +23,19 @@ Quick health check showing n8n connectivity, active workflows, and recent execut
 ## Workflow
 
 1. **Health Check**
-   - Call `mcp__n8n__n8n_health_check`
-   - Report API connectivity and n8n version
+   - Call `python3 scripts/n8n_api.py health`
+   - Report API connectivity and workflow counts
 
 2. **Workflow Summary**
-   - Call `mcp__n8n__n8n_list_workflows`
+   - Call `python3 scripts/n8n_api.py workflows list`
    - Count active vs inactive workflows
 
 3. **Recent Failures** (if any)
-   - Call `mcp__n8n__n8n_list_executions` with status: "error"
+   - Call `python3 scripts/n8n_api.py executions list --status error`
    - Show last 5 failed executions
 
 4. **Running Executions**
-   - Check for currently running executions
+   - Call `python3 scripts/n8n_api.py executions list --status running`
    - Report count and duration
 
 ## Output Format
@@ -91,14 +91,29 @@ Failed Executions:
      - Node: Slack
 ```
 
-## MCP Tools Used
+## CLI Tools Used
 
-| Tool | Purpose |
-|------|---------|
-| `mcp__n8n__n8n_health_check` | API connectivity and version |
-| `mcp__n8n__n8n_list_workflows` | Workflow inventory |
-| `mcp__n8n__n8n_list_executions` | Execution history and failures |
-| `mcp__n8n__get_database_statistics` | Node inventory (verbose mode) |
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_api.py health` | API connectivity and workflow counts |
+| `scripts/n8n_api.py workflows list` | Workflow inventory |
+| `scripts/n8n_api.py executions list` | Execution history and failures |
+
+### Example CLI Commands
+
+```bash
+# Quick health check
+python3 scripts/n8n_api.py health
+
+# Health check for specific account
+python3 scripts/n8n_api.py health --account production
+
+# List workflows with JSON output
+python3 scripts/n8n_api.py workflows list --json
+
+# List failed executions
+python3 scripts/n8n_api.py executions list --status error --limit 5
+```
 
 ## Examples
 
@@ -140,8 +155,8 @@ Debug the failed workflow:
 ```
 
 Or get execution details:
-```
-Use mcp__n8n__n8n_get_execution with the execution ID
+```bash
+python3 scripts/n8n_api.py executions get <execution-id>
 ```
 
 ## Related Commands

@@ -45,20 +45,43 @@ Advanced skill for creating n8n workflows through intelligent node selection, te
 - Create workflow via API
 - Provide activation instructions
 
-## MCP Tools Available
+## CLI Tools Available
 
-| Tool | Purpose |
-|------|---------|
-| `search_nodes` | Find nodes by keyword |
-| `list_nodes` | Filter nodes by category |
-| `get_node_essentials` | Quick node overview |
-| `get_node_documentation` | Full node docs |
-| `search_templates` | Find workflow templates |
-| `get_templates_for_task` | Templates by task type |
-| `get_template` | Full template JSON |
-| `list_ai_tools` | AI-capable nodes |
-| `validate_workflow` | Check before creation |
-| `n8n_create_workflow` | Create new workflow |
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_api.py workflows list` | List existing workflows |
+| `scripts/n8n_api.py workflows get` | Get workflow structure |
+| `scripts/n8n_api.py workflows create` | Create new workflow |
+| `scripts/n8n_api.py workflows update` | Update workflow |
+| `scripts/n8n_api.py health` | Check n8n instance |
+
+### Example CLI Commands
+
+```bash
+# List workflows to see patterns
+python3 scripts/n8n_api.py workflows list
+
+# Get workflow JSON for reference
+python3 scripts/n8n_api.py workflows get <id> --json > workflow.json
+
+# Create workflow from JSON file
+python3 scripts/n8n_api.py workflows create --file workflow.json
+
+# Add a node to existing workflow
+python3 scripts/n8n_api.py workflows add-node <id> --node-json '{"type": "n8n-nodes-base.set"}'
+```
+
+### API Limitations
+
+**Note**: The n8n REST API does not provide:
+- Node search endpoints (use n8n UI node palette or official docs)
+- Template search (browse https://n8n.io/workflows/)
+- Node documentation lookup (see https://docs.n8n.io/integrations/builtin/)
+
+For node discovery, use:
+1. **n8n UI**: Node palette in workflow editor
+2. **Official Docs**: https://docs.n8n.io/integrations/builtin/
+3. **Templates**: https://n8n.io/workflows/
 
 ## Workflow Building Process
 

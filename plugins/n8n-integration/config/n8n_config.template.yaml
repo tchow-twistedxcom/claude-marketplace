@@ -1,0 +1,72 @@
+# n8n Integration - Multi-Account Configuration Template
+#
+# Copy this file to: ~/.config/n8n-integration/accounts.yaml
+#   mkdir -p ~/.config/n8n-integration
+#   cp config/n8n_config.template.yaml ~/.config/n8n-integration/accounts.yaml
+#
+# Then edit the file to add your API credentials.
+#
+# SECURITY: Ensure proper file permissions after editing:
+#   chmod 600 ~/.config/n8n-integration/accounts.yaml
+
+# Default account to use when --account is not specified
+default_account: local
+
+# Account configurations
+accounts:
+  # Local development instance
+  local:
+    name: "Local n8n"
+    url: "http://localhost:5678/api/v1"
+    api_key: "YOUR_API_KEY_HERE"
+    description: "Local Docker n8n instance"
+
+  # Example: Production instance
+  # production:
+  #   name: "Production n8n"
+  #   url: "https://n8n.example.com/api/v1"
+  #   api_key: "YOUR_PRODUCTION_API_KEY"
+  #   description: "Production n8n server"
+
+  # Example: n8n Cloud instance
+  # cloud:
+  #   name: "n8n Cloud"
+  #   url: "https://your-instance.app.n8n.cloud/api/v1"
+  #   api_key: "YOUR_CLOUD_API_KEY"
+  #   description: "n8n Cloud hosted instance"
+
+# =============================================================================
+# How to get your API key:
+# =============================================================================
+#
+# 1. Open your n8n instance in a browser
+# 2. Go to Settings (gear icon in sidebar)
+# 3. Select "API" from the menu
+# 4. Click "Create API Key"
+# 5. Give it a name (e.g., "Claude Code Integration")
+# 6. Copy the generated API key
+# 7. Paste it in the api_key field above
+#
+# =============================================================================
+# Usage examples:
+# =============================================================================
+#
+# List accounts:
+#   python3 scripts/n8n_config.py --list-accounts
+#
+# Add new account:
+#   python3 scripts/n8n_config.py --add production \
+#     --url "https://n8n.example.com/api/v1" \
+#     --key "YOUR_API_KEY" \
+#     --name "Production n8n"
+#
+# Test connection:
+#   python3 scripts/n8n_auth.py --test
+#   python3 scripts/n8n_auth.py --test --account production
+#
+# Set default account:
+#   python3 scripts/n8n_config.py --set-default production
+#
+# Use specific account:
+#   python3 scripts/n8n_api.py workflows list --account production
+#   N8N_ACCOUNT=production python3 scripts/n8n_api.py workflows list

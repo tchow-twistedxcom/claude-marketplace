@@ -52,7 +52,7 @@ Workflows must be **manually activated** in the n8n UI before they can receive w
    - Add custom headers if specified
 
 3. **Execute Webhook**
-   - Call `mcp__n8n__n8n_trigger_webhook_workflow`
+   - Call `python3 scripts/n8n_api.py webhook <url>`
    - Handle response or timeout
 
 4. **Report Results**
@@ -132,13 +132,29 @@ To activate:
 3. Toggle the Active switch to ON
 ```
 
-## MCP Tools Used
+## CLI Tools Used
 
-| Tool | Purpose |
-|------|---------|
-| `mcp__n8n__n8n_trigger_webhook_workflow` | Execute webhook request |
-| `mcp__n8n__n8n_get_workflow` | Look up workflow details |
-| `mcp__n8n__n8n_list_workflows` | Find workflow by name |
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_api.py webhook` | Trigger webhook URL |
+| `scripts/n8n_api.py workflows get` | Look up workflow details |
+| `scripts/n8n_api.py workflows list` | Find workflow by name |
+
+### Example CLI Commands
+
+```bash
+# Trigger webhook with POST
+python3 scripts/n8n_api.py webhook https://n8n.example.com/webhook/abc-123
+
+# Trigger with JSON data
+python3 scripts/n8n_api.py webhook https://n8n.example.com/webhook/abc-123 --data '{"key": "value"}'
+
+# GET request
+python3 scripts/n8n_api.py webhook https://n8n.example.com/webhook/status --method GET
+
+# With custom headers
+python3 scripts/n8n_api.py webhook https://n8n.example.com/webhook/api --headers '{"X-API-Key": "secret"}'
+```
 
 ## Examples
 

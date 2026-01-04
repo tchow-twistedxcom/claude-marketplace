@@ -229,13 +229,29 @@ When Claude executes `/n8n:setup`:
 3. Test API connectivity
 4. Report detailed diagnostics
 
-## MCP Tools Used
+## CLI Tools Used
 
-| Tool | Purpose |
-|------|---------|
-| `mcp__n8n__n8n_health_check` | Verify API connectivity |
-| `mcp__n8n__n8n_diagnostic` | Detailed diagnostics |
-| `mcp__n8n__get_database_statistics` | Capability verification |
+| Script | Purpose |
+|--------|---------|
+| `scripts/n8n_config.py` | Account management (add, remove, list, set-default) |
+| `scripts/n8n_auth.py` | Connection testing and diagnostics |
+| `scripts/n8n_api.py` | API operations (health check) |
+
+### Example CLI Commands
+
+```bash
+# List accounts
+python3 scripts/n8n_config.py --list-accounts
+
+# Add account
+python3 scripts/n8n_config.py --add production --url "https://n8n.example.com/api/v1" --key "YOUR_KEY"
+
+# Test connection
+python3 scripts/n8n_auth.py --test --account local
+
+# Set default
+python3 scripts/n8n_config.py --set-default production
+```
 
 ## Examples
 

@@ -1,8 +1,5 @@
 ---
-name: docs
 description: View portable setup documentation
-argument-hint: "<readme|dependencies|customization|all>"
-allowed-tools: ["Read"]
 ---
 
 View documentation bundled with the portable setup plugin. Provides quick access to setup guides, dependency information, and customization instructions without leaving Claude Code.

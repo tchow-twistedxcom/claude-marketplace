@@ -1,8 +1,5 @@
 ---
-name: sync
 description: Synchronize configuration across all environments
-argument-hint: "[--message <commit-msg>]"
-allowed-tools: ["Bash", "Read", "Write"]
 ---
 
 Synchronize your Claude Code configuration across all environments using git. This command exports your current configuration, updates the bundled template in the plugin, commits the changes, and pushes to your marketplace repository.

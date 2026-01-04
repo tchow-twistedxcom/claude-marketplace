@@ -1,8 +1,5 @@
 ---
-name: install
 description: Install portable setup from included template
-argument-hint: "[--path <custom-output-dir>]"
-allowed-tools: ["Bash", "Read"]
 ---
 
 Install the portable Claude Code configuration from the bundled template tarball. This command extracts the pre-packaged configuration and runs the automated setup process.

@@ -1,8 +1,5 @@
 ---
-name: validate
 description: Validate portable setup configuration
-argument-hint: "[--strict]"
-allowed-tools: ["Bash", "Read"]
 ---
 
 Validate that portable setup configuration has been properly applied. Checks for placeholder secrets that need manual configuration, verifies configuration files are in place, and ensures the portable setup was installed correctly.

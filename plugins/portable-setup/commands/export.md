@@ -1,8 +1,5 @@
 ---
-name: export
 description: Export current Claude Code configuration to tarball
-argument-hint: "[--output-dir <path>]"
-allowed-tools: ["Bash", "Read"]
 ---
 
 Export the current Claude Code configuration to a portable tarball. Creates a timestamped package suitable for transfer to other servers or updating the plugin template.

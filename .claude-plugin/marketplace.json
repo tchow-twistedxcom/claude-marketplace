@@ -124,10 +124,7 @@
       "name": "portable-setup",
       "source": "./plugins/portable-setup",
       "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers via git",
-      "version": "1.0.1",
-      "category": "utilities",
-      "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization", "git", "backup"],
-      "strict": false
+      "version": "1.0.2"
     }
   ]
 }

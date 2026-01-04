@@ -1,145 +1,165 @@
 ---
-description: Validate portable setup installation
+description: Validate portable setup configuration
 argument-hint: "[--strict]"
 allowed-tools: ["Bash", "Read"]
 ---
 
-Validate the current Claude Code installation for completeness. Checks for required tools, configuration files, and proper setup. Provides actionable recommendations for any issues found.
+Validate that portable setup configuration has been properly applied. Checks for placeholder secrets that need manual configuration, verifies configuration files are in place, and ensures the portable setup was installed correctly.
+
+**Note**: This validates the portable setup configuration, not Claude Code itself (which must already be working for you to run this command).
 
 ## Instructions
 
-1. **Locate the plugin directory:**
-   - Use `Bash`: `find ~/.claude/plugins -name "portable-setup" -type d | head -1`
-   - Store as `PLUGIN_DIR`
+1. **Check for --strict flag:**
+   - If `--strict` provided, fail on any warnings
+   - Without flag, warnings are informational only
 
-2. **Locate validation script:**
-   - Path: `$PLUGIN_DIR/assets/scripts/validate-setup.sh`
-   - Verify exists
+2. **Run validation checks using Bash:**
 
-3. **Check for --strict flag:**
-   - If `--strict` provided, validation will fail on warnings (exit code 1)
-   - Without flag, warnings are informational only (exit code 0)
-
-4. **Run validation script:**
-   - With strict mode: `bash $PLUGIN_DIR/assets/scripts/validate-setup.sh --strict`
-   - Normal mode: `bash $PLUGIN_DIR/assets/scripts/validate-setup.sh`
-   - Capture both output and exit code
-
-5. **Parse validation output:**
-   - Look for these markers:
-     - `✅` - Check passed
-     - `⚠️` - Warning (optional item)
-     - `❌` - Error (critical item)
-     - `ℹ️` - Informational note
-
-6. **Categorize results:**
-   - **Critical Errors** (❌): Missing required tools or configuration
-   - **Warnings** (⚠️): Missing optional features or configuration needs
-   - **Informational** (ℹ️): Notes about excluded items (agents, hooks, etc.)
-
-7. **Present organized results:**
-   ```
-   🔍 Portable Setup Validation Results
-   ═══════════════════════════════════
-
-   Core Tools: [✅ all passed / ⚠️ X warnings / ❌ X errors]
-   - List status of each tool
-
-   Claude Configuration: [status]
-   - Settings.json: [status]
-   - Note: SuperClaude framework excluded (user-specific)
-   - Note: Custom agents excluded (user-specific)
-
-   Claude Code Configuration: [status]
-   - config.json: [status]
-   - .env: [status with details]
-   - Note: Custom hooks excluded (user-specific)
-
-   System Configuration: [status]
-   - tmux: [status]
-   - npmrc: [status with token check]
-   - git: [status with user info]
-
-   GitHub CLI: [status]
-
-   Statusline: [status]
-
-   Version Information:
-   - Claude Code: [version]
-   - Node.js: [version]
-   - Python: [version]
-   - Git: [version]
+   **Check 1: Secret Placeholders in .env**
+   ```bash
+   if [ -f ~/.config/claude-code/.env ]; then
+       if grep -q "YOUR_TOPIC_HERE\|YOUR_.*_HERE\|PLACEHOLDER" ~/.config/claude-code/.env; then
+           echo "⚠️  .env contains placeholder values - needs manual configuration"
+           echo "   Edit: ~/.config/claude-code/.env"
+           echo "   Replace placeholder values with actual secrets"
+       else
+           echo "✅ .env configured with actual values"
+       fi
+   else
+       echo "ℹ️  .env not present (optional for some setups)"
+   fi
    ```
 
-8. **Provide actionable recommendations:**
-
-   For each error/warning, include fix suggestion:
-
-   **Missing tool:**
-   ```
-   ❌ claude not found
-   Fix: npm install -g claude-code
-   Verify: claude --version
-   ```
-
-   **Placeholder secrets:**
-   ```
-   ⚠️  .env exists but needs configuration
-   Fix: Edit ~/.config/claude-code/.env
-        Replace YOUR_TOPIC_HERE with actual ntfy topic
-   Verify: grep -v "YOUR_TOPIC_HERE" ~/.config/claude-code/.env
+   **Check 2: GitHub Token in .npmrc**
+   ```bash
+   if [ -f ~/.npmrc ]; then
+       if grep -q "YOUR_TOKEN_HERE\|<TOKEN>\|PLACEHOLDER" ~/.npmrc; then
+           echo "⚠️  .npmrc contains placeholder token - needs manual configuration"
+           echo "   Edit: ~/.npmrc"
+           echo "   Add GitHub personal access token"
+           echo "   Generate at: https://github.com/settings/tokens"
+       else
+           echo "✅ .npmrc configured with GitHub token"
+       fi
+   else
+       echo "ℹ️  .npmrc not present"
+   fi
    ```
 
-   **Missing GitHub token:**
-   ```
-   ⚠️  npmrc exists but needs GitHub token
-   Fix: Edit ~/.npmrc
-        Add your GitHub personal access token
-        Generate at: https://github.com/settings/tokens
-        Required scopes: repo, read:packages
-   ```
-
-   **Git not configured:**
-   ```
-   ⚠️  Git user not configured
-   Fix: git config --global user.name "Your Name"
-        git config --global user.email "your@email.com"
+   **Check 3: Statusline Scripts**
+   ```bash
+   if [ -f ~/.claude/statusline.sh ]; then
+       if [ -x ~/.claude/statusline.sh ]; then
+           echo "✅ Statusline script installed and executable"
+       else
+           echo "⚠️  Statusline script exists but not executable"
+           echo "   Fix: chmod +x ~/.claude/statusline.sh"
+       fi
+   else
+       echo "ℹ️  Statusline script not installed (optional)"
+   fi
    ```
 
-9. **Display summary:**
-   - If exit code 0 and no errors:
+   **Check 4: Claude Configuration Files**
+   ```bash
+   if [ -f ~/.claude/settings.json ]; then
+       echo "✅ Claude settings.json present"
+   else
+       echo "⚠️  Claude settings.json missing"
+       echo "   This should have been copied during portable setup"
+   fi
+
+   if [ -f ~/.config/claude-code/config.json ]; then
+       echo "✅ Claude Code config.json present"
+   else
+       echo "⚠️  Claude Code config.json missing"
+       echo "   This should have been copied during portable setup"
+   fi
+   ```
+
+   **Check 5: System Dotfiles**
+   ```bash
+   if [ -f ~/.tmux.conf ]; then
+       echo "✅ tmux configuration present"
+   else
+       echo "ℹ️  tmux configuration not installed (optional)"
+   fi
+
+   if grep -q "Claude Code additions" ~/.bashrc 2>/dev/null; then
+       echo "✅ Bash configuration includes Claude Code additions"
+   else
+       echo "ℹ️  No Claude Code additions in .bashrc (optional)"
+   fi
+   ```
+
+   **Check 6: Git User Configuration**
+   ```bash
+   if git config user.name >/dev/null 2>&1 && git config user.email >/dev/null 2>&1; then
+       echo "✅ Git user configured: $(git config user.name) <$(git config user.email)>"
+   else
+       echo "⚠️  Git user not configured"
+       echo "   Fix: git config --global user.name \"Your Name\""
+       echo "        git config --global user.email \"your@email.com\""
+   fi
+   ```
+
+3. **Count issues:**
+   - Track number of ⚠️ warnings
+   - Track number of ❌ errors (currently we don't have critical errors, only warnings)
+   - Track number of ℹ️ informational items
+
+4. **Display summary:**
+
+   ```
+   🔍 Portable Setup Configuration Validation
+   ══════════════════════════════════════════
+
+   Configuration Files:
+   [Results from checks above]
+
+   Secrets Configuration:
+   [Results from checks above]
+
+   System Integration:
+   [Results from checks above]
+
+   ──────────────────────────────────────────
+   Summary: X warnings, Y informational notes
+   ```
+
+5. **Provide summary message:**
+
+   - If no warnings:
      ```
-     ✅ Perfect! Setup is complete and fully configured.
+     ✅ Perfect! Portable setup is fully configured.
+     All secrets have been set and configuration files are in place.
      ```
 
-   - If exit code 0 with warnings:
+   - If warnings found (not strict mode):
      ```
-     ⚠️  Warnings: X items need attention (optional)
+     ⚠️  Configuration needs attention: X items
 
-     Setup is functional but some optional items need configuration.
-     Review warnings above for details.
-     ```
+     Your portable setup is functional but some items need manual configuration.
+     Review warnings above for specific actions needed.
 
-   - If exit code 1:
-     ```
-     ❌ Errors: X critical items missing
-     ⚠️  Warnings: Y items need attention
-
-     Please review errors above and re-run setup or fix manually.
+     Most common fixes:
+     - Edit ~/.config/claude-code/.env to replace YOUR_TOPIC_HERE
+     - Edit ~/.npmrc to add GitHub personal access token
+     - Run: git config --global user.name "Your Name"
      ```
 
-   - If --strict mode failed on warnings:
+   - If --strict mode with warnings:
      ```
-     ⚠️  Strict mode: Failed due to warnings
+     ❌ Strict validation failed
 
-     All optional features must be configured in strict mode.
+     Strict mode requires all optional items to be configured.
      Fix warnings above or run without --strict flag.
      ```
 
-10. **Suggest next steps:**
-    - If errors: "Fix errors and run `/portable:validate` again"
-    - If warnings only: "Configuration is functional. Fix warnings for complete setup."
-    - If perfect: "Setup complete! Run `claude` to start using Claude Code."
+6. **Exit with appropriate code:**
+   - If --strict AND warnings exist: Exit code 1
+   - Otherwise: Exit code 0
 
 ## Usage Examples
 
@@ -147,20 +167,35 @@ Validate the current Claude Code installation for completeness. Checks for requi
 ```
 /portable:validate
 ```
-Checks setup, reports errors and warnings, passes if no critical errors.
+Checks portable setup configuration, reports warnings, passes if configuration is functional.
 
 **Strict validation:**
 ```
 /portable:validate --strict
 ```
-Fails if any warnings exist. Useful for CI/CD or ensuring complete setup.
+Fails if any configuration items need attention. Useful for automation or ensuring complete setup.
+
+## What This Validates
+
+✅ **Configuration files copied**: settings.json, config.json
+✅ **Secrets configured**: .env and .npmrc have actual values, not placeholders
+✅ **Statusline installed**: Custom statusline script present and executable
+✅ **Dotfiles applied**: tmux, bash configurations in place
+✅ **Git configured**: User name and email set for commits
+
+## What This Does NOT Validate
+
+❌ Claude Code installation (must be working to run this command)
+❌ Required system tools (node, npm, python, git)
+❌ GitHub CLI installation
+❌ Network connectivity
+
+For full system validation (checking if tools are installed), use the standalone `validate-setup.sh` script that comes in the extracted portable setup tarball.
 
 ## Notes
 
+- This command is meant to validate portable setup CONFIGURATION, not system prerequisites
+- Warnings indicate configuration that needs manual attention (secrets, tokens)
+- Informational notes are expected (not all optional features are required)
+- Re-run after fixing warnings to confirm resolution
 - Validation is read-only and makes no changes to your system
-- Exit codes: 0 = success (or warnings only), 1 = critical errors (or strict mode failures)
-- Run after installation to verify setup completeness
-- Re-run after fixing issues to confirm resolution
-- Informational notes about excluded items are normal and expected
-- Color-coded output helps identify priority of issues
-- Can be automated in scripts using exit code checking

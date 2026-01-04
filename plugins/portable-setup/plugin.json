@@ -6,6 +6,5 @@
     "name": "tchow",
     "email": "tchow@example.com"
   },
-  "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization"],
-  "category": "utilities"
+  "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization"]
 }

@@ -128,6 +128,15 @@
       "category": "utilities",
       "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization", "git", "backup"],
       "strict": false
+    },
+    {
+      "name": "n8n-integration",
+      "source": "./plugins/n8n-integration",
+      "description": "n8n workflow automation via MCP - 38 tools for workflow management, node discovery, validation, templates, execution monitoring, AI agent patterns, and integration best practices",
+      "version": "1.0.0",
+      "category": "integration",
+      "keywords": ["n8n", "workflow", "automation", "integration", "ai-agents", "mcp", "webhook", "orchestration"],
+      "strict": false
     }
   ]
 }

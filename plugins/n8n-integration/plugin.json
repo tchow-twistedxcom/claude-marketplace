@@ -1,0 +1,37 @@
+{
+  "name": "n8n-integration",
+  "version": "1.0.0",
+  "description": "n8n workflow automation via MCP - 38 tools for workflow management, node discovery, validation, templates, and execution monitoring",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": [
+    "n8n",
+    "workflow",
+    "automation",
+    "integration",
+    "ai-agents",
+    "mcp",
+    "orchestration",
+    "webhook"
+  ],
+  "commands": [
+    "./commands/n8n/setup.md",
+    "./commands/n8n/status.md",
+    "./commands/n8n/list.md",
+    "./commands/n8n/find.md",
+    "./commands/n8n/run.md",
+    "./commands/n8n/validate.md",
+    "./commands/n8n/help.md"
+  ],
+  "skills": [
+    "./skills/n8n-workflow-builder",
+    "./skills/n8n-workflow-manager",
+    "./skills/n8n-troubleshooter",
+    "./skills/n8n-integration-patterns"
+  ]
+}

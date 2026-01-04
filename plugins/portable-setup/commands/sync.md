@@ -1,4 +1,5 @@
 ---
+name: portable:sync
 description: Synchronize configuration across all environments
 argument-hint: "[--message <commit-msg>]"
 allowed-tools: ["Bash", "Read", "Write"]

@@ -1,4 +1,5 @@
 ---
+name: portable:validate
 description: Validate portable setup configuration
 argument-hint: "[--strict]"
 allowed-tools: ["Bash", "Read"]

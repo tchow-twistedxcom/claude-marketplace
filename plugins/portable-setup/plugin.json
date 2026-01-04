@@ -1,10 +1,20 @@
 {
   "name": "portable-setup",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers",
   "author": {
     "name": "tchow",
     "email": "tchow@example.com"
   },
-  "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization"]
+  "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization"],
+  "commands": [
+    "commands/install.md",
+    "commands/export.md",
+    "commands/sync.md",
+    "commands/validate.md",
+    "commands/docs.md"
+  ],
+  "skills": [
+    "skills/portable-setup"
+  ]
 }

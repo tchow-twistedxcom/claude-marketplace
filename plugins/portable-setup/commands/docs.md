@@ -1,4 +1,5 @@
 ---
+name: portable:docs
 description: View portable setup documentation
 argument-hint: "<readme|dependencies|customization|all>"
 allowed-tools: ["Read"]

@@ -1,4 +1,5 @@
 ---
+name: portable:install
 description: Install portable setup from included template
 argument-hint: "[--path <custom-output-dir>]"
 allowed-tools: ["Bash", "Read"]

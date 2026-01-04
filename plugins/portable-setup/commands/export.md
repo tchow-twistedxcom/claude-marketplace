@@ -1,4 +1,5 @@
 ---
+name: portable:export
 description: Export current Claude Code configuration to tarball
 argument-hint: "[--output-dir <path>]"
 allowed-tools: ["Bash", "Read"]

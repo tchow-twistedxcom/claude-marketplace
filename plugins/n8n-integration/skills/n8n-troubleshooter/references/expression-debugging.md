@@ -52,6 +52,7 @@ $workflow:
 $env:
   description: Environment variables
   usage: "{{ $env.MY_VARIABLE }}"
+  warning: "⚠️ May be blocked - see security section below"
 
 $vars:
   description: Workflow variables
@@ -374,3 +375,82 @@ safety:
 | Not a function | TypeError | Check data type |
 | Wrong node ref | Node not found | Check node name spelling |
 | Empty result | Expression returns undefined | Verify data path |
+| $env empty | Security block | Use credentials store |
+
+## Environment Variable Security
+
+### ⚠️ $env May Be Blocked
+
+n8n can be configured to block environment variable access in workflows:
+
+```bash
+# This setting blocks $env access (default in n8n v2.0+)
+N8N_BLOCK_ENV_ACCESS_IN_NODE=true
+```
+
+### Symptoms When Blocked
+
+```yaml
+behavior:
+  - $env.MY_VARIABLE returns empty/null
+  - No error is thrown - fails silently!
+  - Code nodes cannot access process.env
+  - Expressions using $env evaluate to empty string
+
+detection:
+  test_expression: "{{ $env.PATH ? 'has access' : 'blocked' }}"
+  expected_if_blocked: "" (empty string)
+```
+
+### Recommended Alternative: Credentials Store
+
+Instead of `$env`, use n8n's built-in credentials store:
+
+#### 1. Create Credential via API
+```bash
+python3 n8n_api.py credentials create \
+  --name "Webhook Auth Token" \
+  --type httpHeaderAuth \
+  --data '{"name": "X-Webhook-Token", "value": "your-secret-value"}'
+```
+
+#### 2. Reference Credential in Node
+```json
+{
+  "type": "n8n-nodes-base.webhook",
+  "parameters": {
+    "authentication": "headerAuth"
+  },
+  "credentials": {
+    "httpHeaderAuth": {
+      "id": "credential-id",
+      "name": "Webhook Auth Token"
+    }
+  }
+}
+```
+
+### Common Credential Types
+
+| Type | Use Case | Required Fields |
+|------|----------|-----------------|
+| `httpHeaderAuth` | Custom header auth | `name`, `value` |
+| `httpBasicAuth` | Basic HTTP auth | `user`, `password` |
+| `oAuth2Api` | OAuth 2.0 flows | `clientId`, `clientSecret`, ... |
+| `apiKey` | API key auth | `key` |
+
+### Why Credentials > $env
+
+```yaml
+advantages:
+  - Encrypted at rest in n8n database
+  - Access controlled per workflow
+  - Works regardless of N8N_BLOCK_ENV_ACCESS_IN_NODE
+  - Visible in n8n UI for management
+  - Can be rotated without code changes
+
+limitations:
+  - Cannot read existing environment variables
+  - OAuth credentials require UI for initial authorization
+  - Credential values not returned via API (security feature)
+```

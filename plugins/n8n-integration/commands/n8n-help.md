@@ -1,5 +1,5 @@
 ---
-name: help
+name: n8n-help
 description: "Show n8n plugin commands, skills, and documentation"
 ---
 

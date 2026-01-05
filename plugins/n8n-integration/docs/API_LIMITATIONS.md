@@ -1,57 +1,78 @@
-# n8n API Limitations and Workarounds
+# n8n API Capabilities and Limitations
 
-This document describes the limitations of the n8n MCP API and recommended workarounds.
+This document describes the capabilities and limitations of the n8n REST API (v1).
 
 ## API Capability Summary
 
-### Available (38 Tools)
+### Available Operations
 
-| Category | Tools | Description |
-|----------|-------|-------------|
-| Workflow CRUD | 8 | Create, read, update, delete, list workflows |
-| Validation | 5 | Validate workflows, connections, expressions, auto-fix |
-| Node Discovery | 8 | Search nodes, get info, essentials, documentation |
-| Templates | 5 | Search, list, get templates by task/metadata |
-| Execution | 3 | List, get details, delete executions |
-| Utility | 4 | Health check, diagnostic, trigger webhook |
+| Category | Operations | Description |
+|----------|------------|-------------|
+| Workflow CRUD | Create, read, update, delete, list | Full workflow management |
+| Workflow Activation | Activate, deactivate | POST /workflows/{id}/activate, /deactivate |
+| Validation | Validate, auto-fix | Check workflows, expressions, connections |
+| Node Discovery | Search, list, get info | Find nodes, templates, documentation |
+| Execution | List, get, delete, retry | Monitor and manage executions |
+| Credentials | Create, delete, list, schema | Manage credentials via API |
+| Tags | CRUD | Organize workflows with tags |
+| Utility | Health check, webhooks | Diagnostics and triggering |
 
-### Not Available via API
+### API Feature Matrix
 
-| Feature | Limitation | Impact |
-|---------|------------|--------|
-| Workflow Activation | Cannot activate/deactivate | Manual UI step required |
-| Direct Execution | Cannot execute workflows directly | Webhook trigger only |
-| Credential Management | Cannot create/update credentials | Manual UI configuration |
-| Stop Executions | Cannot stop running executions | Rely on timeouts |
-| Workflow Import/Export | No bulk import/export | One workflow at a time |
-| Version History | No workflow versioning | Manual backup required |
+| Feature | API Support | Endpoint | Notes |
+|---------|-------------|----------|-------|
+| Workflow Activation | ✅ Yes | POST /workflows/{id}/activate | Activates workflow for triggers |
+| Workflow Deactivation | ✅ Yes | POST /workflows/{id}/deactivate | Stops active triggers |
+| Credential Create | ✅ Yes | POST /credentials | Create new credentials |
+| Credential Delete | ✅ Yes | DELETE /credentials/{id} | Remove credentials |
+| Credential Schema | ✅ Yes | GET /credentials/schema/{type} | Get field schema for type |
+| Credential Update | ❌ No | — | Delete and recreate instead |
+| Credential Read Data | ❌ No | — | Sensitive data never returned |
+| Direct Execution | ❌ No | — | Use webhook trigger instead |
+| Stop Execution | ❌ No | — | Rely on timeouts |
+| Bulk Import/Export | ❌ No | — | One workflow at a time |
 
-## Detailed Limitations
+### Limitations Summary
+
+| Feature | Limitation | Workaround |
+|---------|------------|------------|
+| Direct Execution | Cannot execute workflows directly | Add webhook trigger, call webhook URL |
+| Stop Executions | Cannot stop running executions | Set appropriate timeouts, use circuit breakers |
+| Credential Update | No update endpoint | Delete and recreate credential |
+| Version History | No built-in versioning | Export workflow JSON to git before changes |
+
+## Detailed API Usage
 
 ### 1. Workflow Activation
 
-**Limitation**: The API cannot activate or deactivate workflows.
+**Available**: ✅ Yes - Use POST /workflows/{id}/activate and /deactivate
 
-**Impact**: After creating or updating a workflow, it remains inactive until manually activated.
+**Python Example**:
+```python
+from n8n_api import N8nClient, WorkflowsAPI
 
-**Workaround**:
-```yaml
-process:
-  1. Create/update workflow via API
-  2. Return workflow ID and URL to user
-  3. User activates in n8n UI:
-     - Navigate to workflow
-     - Toggle "Active" switch
-     - Confirm activation
+client = N8nClient()
+api = WorkflowsAPI(client)
+
+# Activate workflow
+result = api.activate("workflow-id")
+print(f"Activated: {result.get('active')}")
+
+# Deactivate workflow
+result = api.deactivate("workflow-id")
+print(f"Deactivated: {not result.get('active')}")
 ```
 
-**User Instructions**:
-```markdown
-After creating the workflow, please activate it manually:
-1. Go to: https://your-n8n.com/workflow/[ID]
-2. Click the "Active" toggle in the top-right
-3. The workflow is now ready to receive webhooks
+**CLI Example**:
+```bash
+# Activate
+python3 n8n_api.py workflows activate <workflow-id>
+
+# Deactivate
+python3 n8n_api.py workflows deactivate <workflow-id>
 ```
+
+**Note**: Activation is automatically triggered when updating an active workflow via PUT.
 
 ### 2. Workflow Execution
 
@@ -100,42 +121,67 @@ approach_3: "Execute Workflow Node"
 
 ### 3. Credential Management
 
-**Limitation**: Cannot create, update, or delete credentials via API.
+**Available**: ✅ Create, Delete, Schema - Use POST/DELETE /credentials
 
-**Impact**: Users must configure all credentials manually in n8n UI.
+> **Note**: GET /credentials (list) may return 405 on some n8n installations
+> due to security restrictions. Create, delete, and schema endpoints are
+> always available.
 
-**Workaround**:
-```yaml
-documentation:
-  - Provide step-by-step credential setup guides
-  - Document required credential types per workflow
-  - Include screenshots or videos
+**Python Example**:
+```python
+from n8n_api import N8nClient, CredentialsAPI
 
-workflow_design:
-  - Clearly name credential requirements in workflows
-  - Add notes to nodes requiring credentials
-  - Test with placeholder values when possible
+client = N8nClient()
+api = CredentialsAPI(client)
+
+# List all credentials (without sensitive data)
+creds = api.list()
+
+# Create a new credential
+result = api.create(
+    name="Webhook Auth Token",
+    type="httpHeaderAuth",
+    data={
+        "name": "X-Webhook-Token",
+        "value": "your-secret-token"
+    }
+)
+print(f"Created credential ID: {result.get('id')}")
+
+# Get schema for a credential type
+schema = api.get_schema("httpHeaderAuth")
+
+# Delete a credential
+api.delete("credential-id")
 ```
 
-**Credential Setup Instructions Template**:
-```markdown
-## Required Credentials
+**CLI Example**:
+```bash
+# List credentials
+python3 n8n_api.py credentials list
 
-This workflow requires the following credentials:
+# Create credential
+python3 n8n_api.py credentials create \
+  --name "Webhook Auth Token" \
+  --type httpHeaderAuth \
+  --data '{"name": "X-Webhook-Token", "value": "secret123"}'
 
-### 1. HTTP Header Auth
-- **Name**: `API Key Auth`
-- **Header Name**: `X-API-Key`
-- **Header Value**: Your API key from [service]
-
-### 2. OAuth2
-- **Name**: `Google OAuth`
-- **Client ID**: From Google Cloud Console
-- **Client Secret**: From Google Cloud Console
-- **Authorization URL**: `https://accounts.google.com/o/oauth2/auth`
-- **Access Token URL**: `https://oauth2.googleapis.com/token`
-- **Scope**: `https://www.googleapis.com/auth/calendar`
+# Delete credential
+python3 n8n_api.py credentials delete <credential-id>
 ```
+
+**Common Credential Types**:
+| Type | Description | Required Fields |
+|------|-------------|-----------------|
+| `httpHeaderAuth` | Custom header authentication | `name`, `value` |
+| `httpBasicAuth` | Basic HTTP authentication | `user`, `password` |
+| `oAuth2Api` | OAuth 2.0 flow | `clientId`, `clientSecret`, etc. |
+| `apiKey` | API key authentication | `key` |
+
+**Limitations**:
+- Cannot update credentials (delete and recreate instead)
+- Sensitive data (passwords, secrets) never returned in API responses
+- OAuth credentials require UI flow for initial authorization
 
 ### 4. Execution Control
 

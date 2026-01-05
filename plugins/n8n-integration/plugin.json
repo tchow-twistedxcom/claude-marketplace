@@ -22,17 +22,17 @@
   "mcpServers": {
     "n8n": {
       "command": "python3",
-      "args": ["./scripts/n8n_mcp_wrapper.py"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/n8n_mcp_wrapper.py"]
     }
   },
   "commands": [
-    "./commands/n8n/setup.md",
-    "./commands/n8n/status.md",
-    "./commands/n8n/list.md",
-    "./commands/n8n/find.md",
-    "./commands/n8n/run.md",
-    "./commands/n8n/validate.md",
-    "./commands/n8n/help.md"
+    "./commands/n8n-setup.md",
+    "./commands/n8n-status.md",
+    "./commands/n8n-list.md",
+    "./commands/n8n-find.md",
+    "./commands/n8n-run.md",
+    "./commands/n8n-validate.md",
+    "./commands/n8n-help.md"
   ],
   "skills": [
     "./skills/n8n-workflow-builder",

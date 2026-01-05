@@ -1,5 +1,5 @@
 ---
-name: validate
+name: n8n-validate
 description: "Validate n8n workflow configuration and optionally auto-fix issues"
 ---
 

@@ -275,11 +275,11 @@ class ExecutionsAPI:
 
 
 # =============================================================================
-# Credentials API (Read-Only)
+# Credentials API
 # =============================================================================
 
 class CredentialsAPI:
-    """Credentials resource operations (read-only)."""
+    """Credentials resource operations."""
 
     def __init__(self, client: N8nClient):
         self.client = client
@@ -287,6 +287,42 @@ class CredentialsAPI:
     def list(self) -> dict:
         """List all credentials (without sensitive data)."""
         return self.client.get("/credentials")
+
+    def create(self, name: str, cred_type: str, data: dict) -> dict:
+        """Create a new credential.
+
+        Args:
+            name: Display name for the credential
+            cred_type: Credential type (e.g., 'httpHeaderAuth', 'oAuth2Api')
+            data: Credential data (varies by type)
+
+        Example:
+            api.create(
+                name="Webhook Auth Token",
+                cred_type="httpHeaderAuth",
+                data={"name": "X-Webhook-Token", "value": "secret123"}
+            )
+
+        Returns:
+            Created credential with id, name, type fields
+        """
+        payload = {"name": name, "type": cred_type, "data": data}
+        return self.client.post("/credentials", data=payload)
+
+    def delete(self, credential_id: str) -> dict:
+        """Delete a credential by ID."""
+        return self.client.delete(f"/credentials/{credential_id}")
+
+    def get_schema(self, credential_type: str) -> dict:
+        """Get the schema for a credential type.
+
+        Args:
+            credential_type: Type name (e.g., 'httpHeaderAuth')
+
+        Returns:
+            JSON schema describing required fields for this credential type
+        """
+        return self.client.get(f"/credentials/schema/{credential_type}")
 
 
 # =============================================================================
@@ -372,6 +408,158 @@ def check_health(account_id: Optional[str] = None) -> dict:
             "healthy": False,
             "error": str(e)
         }
+
+
+# =============================================================================
+# Validation Helpers
+# =============================================================================
+
+def validate_data_table_node(node: dict) -> List[Dict[str, Any]]:
+    """Validate Data Table node configuration.
+
+    Checks for common issues like using table names instead of IDs.
+
+    Args:
+        node: Node configuration dict
+
+    Returns:
+        List of issue dicts with 'type', 'message', 'fix' keys
+    """
+    issues = []
+    params = node.get("parameters", {})
+    table_id = params.get("tableId", {})
+
+    # Check resource locator format when mode is "list"
+    if table_id.get("mode") == "list":
+        value = table_id.get("value", "")
+        # IDs are short alphanumeric strings, names often contain spaces
+        if not value:
+            issues.append({
+                "type": "data_table_id_empty",
+                "message": "tableId.value is empty",
+                "fix": "Set tableId.value to the internal table ID (e.g., '0vQXXKgjO8WncMK2')"
+            })
+        elif " " in value or len(value) > 20:
+            issues.append({
+                "type": "data_table_id_format",
+                "message": f"tableId.value '{value}' appears to be a name, not an ID",
+                "fix": "Use the internal table ID (find it in the n8n UI URL or via API)"
+            })
+
+    return issues
+
+
+def validate_if_node(node: dict) -> List[Dict[str, Any]]:
+    """Validate If node configuration for version compatibility.
+
+    Checks for mismatches between typeVersion and conditions structure.
+
+    Args:
+        node: Node configuration dict
+
+    Returns:
+        List of issue dicts with 'type', 'message', 'fix' keys
+    """
+    issues = []
+    type_version = node.get("typeVersion", 1)
+    params = node.get("parameters", {})
+    conditions = params.get("conditions", {})
+
+    if type_version == 1:
+        # v1 requires combineOperation at params level
+        if "combineOperation" not in params:
+            issues.append({
+                "type": "if_v1_missing_combine",
+                "message": "If node v1 missing 'combineOperation' field",
+                "fix": "Add 'combineOperation': 'all' or 'any' to parameters"
+            })
+        # v1 uses conditions.string format, not conditions.conditions
+        if "string" not in conditions and "conditions" in conditions:
+            issues.append({
+                "type": "if_v1_v2_mismatch",
+                "message": "If node typeVersion=1 but conditions use v2 format",
+                "fix": "Upgrade typeVersion to 2, or convert to v1 format (conditions.string)"
+            })
+
+    elif type_version >= 2:
+        # v2 requires combinator inside conditions object
+        if "combinator" not in conditions:
+            issues.append({
+                "type": "if_v2_missing_combinator",
+                "message": "If node v2 missing 'combinator' in conditions",
+                "fix": "Add 'combinator': 'and' or 'or' to conditions object"
+            })
+        # v2 uses conditions.conditions, not conditions.string
+        if "string" in conditions and "conditions" not in conditions:
+            issues.append({
+                "type": "if_v2_v1_mismatch",
+                "message": "If node typeVersion=2 but conditions use v1 format",
+                "fix": "Convert to v2 format with conditions.conditions array"
+            })
+
+    return issues
+
+
+def validate_env_usage(workflow: dict) -> List[Dict[str, Any]]:
+    """Check for $env usage that may fail with N8N_BLOCK_ENV_ACCESS_IN_NODE.
+
+    Args:
+        workflow: Full workflow dict
+
+    Returns:
+        List of warning dicts if $env is used
+    """
+    issues = []
+    workflow_json = json.dumps(workflow)
+
+    if "$env" in workflow_json:
+        issues.append({
+            "type": "env_var_usage",
+            "severity": "warning",
+            "message": "Workflow uses $env variables which may be blocked by N8N_BLOCK_ENV_ACCESS_IN_NODE",
+            "recommendation": "Consider using n8n credentials store instead for sensitive values"
+        })
+
+    return issues
+
+
+def validate_workflow(workflow: dict) -> Dict[str, Any]:
+    """Validate entire workflow for common issues.
+
+    Args:
+        workflow: Full workflow dict
+
+    Returns:
+        Dict with 'valid' bool and 'issues' list
+    """
+    all_issues = []
+
+    # Check for $env usage
+    all_issues.extend(validate_env_usage(workflow))
+
+    # Check each node
+    for node in workflow.get("nodes", []):
+        node_type = node.get("type", "")
+        node_name = node.get("name", "Unknown")
+
+        # Data Table validation
+        if "dataTable" in node_type.lower():
+            node_issues = validate_data_table_node(node)
+            for issue in node_issues:
+                issue["node"] = node_name
+            all_issues.extend(node_issues)
+
+        # If node validation
+        if node_type == "n8n-nodes-base.if":
+            node_issues = validate_if_node(node)
+            for issue in node_issues:
+                issue["node"] = node_name
+            all_issues.extend(node_issues)
+
+    return {
+        "valid": len([i for i in all_issues if i.get("severity") != "warning"]) == 0,
+        "issues": all_issues
+    }
 
 
 # =============================================================================
@@ -615,6 +803,62 @@ def cmd_credentials(args) -> None:
                 print(f"\n{cred.get('id')} - {cred.get('name')}")
                 print(f"  Type: {cred.get('type')}")
 
+    elif args.action == "create":
+        if not args.name or not args.type:
+            print("Error: --name and --type required for create", file=sys.stderr)
+            print("Example: credentials create --name 'My Token' --type httpHeaderAuth --data '{\"name\":\"X-Token\",\"value\":\"secret\"}'", file=sys.stderr)
+            sys.exit(1)
+
+        data = {}
+        if args.data:
+            try:
+                data = json.loads(args.data)
+            except json.JSONDecodeError as e:
+                print(f"Error: Invalid JSON in --data: {e}", file=sys.stderr)
+                sys.exit(1)
+
+        result = api.create(args.name, args.type, data)
+
+        if result.get("error"):
+            print(f"Error: {result.get('message')}", file=sys.stderr)
+            if result.get("details"):
+                print(f"Details: {result.get('details')}", file=sys.stderr)
+            sys.exit(1)
+
+        if args.json:
+            output_json(result)
+        else:
+            print(f"Credential created successfully")
+            print(f"  ID: {result.get('id')}")
+            print(f"  Name: {result.get('name')}")
+            print(f"  Type: {result.get('type')}")
+
+    elif args.action == "delete":
+        if not args.id:
+            print("Error: credential ID required for delete", file=sys.stderr)
+            sys.exit(1)
+
+        result = api.delete(args.id)
+
+        if result.get("error"):
+            print(f"Error: {result.get('message')}", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"Credential deleted: {args.id}")
+
+    elif args.action == "schema":
+        if not args.type:
+            print("Error: --type required for schema", file=sys.stderr)
+            sys.exit(1)
+
+        result = api.get_schema(args.type)
+
+        if result.get("error"):
+            print(f"Error: {result.get('message')}", file=sys.stderr)
+            sys.exit(1)
+
+        output_json(result)
+
 
 def cmd_health(args) -> None:
     """Check n8n health."""
@@ -700,7 +944,12 @@ Examples:
   %(prog)s workflows list                    List all workflows
   %(prog)s workflows list --active           List active workflows only
   %(prog)s workflows get <id>                Get workflow details
+  %(prog)s workflows activate <id>           Activate a workflow
   %(prog)s executions list --status error    List failed executions
+  %(prog)s credentials list                  List all credentials
+  %(prog)s credentials create --name "My Token" --type httpHeaderAuth --data '{"name":"X-Token","value":"secret"}'
+  %(prog)s credentials delete <id>           Delete a credential
+  %(prog)s credentials schema --type httpHeaderAuth  Get credential schema
   %(prog)s health                            Check n8n health
   %(prog)s webhook <url> --data '{}'         Trigger webhook
 """
@@ -737,7 +986,11 @@ Examples:
 
     # Credentials
     credentials_parser = subparsers.add_parser("credentials", help="Credentials operations")
-    credentials_parser.add_argument("action", choices=["list"], default="list", nargs="?")
+    credentials_parser.add_argument("action", choices=["list", "create", "delete", "schema"], default="list", nargs="?")
+    credentials_parser.add_argument("id", nargs="?", help="Credential ID (for delete)")
+    credentials_parser.add_argument("--name", "-n", help="Credential name (for create)")
+    credentials_parser.add_argument("--type", "-t", help="Credential type (e.g., httpHeaderAuth, oAuth2Api)")
+    credentials_parser.add_argument("--data", "-d", help="Credential data as JSON (for create)")
 
     # Health
     health_parser = subparsers.add_parser("health", help="Health check")

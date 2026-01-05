@@ -1,5 +1,5 @@
 ---
-name: find
+name: n8n-find
 description: "Search n8n nodes, templates, or documentation by keyword"
 ---
 

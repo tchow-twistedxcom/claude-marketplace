@@ -1,5 +1,5 @@
 ---
-name: list
+name: n8n-list
 description: "List n8n workflows or executions with filtering options"
 ---
 

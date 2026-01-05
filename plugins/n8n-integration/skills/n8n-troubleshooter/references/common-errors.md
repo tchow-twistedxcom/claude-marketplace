@@ -509,6 +509,108 @@ resolution:
   - Update webhook settings
 ```
 
+## Node Version Errors
+
+### compareOperationFunctions Error
+```yaml
+error: "compareOperationFunctions[compareData.operation] is not a function"
+category: Node Version
+severity: High
+
+causes:
+  - If node typeVersion=1 but conditions use v2 format
+  - Missing combineOperation field in v1 If node
+  - Version mismatch between node structure and typeVersion
+
+diagnosis:
+  - Check If node typeVersion field
+  - Compare conditions structure against expected format
+  - Look for combineOperation (v1) vs combinator (v2)
+
+resolution:
+  - Upgrade typeVersion to 2 and use v2 format
+  - Or add missing combineOperation for v1
+  - See node-patterns.md for v1 vs v2 format examples
+
+v1_format:
+  conditions:
+    string:
+      - value1: "={{ $json.field }}"
+        operation: "equals"
+        value2: "value"
+  combineOperation: "all"
+
+v2_format:
+  conditions:
+    conditions:
+      - leftValue: "={{ $json.field }}"
+        rightValue: "value"
+        operator:
+          type: "string"
+          operation: "equals"
+    combinator: "and"
+```
+
+### Data Table ID Format Error
+```yaml
+error: "The workflow has issues and cannot be executed"
+category: Configuration
+severity: High
+
+causes:
+  - tableId.value contains table name instead of ID
+  - Resource locator mode=list expects internal ID
+  - Table ID is empty or malformed
+
+diagnosis:
+  - Check Data Table node tableId.value
+  - IDs are alphanumeric (e.g., "0vQXXKgjO8WncMK2")
+  - Names contain spaces/punctuation
+
+resolution:
+  - Find table ID from n8n UI URL or API
+  - Update tableId.value to use internal ID
+  - Keep mode: "list" unchanged
+
+finding_table_id:
+  - UI: Open n8n → Data Tables → URL contains ID
+  - API: GET /api/v1/data-tables
+  - CLI: python3 n8n_api.py data-tables list
+```
+
+### Environment Variable Access Denied
+```yaml
+error: "access to env vars denied" or silent empty value
+category: Security
+severity: Medium
+
+causes:
+  - N8N_BLOCK_ENV_ACCESS_IN_NODE=true (default in n8n v2.0+)
+  - Security policy blocking $env access
+  - Code node cannot access process.env
+
+diagnosis:
+  - Check n8n environment configuration
+  - Look for $env usage in expressions
+  - Test if $env returns empty/null (fails silently!)
+
+resolution:
+  - Use n8n credentials store instead (recommended)
+  - Or set N8N_BLOCK_ENV_ACCESS_IN_NODE=false (not recommended)
+  - Create credentials via API and reference by ID
+
+recommended_approach:
+  1. Create credential via API:
+     python3 n8n_api.py credentials create \
+       --name "My Token" --type httpHeaderAuth \
+       --data '{"name":"X-Token","value":"secret"}'
+  2. Reference credential in node:
+     credentials:
+       httpHeaderAuth:
+         id: "credential-id"
+         name: "My Token"
+```
+
 ## Quick Reference Table
 
 | Error Code | Category | First Action |
@@ -522,3 +624,6 @@ resolution:
 | 500/502/503 | Server | Wait and retry |
 | Expression | Config | Check syntax |
 | Credential | Config | Update in UI |
+| compareOperationFunctions | Node Version | Check If node typeVersion vs format |
+| workflow has issues | Data Table | Use internal table ID, not name |
+| env vars denied | Security | Use credentials store instead of $env |

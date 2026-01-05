@@ -1,5 +1,5 @@
 ---
-name: setup
+name: n8n-setup
 description: "Configure n8n accounts, manage connections, and verify API access"
 ---
 

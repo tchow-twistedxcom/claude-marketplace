@@ -1,5 +1,5 @@
 ---
-name: status
+name: n8n-status
 description: "Check n8n instance health and display workflow summary"
 ---
 

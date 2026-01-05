@@ -135,9 +135,107 @@ Common node configurations for building workflows.
 }
 ```
 
+## Data Table Node
+
+### Basic Query with Resource Locator
+```json
+{
+  "id": "data-table-1",
+  "name": "Get Config",
+  "type": "n8n-nodes-base.dataTable",
+  "typeVersion": 1,
+  "position": [300, 300],
+  "parameters": {
+    "operation": "getAllRows",
+    "tableId": {
+      "__rl": true,
+      "value": "0vQXXKgjO8WncMK2",
+      "mode": "list"
+    },
+    "options": {}
+  }
+}
+```
+
+> **⚠️ CRITICAL**: When `mode: "list"`, `value` MUST be the internal table ID
+> (alphanumeric like `0vQXXKgjO8WncMK2`), NOT the human-readable table name.
+> Using a table name will cause silent failures or "workflow has issues" errors.
+
+### With Filter
+```json
+{
+  "parameters": {
+    "operation": "getAllRows",
+    "tableId": {
+      "__rl": true,
+      "value": "0vQXXKgjO8WncMK2",
+      "mode": "list"
+    },
+    "options": {
+      "filter": {
+        "filterType": "string",
+        "value": "key LIKE 'prefix.%' OR key = 'specific_key'"
+      }
+    }
+  }
+}
+```
+
+### Finding the Table ID
+```yaml
+methods:
+  - URL: Open n8n UI → Data Tables → Select table → URL contains ID
+    example: "/data-tables/0vQXXKgjO8WncMK2"
+  - API: GET /api/v1/data-tables → returns list with IDs
+    cli: "python3 n8n_api.py data-tables list"
+```
+
+### Resource Locator Pattern
+The `__rl` (Resource Locator) pattern is used by many n8n nodes:
+```json
+{
+  "fieldName": {
+    "__rl": true,
+    "value": "internal-id-or-value",
+    "mode": "list" | "id" | "url" | "name"
+  }
+}
+```
+- `mode: "list"` → `value` is internal ID from dropdown selection
+- `mode: "id"` → `value` is explicit ID entered by user
+- `mode: "url"` → `value` is URL (parsed for ID)
+- `mode: "name"` → `value` is human-readable name
+
 ## IF Node
 
-### Simple Condition
+### Version 1 Format (Legacy)
+```json
+{
+  "id": "if-v1",
+  "name": "Check Status (v1)",
+  "type": "n8n-nodes-base.if",
+  "typeVersion": 1,
+  "position": [600, 300],
+  "parameters": {
+    "conditions": {
+      "string": [
+        {
+          "value1": "={{ $json.status }}",
+          "operation": "equals",
+          "value2": "active"
+        }
+      ]
+    },
+    "combineOperation": "all"
+  }
+}
+```
+
+> **Note**: v1 uses `conditions.string` array and requires `combineOperation` field.
+> Mixing v1 typeVersion with v2 conditions format causes:
+> `"compareOperationFunctions[compareData.operation] is not a function"`
+
+### Version 2 Format (Current) - Simple Condition
 ```json
 {
   "id": "if-1",

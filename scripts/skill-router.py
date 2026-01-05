@@ -380,6 +380,50 @@ SKILLS = {
     },
 
     # ============================================================
+    # WORKFLOW AUTOMATION (n8n)
+    # ============================================================
+    "n8n-workflow-manager": {
+        "patterns": [
+            r"\b(n8n)\b.*\b(workflow|upload|import|update|manage)\b",
+            r"\b(upload|import|update)\b.*\b(workflow)\b.*\b(n8n)\b",
+            r"\b(n8n)\b.*\b(api|deploy|sync)\b",
+            r"\b(workflow)\b.*\b(n8n)\b.*\b(json|file)\b",
+        ],
+        "skill_name": "n8n-integration:n8n-workflow-manager",
+        "description": "n8n workflow management (upload, import, update, sync workflows)"
+    },
+    "n8n-workflow-builder": {
+        "patterns": [
+            r"\b(build|create|design)\b.*\b(n8n)\b.*\b(workflow)\b",
+            r"\b(n8n)\b.*\b(workflow)\b.*\b(build|create|new)\b",
+            r"\b(n8n)\b.*\b(node|trigger|action)\b.*\b(add|configure)\b",
+            r"\b(automation)\b.*\b(n8n)\b.*\b(workflow)\b",
+        ],
+        "skill_name": "n8n-integration:n8n-workflow-builder",
+        "description": "n8n workflow creation (build new workflows, configure nodes, triggers)"
+    },
+    "n8n-troubleshooter": {
+        "patterns": [
+            r"\b(n8n)\b.*\b(error|fail|issue|problem|debug|troubleshoot)\b",
+            r"\b(troubleshoot|debug|fix)\b.*\b(n8n)\b",
+            r"\b(n8n)\b.*\b(execution|webhook|trigger)\b.*\b(not\s*working|broken|fail)\b",
+            r"\b(n8n)\b.*\b(log|stuck|timeout)\b",
+        ],
+        "skill_name": "n8n-integration:n8n-troubleshooter",
+        "description": "n8n troubleshooting (debug errors, webhook issues, execution failures)"
+    },
+    "n8n-integration-patterns": {
+        "patterns": [
+            r"\b(n8n)\b",
+            r"\b(workflow\s*automation)\b.*\b(platform|tool)\b",
+            r"\b(n8n)\b.*\b(pattern|best\s*practice|example)\b",
+            r"\b(data\s*table|credential|connection)\b.*\b(n8n)\b",
+        ],
+        "skill_name": "n8n-integration:n8n-integration-patterns",
+        "description": "n8n patterns and best practices (integrations, data tables, credentials)"
+    },
+
+    # ============================================================
     # DEBUGGING & PROBLEM SOLVING
     # ============================================================
     "debugging-systematic": {
@@ -465,6 +509,21 @@ SKILLS = {
         ],
         "skill_name": "claudekit-skills:google-adk-python",
         "description": "Google Agent Development Kit (agents, Gemini integration, Vertex AI)"
+    },
+
+    # ============================================================
+    # PORTABLE CONFIGURATION
+    # ============================================================
+    "portable-setup": {
+        "patterns": [
+            r"\b(portable[-\s]?setup)\b",
+            r"\b(export|sync|import)\b.*\b(claude\s*code)\b.*\b(config|settings|setup)\b",
+            r"\b(claude\s*code)\b.*\b(config|settings)\b.*\b(export|sync|backup)\b",
+            r"\b(dotfiles)\b.*\b(claude|sync)\b",
+            r"\b(tarball)\b.*\b(config|setup)\b",
+        ],
+        "skill_name": "portable-setup:portable-setup",
+        "description": "Claude Code configuration portability (export, sync, backup settings)"
     },
 }
 

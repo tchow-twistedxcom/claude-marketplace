@@ -1,5 +1,5 @@
 ---
-name: run
+name: n8n-run
 description: "Trigger an n8n workflow via webhook"
 ---
 

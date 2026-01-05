@@ -389,26 +389,27 @@ maintenance:
 fully_automatable:
   - Workflow creation and updates
   - Workflow validation and auto-fix
+  - Workflow activation/deactivation
+  - Credential creation and deletion
   - Execution monitoring
   - Node and template discovery
   - Health checks and diagnostics
 
 requires_manual_step:
-  - Workflow activation/deactivation
-  - Credential configuration
   - Direct workflow execution (without webhook)
   - Stopping running executions
+  - Credential update (delete and recreate instead)
+  - OAuth credential initial authorization
 ```
 
 ## Future API Enhancements
 
 The following features may be added in future n8n API versions:
 
-- Workflow activation endpoint
-- Direct execution endpoint
-- Credential management API
-- Execution control (stop/retry)
-- Bulk operations
-- Workflow versioning
+- Direct execution endpoint (without webhook trigger)
+- Execution control (stop running executions)
+- Credential update endpoint (currently must delete and recreate)
+- Bulk operations (import/export multiple workflows)
+- Workflow versioning (built-in version history)
 
 Check n8n release notes for API updates: https://docs.n8n.io/release-notes/

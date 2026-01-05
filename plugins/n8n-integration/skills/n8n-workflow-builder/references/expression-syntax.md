@@ -109,6 +109,21 @@ evaluation:
 {{ $env.DATABASE_URL }}
 ```
 
+> **⚠️ SECURITY WARNING**: Environment variable access may be blocked!
+>
+> n8n can be configured to block `$env` access with `N8N_BLOCK_ENV_ACCESS_IN_NODE=true`
+> (default in n8n v2.0+). When blocked:
+> - `$env.MY_VARIABLE` returns empty/null silently (no error!)
+> - Code nodes cannot access `process.env`
+>
+> **Recommended**: Use n8n credentials store instead. Create credentials via API:
+> ```bash
+> python3 n8n_api.py credentials create \
+>   --name "My Token" --type httpHeaderAuth \
+>   --data '{"name":"X-Token","value":"secret"}'
+> ```
+> Then reference by credential ID in your nodes.
+
 ### $vars - Workflow Variables
 ```javascript
 // Access workflow variable

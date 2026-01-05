@@ -1,6 +1,6 @@
 ---
 name: atlassian-api
-description: "Execute Atlassian Confluence and Jira operations via REST API. Use when creating/updating Confluence pages, searching Jira issues, or managing documentation. More reliable than MCP with efficient response formatting that reduces context usage by 97%."
+description: "Execute Atlassian Confluence and Jira operations via REST API. Supports creating/updating Confluence pages, searching Jira issues, adding internal comments with @ mentions to Jira Service Desk tickets, and managing documentation. More reliable than MCP with efficient response formatting that reduces context usage by 97%."
 ---
 
 # Atlassian API Skill
@@ -14,6 +14,9 @@ Execute Confluence and Jira operations via direct REST API calls with automatic 
 - Uploading attachments to Confluence pages
 - Searching Confluence content and navigating page hierarchies
 - Creating, updating, or transitioning Jira issues
+- **Adding internal comments to Jira Service Desk tickets** (shows as "Internal note" with lock icon)
+- **@ mentioning users in Jira comments** (automatically resolves display names to account IDs)
+- **Adding comments with custom visibility** (role-based or group-based restrictions)
 - Searching Jira with JQL queries
 - When the Atlassian MCP is unreliable or hanging
 - When response efficiency is critical (this skill uses ~50 tokens vs ~2000 for MCP)
@@ -49,6 +52,11 @@ python3 scripts/atlassian_api.py --confluence list-spaces
 # Jira operations
 python3 scripts/atlassian_api.py --jira search --jql "project = TWXDEV AND status = Open"
 python3 scripts/atlassian_api.py --jira get-issue --issue-key TWXDEV-123
+
+# Jira Service Desk - Internal comments with mentions (NEW!)
+python3 scripts/atlassian_api.py --jira add-comment --issue-key IT-20374 \
+  --body "Bug fix deployed to SB2" --internal --mention "Daniel Yubeta"
+
 python3 scripts/atlassian_api.py --jira transition --issue-key TWXDEV-123 --to "Done"
 ```
 
@@ -227,8 +235,35 @@ python3 scripts/atlassian_api.py --jira update-issue --issue-key TWXDEV-123 --fi
 
 ### Add Comment
 ```bash
+# Regular public comment
 python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --body "This is a comment"
+
+# Internal comment (restricted to Administrators role)
+python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --body "Internal note" --internal
+
+# Custom group visibility (e.g., "Internal note" group)
+python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --body "Team only" --visibility "group:Internal note"
+
+# Custom role visibility (e.g., "Developers" role)
+python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --body "Dev team" --visibility "role:Developers"
+
+# Comment with @ mentions (by display name or account ID)
+python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --body "Please review" --mention "Daniel Yubeta"
+
+# Multiple mentions (comma-separated)
+python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --body "Team update" --mention "Daniel Yubeta,John Doe"
+
+# Combine visibility + mentions
+python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --body "Confidential" --visibility "group:Internal note" --mention "Daniel Yubeta"
 ```
+
+**Visibility Options:**
+- `--internal`: Restricts to "Administrators" role (shortcut)
+- `--visibility "group:Name"`: Restricts to specific group
+- `--visibility "role:Name"`: Restricts to specific role
+- Omit prefix for group: `--visibility "Internal note"` defaults to group
+
+**Note:** @ mentions require the user to be assignee or reporter of the issue. If the display name cannot be resolved to an account ID, the script will fall back to plain text.
 
 ### Transition Issue
 ```bash

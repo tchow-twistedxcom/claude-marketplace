@@ -475,20 +475,130 @@ class AtlassianClient:
         url = self.jira_url(f'/issue/{issue_key}')
         return self._request('PUT', url, data)
 
-    def jira_add_comment(self, issue_key, body):
-        """Add comment to Jira issue."""
+    def jira_add_comment(self, issue_key, body, internal=False, mention_users=None, visibility_value=None):
+        """
+        Add comment to Jira issue.
+
+        Args:
+            issue_key: Issue key (e.g., "IT-20374")
+            body: Comment text
+            internal: If True, restrict comment to internal users (default: False)
+            mention_users: List of user account IDs or display names to mention (optional)
+            visibility_value: Custom visibility restriction value (e.g., "Internal note", "Developers")
+                             Format: "role:Administrators" or "group:Internal note"
+                             If not specified, internal=True defaults to "role:Administrators"
+        """
+        # Build comment content with mentions
+        content = []
+
+        # If mentions provided, add them at the start
+        if mention_users:
+            mention_content = []
+            for user in mention_users:
+                # Try to resolve user display name to account ID
+                account_id = self._resolve_user_account_id(user, issue_key)
+                if account_id:
+                    mention_content.append({'type': 'mention', 'attrs': {'id': account_id}})
+                    mention_content.append({'type': 'text', 'text': ' '})
+                else:
+                    # Fallback: just use display name in text
+                    mention_content.append({'type': 'text', 'text': f'@{user} '})
+
+            if mention_content:
+                content.append({
+                    'type': 'paragraph',
+                    'content': mention_content
+                })
+
+        # Add main comment body
+        # Split by newlines and create paragraph for each
+        lines = body.split('\n')
+        for line in lines:
+            if line.strip():  # Skip empty lines
+                content.append({
+                    'type': 'paragraph',
+                    'content': [{'type': 'text', 'text': line}]
+                })
+            else:
+                # Empty line = paragraph break
+                content.append({
+                    'type': 'paragraph',
+                    'content': []
+                })
+
         data = {
             'body': {
                 'type': 'doc',
                 'version': 1,
-                'content': [{
-                    'type': 'paragraph',
-                    'content': [{'type': 'text', 'text': body}]
-                }]
+                'content': content
             }
         }
+
+        # Add visibility for internal comments
+        if visibility_value:
+            # Parse visibility value if provided
+            if ':' in visibility_value:
+                vis_type, vis_value = visibility_value.split(':', 1)
+            else:
+                # Default to group if no prefix
+                vis_type, vis_value = 'group', visibility_value
+
+            data['visibility'] = {
+                'type': vis_type,
+                'value': vis_value
+            }
+
+        # Add Jira Service Desk internal/public flag
+        # This controls JSD agent-only comments (shows as "Internal note" with lock icon)
+        if internal:
+            data['properties'] = [
+                {
+                    'key': 'sd.public.comment',
+                    'value': {
+                        'internal': True
+                    }
+                }
+            ]
+
         url = self.jira_url(f'/issue/{issue_key}/comment')
         return self._request('POST', url, data)
+
+    def _resolve_user_account_id(self, user_identifier, issue_key):
+        """
+        Resolve user display name or account ID to account ID.
+
+        Args:
+            user_identifier: Display name (e.g., "Daniel Yubeta") or account ID
+            issue_key: Issue key for context
+
+        Returns:
+            Account ID string or None if not found
+        """
+        # If it looks like an account ID already (contains colons), return it
+        if ':' in user_identifier:
+            return user_identifier
+
+        # Try to get issue details to find user account IDs
+        try:
+            issue = self.jira_get_issue(issue_key)
+
+            # Check assignee
+            assignee = issue.get('fields', {}).get('assignee')
+            if assignee and assignee.get('displayName') == user_identifier:
+                return assignee.get('accountId')
+
+            # Check reporter
+            reporter = issue.get('fields', {}).get('reporter')
+            if reporter and reporter.get('displayName') == user_identifier:
+                return reporter.get('accountId')
+
+            # Search in watchers (if available)
+            # Note: This requires additional API call and permissions
+
+        except Exception as e:
+            self._log(f"Could not resolve user '{user_identifier}': {e}")
+
+        return None
 
     def jira_get_transitions(self, issue_key):
         """Get available transitions for issue."""
@@ -686,8 +796,29 @@ def cmd_jira_update_issue(client, args):
 
 def cmd_jira_add_comment(client, args):
     """Handle: --jira add-comment"""
-    result = client.jira_add_comment(args.issue_key, args.body)
-    return format_success(f"Comment added to {args.issue_key}", {
+    # Parse mention users if provided (comma-separated)
+    mention_users = None
+    if args.mention:
+        mention_users = [u.strip() for u in args.mention.split(',')]
+
+    result = client.jira_add_comment(
+        args.issue_key,
+        args.body,
+        internal=args.internal,
+        mention_users=mention_users,
+        visibility_value=args.visibility
+    )
+
+    # Build visibility description
+    if args.visibility:
+        visibility = f" (restricted: {args.visibility})"
+    elif args.internal:
+        visibility = " (internal)"
+    else:
+        visibility = ""
+
+    mentions = f" mentioning {', '.join(mention_users)}" if mention_users else ""
+    return format_success(f"Comment added to {args.issue_key}{visibility}{mentions}", {
         'id': result.get('id')
     })
 
@@ -771,6 +902,10 @@ Examples:
   %(prog)s --jira search --jql "project = TWXDEV AND status = Open" --limit 20
   %(prog)s --jira get-issue --issue-key TWXDEV-123
   %(prog)s --jira create-issue --project TWXDEV --type Task --summary "New task"
+  %(prog)s --jira add-comment --issue-key TWXDEV-123 --body "Regular comment"
+  %(prog)s --jira add-comment --issue-key TWXDEV-123 --body "Internal" --internal
+  %(prog)s --jira add-comment --issue-key TWXDEV-123 --body "Team only" --visibility "group:Internal note"
+  %(prog)s --jira add-comment --issue-key TWXDEV-123 --body "Hi team" --mention "Daniel Yubeta,John Doe"
   %(prog)s --jira transition --issue-key TWXDEV-123 --to "Done"
 """
     )
@@ -826,6 +961,9 @@ Examples:
     parser.add_argument('--description', help='Issue description (for create-issue)')
     parser.add_argument('--fields', help='JSON fields (for update-issue)')
     parser.add_argument('--body', help='Comment body (for add-comment)')
+    parser.add_argument('--internal', action='store_true', help='Make comment internal/restricted to Administrators (for add-comment)')
+    parser.add_argument('--visibility', help='Custom visibility restriction: "group:Name" or "role:Name" (for add-comment)')
+    parser.add_argument('--mention', help='Comma-separated user names or account IDs to mention (for add-comment)')
     parser.add_argument('--to', help='Target status/transition (for transition)')
 
     args = parser.parse_args()

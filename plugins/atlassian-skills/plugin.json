@@ -1,7 +1,7 @@
 {
   "name": "atlassian-skills",
-  "version": "1.1.0",
-  "description": "Atlassian Confluence and Jira operations via REST API. Includes page creation/update/archive, search, attachments, markdown-to-Confluence conversion with Mermaid diagram support, Jira issue management, JQL queries, and transitions. More reliable than MCP with efficient response formatting.",
+  "version": "1.2.0",
+  "description": "Atlassian Confluence and Jira operations via REST API. Includes page creation/update/archive, search, attachments, markdown-to-Confluence conversion with Mermaid diagram support, Jira issue management, JQL queries, transitions, Jira Service Desk internal comments with @ mentions, and custom visibility controls. More reliable than MCP with efficient response formatting.",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -13,13 +13,16 @@
     "atlassian",
     "confluence",
     "jira",
+    "jira-service-desk",
     "documentation",
     "wiki",
     "issue-tracking",
     "markdown",
     "mermaid",
     "oauth",
-    "rest-api"
+    "rest-api",
+    "mentions",
+    "internal-comments"
   ],
   "skills": [
     "./skills/atlassian-api"

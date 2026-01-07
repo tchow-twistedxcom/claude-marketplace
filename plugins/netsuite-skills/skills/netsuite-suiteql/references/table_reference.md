@@ -71,6 +71,48 @@ WHERE NTLL.PreviousDoc = ? -- Transfer Order ID
     AND IF_TXN.Type = 'ItemShip'
 ```
 
+### TransactionShipment (Shipping/Handling Data)
+**Table Name:** `TransactionShipment`
+
+Critical table for shipping and handling cost data on Item Fulfillments. **This is the ONLY way to get shipping/handling costs in SuiteQL** - standard Transaction fields `shippingcost` and `handlingcost` are NOT exposed.
+
+**Common Fields:**
+| Field | Type | Description |
+|-------|------|-------------|
+| doc | INT | Transaction ID (links to Item Fulfillment) |
+| shippingrate | CURRENCY | Shipping cost from the fulfillment |
+| handlingrate | CURRENCY | Handling cost from the fulfillment |
+| weight | DECIMAL | Total shipment weight |
+
+**Usage Pattern - Subquery:**
+```sql
+-- Get shipping/handling from Item Fulfillment using subqueries
+SELECT
+    T.TranID AS fulfillment_number,
+    (SELECT TS.shippingrate FROM TransactionShipment TS WHERE TS.doc = T.ID) AS shipping_cost,
+    (SELECT TS.handlingrate FROM TransactionShipment TS WHERE TS.doc = T.ID) AS handling_cost
+FROM Transaction T
+WHERE T.Type = 'ItemShip'
+```
+
+**Usage Pattern - JOIN:**
+```sql
+-- Using JOIN for multiple shipment fields
+SELECT
+    T.TranID AS fulfillment_number,
+    TS.shippingrate AS shipping_cost,
+    TS.handlingrate AS handling_cost,
+    TS.weight AS total_weight
+FROM Transaction T
+INNER JOIN TransactionShipment TS ON TS.doc = T.ID
+WHERE T.Type = 'ItemShip'
+```
+
+**⚠️ Why This Table?**
+- Standard Transaction fields `shippingcost` and `handlingcost` exist in NetSuite UI but are **NOT exposed in SuiteQL**
+- Attempting to query `T.shippingcost` will error: "Field 'shippingcost' for record 'transaction' was not found"
+- Always use TransactionShipment.shippingrate and TransactionShipment.handlingrate instead
+
 ## Customer & Entity Tables
 
 ### Customer
@@ -274,6 +316,36 @@ WHERE CompanyName LIKE '%Twisted%'
 ```
 
 ## SuiteQL Limitations & Notes
+
+### Field Exposure Limitations
+
+**⚠️ CRITICAL:** Many standard NetSuite fields exist in the UI but are **NOT exposed in SuiteQL**. Attempting to query them will error: "Field 'X' for record 'Y' was not found".
+
+**Fields NOT Exposed on Transaction:**
+| UI Field | SuiteQL Workaround |
+|----------|-------------------|
+| `shippingcost` | Use `TransactionShipment.shippingrate` |
+| `handlingcost` | Use `TransactionShipment.handlingrate` |
+| `subtotal` | `SUM(TransactionLine.netamount) WHERE itemtype = 'InvtPart'` |
+| `total` | `SUM(TransactionLine.netamount) WHERE mainline = 'F' AND taxline = 'F'` |
+| `taxtotal` | `SUM(TransactionLine.netamount) WHERE taxline = 'T'` |
+
+**How to Discover Available Fields:**
+```sql
+-- Quick test: Query with ROWNUM=1 and check error messages for invalid fields
+SELECT * FROM Transaction WHERE ROWNUM = 1
+
+-- Check custom fields via metadata
+SELECT ScriptID, FieldLabel, FieldType
+FROM CustomField
+WHERE AppliesToRecord = 'transaction'
+```
+
+**When You Get "Field not found" Errors:**
+1. Check if the field has a SuiteQL-specific name (e.g., `TranID` not `tranid`)
+2. Check if it's a joined table field (e.g., TransactionShipment, TransactionLine)
+3. Check if it's a custom field with `custbody_` or `custrecord_` prefix
+4. Some fields are simply not exposed - use workarounds above
 
 ### Known Limitations
 1. **No DELETE/UPDATE:** SuiteQL is read-only for SELECT queries

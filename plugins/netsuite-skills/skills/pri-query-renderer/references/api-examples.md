@@ -390,3 +390,165 @@ curl -X POST http://localhost:3001/api/suiteapi \
   -H "Origin: http://localhost:3030" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_filter","fields":{"name":"item_filter","custrecord_pri_qt_qf_parent":206,"custrecord_pri_qt_qf_placeholder":"item_filter","custrecord_pri_qt_qf_label":"Item Contains","custrecord_pri_qt_qf_type":"1","custrecord_pri_qt_qf_filter":"UPPER(i.itemid) LIKE '\''%'\'' || UPPER('\''{item_filter}'\'') || '\''%'\''","custrecord_pri_qt_qf_help":"Enter item ID to search"}}'
 ```
+
+---
+
+## Complete Filter Field Reference
+
+All available fields for `customrecord_pri_qt_query_filter`:
+
+### Filter Types Quick Reference
+
+| Type | ID | Input Control | Use Case |
+|------|------|---------------|----------|
+| Text | `1` | Text input | Free-form search, LIKE patterns |
+| Number | `2` | Numeric input | Numeric comparisons |
+| Date | `3` | Date picker | Date range filters |
+| Boolean | `4` | Checkbox | True/False toggles |
+| Select | `5` | Dropdown (single) | Record type or custom query |
+| Multiselect | `6` | Dropdown (multiple) | Multiple selections |
+
+### Complete Text Filter (All Fields)
+```json
+{
+  "procedure": "twxUpsertRecord",
+  "id": null,
+  "type": "customrecord_pri_qt_query_filter",
+  "fields": {
+    "name": "invoice_number",
+    "custrecord_pri_qt_qf_parent": 302,
+    "custrecord_pri_qt_qf_placeholder": "invoice_number",
+    "custrecord_pri_qt_qf_label": "Invoice #",
+    "custrecord_pri_qt_qf_type": "1",
+    "custrecord_pri_qt_qf_filter": "REPLACE(BUILTIN.DF(T.custbody_pri_bpa_ff_inv_link), 'Invoice #', '') LIKE '%{invoice_number}%'",
+    "custrecord_pri_qt_qf_default_value": "",
+    "custrecord_pri_qt_qf_hidden": "F",
+    "custrecord_pri_qt_qf_show_operator": "F",
+    "custrecord_pri_qt_qf_help": "Enter partial or complete invoice number",
+    "custrecord_pri_qt_qf_startcolumn": "F"
+  }
+}
+```
+
+### Complete Select Filter (Record Type)
+```json
+{
+  "procedure": "twxUpsertRecord",
+  "id": null,
+  "type": "customrecord_pri_qt_query_filter",
+  "fields": {
+    "name": "customer",
+    "custrecord_pri_qt_qf_parent": 302,
+    "custrecord_pri_qt_qf_placeholder": "customer",
+    "custrecord_pri_qt_qf_label": "Customer",
+    "custrecord_pri_qt_qf_type": "5",
+    "custrecord_pri_qt_qf_select_recordtype": "customer",
+    "custrecord_pri_qt_qf_filter": "T.entity = {customer}",
+    "custrecord_pri_qt_qf_default_value": "",
+    "custrecord_pri_qt_qf_hidden": "F",
+    "custrecord_pri_qt_qf_help": "Select a customer"
+  }
+}
+```
+
+### Complete Select Filter (Custom Query)
+```json
+{
+  "procedure": "twxUpsertRecord",
+  "id": null,
+  "type": "customrecord_pri_qt_query_filter",
+  "fields": {
+    "name": "company_group",
+    "custrecord_pri_qt_qf_parent": 302,
+    "custrecord_pri_qt_qf_placeholder": "company_group",
+    "custrecord_pri_qt_qf_label": "Company",
+    "custrecord_pri_qt_qf_type": "5",
+    "custrecord_pri_qt_qf_custom_select_query": "SELECT id, companyname AS name FROM customer WHERE isperson = 'F' ORDER BY companyname",
+    "custrecord_pri_qt_qf_filter": "C.companyname = '{company_group}'",
+    "custrecord_pri_qt_qf_help": "Select company from list"
+  }
+}
+```
+
+### Complete Date Filter
+```json
+{
+  "procedure": "twxUpsertRecord",
+  "id": null,
+  "type": "customrecord_pri_qt_query_filter",
+  "fields": {
+    "name": "date_from",
+    "custrecord_pri_qt_qf_parent": 302,
+    "custrecord_pri_qt_qf_placeholder": "start_date",
+    "custrecord_pri_qt_qf_label": "From Date",
+    "custrecord_pri_qt_qf_type": "3",
+    "custrecord_pri_qt_qf_filter": "T.TranDate >= TO_DATE('{start_date}', 'MM/DD/YYYY')",
+    "custrecord_pri_qt_qf_default_value": "",
+    "custrecord_pri_qt_qf_show_operator": "T",
+    "custrecord_pri_qt_qf_help": "Start date for filtering"
+  }
+}
+```
+
+### Complete Boolean Filter
+```json
+{
+  "procedure": "twxUpsertRecord",
+  "id": null,
+  "type": "customrecord_pri_qt_query_filter",
+  "fields": {
+    "name": "with_tracking",
+    "custrecord_pri_qt_qf_parent": 302,
+    "custrecord_pri_qt_qf_placeholder": "has_tracking",
+    "custrecord_pri_qt_qf_label": "Has Tracking #",
+    "custrecord_pri_qt_qf_type": "4",
+    "custrecord_pri_qt_qf_filter": "T.custbody_twx_master_tracking_num IS NOT NULL",
+    "custrecord_pri_qt_qf_default_value": "T"
+  }
+}
+```
+
+### Filter Field Descriptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | Text | Internal filter name (required) |
+| `custrecord_pri_qt_qf_parent` | Integer | **REQUIRED** - Query ID this filter belongs to |
+| `custrecord_pri_qt_qf_placeholder` | Text | Placeholder name used in `{placeholder}` in query |
+| `custrecord_pri_qt_qf_label` | Text | Display label shown to user |
+| `custrecord_pri_qt_qf_type` | Text | Filter type: 1-6 (see table above) |
+| `custrecord_pri_qt_qf_filter` | Text | WHERE clause template with `{placeholder}` |
+| `custrecord_pri_qt_qf_default_value` | Text | Default value when filter loads |
+| `custrecord_pri_qt_qf_hidden` | Checkbox | T/F - Hide from user (for preset values) |
+| `custrecord_pri_qt_qf_show_operator` | Checkbox | T/F - Show comparison operator dropdown |
+| `custrecord_pri_qt_qf_select_recordtype` | Text | NetSuite record type for Select dropdowns |
+| `custrecord_pri_qt_qf_custom_select_query` | LongText | Custom SuiteQL for dropdown options (requires `id` and `name` columns) |
+| `custrecord_pri_qt_qf_help` | Text | Help text shown to user |
+| `custrecord_pri_qt_qf_startcolumn` | Checkbox | T/F - Start new column in filter layout |
+
+### Common Patterns for Filter WHERE Clauses
+
+**Exact Match:**
+```sql
+"custrecord_pri_qt_qf_filter": "T.entity = {customer_id}"
+```
+
+**LIKE Pattern (Contains):**
+```sql
+"custrecord_pri_qt_qf_filter": "UPPER(T.TranID) LIKE '%' || UPPER('{search}') || '%'"
+```
+
+**Date Comparison:**
+```sql
+"custrecord_pri_qt_qf_filter": "T.TranDate >= TO_DATE('{start_date}', 'MM/DD/YYYY')"
+```
+
+**Optional Filter (Empty = All):**
+```sql
+"custrecord_pri_qt_qf_filter": "('{customer}' = '' OR T.entity = {customer})"
+```
+
+**Boolean Check:**
+```sql
+"custrecord_pri_qt_qf_filter": "T.isinactive = 'F'"
+```

@@ -144,12 +144,55 @@ Add filters to allow user-driven query customization:
 
 ### 4. Linking Queries (Drill-Down)
 
-Create clickable links that open another query:
+Create clickable links that open another query with filtered results.
+
+**⚠️ See "Two-Level Placeholder System" section below for critical details!**
+
+#### Step 1: Create the Target (Drill-Down) Query
+
+The target query must have:
+1. A query placeholder like `{1}` in the WHERE clause
+2. A hidden filter with matching `placeholder` field
+3. A filter template using `{filter_name}` for value substitution
 
 ```json
 {
   "procedure": "twxUpsertRecord",
-  "id": null,
+  "type": "customrecord_pri_qt_query",
+  "fields": {
+    "name": "Customer Orders Details",
+    "custrecord_pri_qt_q_query": "SELECT * FROM transaction WHERE {1} AND type = 'SalesOrd'"
+  }
+}
+```
+
+#### Step 2: Create the Hidden Filter on Target Query
+
+```json
+{
+  "procedure": "twxUpsertRecord",
+  "type": "customrecord_pri_qt_query_filter",
+  "fields": {
+    "name": "customer_id",
+    "custrecord_pri_qt_qf_parent": 150,
+    "custrecord_pri_qt_qf_placeholder": "{1}",
+    "custrecord_pri_qt_qf_filter": "entity = {customer_id}",
+    "custrecord_pri_qt_qf_type": "2",
+    "custrecord_pri_qt_qf_hidden": "T"
+  }
+}
+```
+
+**Critical fields:**
+- `name` = "customer_id" - This is the filter name that will be passed via link_params
+- `placeholder` = "{1}" - Matches the `{1}` in the query SQL
+- `filter` = "entity = {customer_id}" - Uses `{customer_id}` (the filter name) as value placeholder
+
+#### Step 3: Create the Link Column on Source Query
+
+```json
+{
+  "procedure": "twxUpsertRecord",
   "type": "customrecord_pri_qt_query_column",
   "fields": {
     "name": "customer_name",
@@ -158,10 +201,14 @@ Create clickable links that open another query:
     "custrecord_pri_qt_qc_data_type": "text",
     "custrecord_pri_qt_qc_link_type": "linked_query",
     "custrecord_pri_qt_qc_linked_query": 150,
-    "custrecord_pri_qt_qc_parms": "customer_id={customer_id}"
+    "custrecord_pri_qt_qc_parms": "customer_id={customer_id_column}"
   }
 }
 ```
+
+**Link Parameters Format:** `filter_name={source_column_name}`
+- `filter_name` = name of the filter in the TARGET query (e.g., "customer_id")
+- `source_column_name` = column from the SOURCE query's results (e.g., "customer_id_column")
 
 **Link Types:**
 - `linked_query` - Opens another PRI Query with parameters
@@ -170,11 +217,11 @@ Create clickable links that open another query:
 
 **For linked_query:**
 - `custrecord_pri_qt_qc_linked_query` - ID of the target query
-- `custrecord_pri_qt_qc_parms` - Parameters to pass (format: `param1={column1}&param2={column2}`)
+- `custrecord_pri_qt_qc_parms` - Parameters to pass (format: `filter_name={column}`)
 
 **For record_detail:**
 - `custrecord_pri_qt_qc_recordtype` - NetSuite record type (e.g., "customer", "salesorder")
-- The column value is used as the record ID
+- `custrecord_pri_qt_qc_parms` - Use format `id={id_column}` to specify which column has the record ID
 
 ### 5. Listing Existing Queries
 
@@ -318,6 +365,61 @@ curl -X POST http://localhost:3001/api/suiteapi \
   }'
 ```
 
+## ⚠️ CRITICAL: Two-Level Placeholder System
+
+**This is the #1 source of bugs when setting up drill-down queries.** There are TWO different placeholder systems:
+
+### Level 1: Query Placeholders (in the SuiteQL)
+- Format: `{1}`, `{2}`, etc. (single character/number only!)
+- NetSuite validates these - `{fulfillment_id}` will cause "PLACEHOLDER must have format {x}" error
+- These are replaced with the ENTIRE filter expression (e.g., `field = 123`)
+- Location: In the query's `custrecord_pri_qt_q_query` field
+
+### Level 2: Filter Template Value Placeholders (in the filter definition)
+- Format: `{filter_name}` or `{value}`
+- `{filter_name}` must match the filter's `name` field exactly
+- These are replaced with just the VALUE (e.g., `123`)
+- Location: In the filter's `custrecord_pri_qt_qf_filter` field
+
+### Correct Setup Example
+
+**Query SQL (Level 1):**
+```sql
+SELECT * FROM package WHERE {1} AND tracking IS NOT NULL
+```
+
+**Filter Record (Level 2):**
+```json
+{
+  "name": "fulfillment_id",
+  "custrecord_pri_qt_qf_placeholder": "{1}",
+  "custrecord_pri_qt_qf_filter": "parent_transaction = {fulfillment_id}"
+}
+```
+
+**How it works:**
+1. User clicks drill-down, link_params passes `fulfillment_id=12345`
+2. Filter template `parent_transaction = {fulfillment_id}` becomes `parent_transaction = 12345`
+3. Query placeholder `{1}` is replaced with `(parent_transaction = 12345)`
+4. Final query: `SELECT * FROM package WHERE (parent_transaction = 12345) AND tracking IS NOT NULL`
+
+### ❌ WRONG: Using query placeholder in filter template
+```json
+{
+  "custrecord_pri_qt_qf_placeholder": "{1}",
+  "custrecord_pri_qt_qf_filter": "parent_transaction = {1}"  // WRONG! {1} won't be replaced!
+}
+```
+This fails because the frontend code looks for `{filter_name}` or `{value}`, NOT `{1}`.
+
+### ❌ WRONG: Using named placeholder in query SQL
+```sql
+SELECT * FROM package WHERE {fulfillment_id}  -- NetSuite validation error!
+```
+NetSuite requires `{x}` format where x is single char/number.
+
+---
+
 ## Common Issues
 
 | Issue | Cause | Solution |
@@ -327,15 +429,53 @@ curl -X POST http://localhost:3001/api/suiteapi \
 | Link not clickable | Missing link type | Set `custrecord_pri_qt_qc_link_type` to `linked_query` or `record_detail` |
 | No results | Query syntax error | Test query in SuiteQL Workbench first |
 | Wrong formatting | Incorrect data type | Use appropriate `custrecord_pri_qt_qc_data_type` value |
+| **Drill-down returns "1 = 1"** | Filter template has wrong placeholder | Use `{filter_name}` not `{1}` in `custrecord_pri_qt_qf_filter` |
+| **"PLACEHOLDER must have format {x}"** | Named placeholder in query SQL | Use `{1}`, `{2}` etc. in query, not `{filter_name}` |
+| **400 error on drill-down** | Filter template is null/empty | Set `custrecord_pri_qt_qf_filter` field |
+| **Drill-down shows wrong data** | Link params don't match filter name | Ensure `link_params` uses `filter_name={column}` format |
+| **Changes not reflected** | RTK Query caching | Hard refresh may not help; restart API gateway or clear Redux store |
+
+## Debugging Drill-Down Issues
+
+When a drill-down link fails with a 400 error or returns wrong data, follow these steps:
+
+### Step 1: Check Browser Console
+Look for these log messages:
+- `Filter "xxx" has no filter template` → Filter's `custrecord_pri_qt_qf_filter` is null
+- `Replacing {1} with: 1 = 1` → Filter expression wasn't built correctly
+
+### Step 2: Verify Filter Configuration Directly
+```bash
+curl -s -X POST http://localhost:3001/api/suiteapi \
+  -H "Content-Type: application/json" \
+  -H "Origin: http://localhost:3030" \
+  -d '{"procedure":"queryRun","query":"SELECT id, name, custrecord_pri_qt_qf_placeholder AS placeholder, custrecord_pri_qt_qf_filter AS filter FROM customrecord_pri_qt_query_filter WHERE custrecord_pri_qt_qf_parent = [TARGET_QUERY_ID]"}'
+```
+
+### Step 3: Verify the Fix Checklist
+- [ ] Query SQL uses `{1}`, `{2}` format (NOT `{filter_name}`)
+- [ ] Filter `placeholder` field matches query placeholder (e.g., `{1}`)
+- [ ] Filter `filter` field uses `{filter_name}` for value (NOT `{1}`)
+- [ ] Filter `name` field matches what's passed in link_params
+- [ ] Column `link_params` format is `filter_name={column_name}`
+
+### Step 4: Clear Cache After Updates
+RTK Query caches aggressively. After database updates:
+1. Try hard refresh (Ctrl+Shift+R)
+2. If that doesn't work, restart the API gateway
+3. Or navigate away and back to the query
 
 ## Best Practices
 
 1. **Always create columns for all SELECT fields** - Each field in the SELECT must have a corresponding column record
 2. **Use reference columns for link IDs** - Set `custrecord_pri_qt_qc_reference` to "T" for ID columns used in links but not displayed
 3. **Test queries in SuiteQL Workbench first** - Validate syntax before creating the query record
-4. **Use meaningful placeholder names** - Makes the query more readable and maintainable
-5. **Set default filter values** - Provides better user experience
-6. **Add help text to filters** - Guides users on expected input
+4. **Use numbered placeholders in queries** - Always use `{1}`, `{2}` format, never named placeholders
+5. **Use filter names in filter templates** - The `filter` field should use `{filter_name}`, not `{1}`
+6. **Hidden filters for drill-down** - Set `custrecord_pri_qt_qf_hidden` to "T" for filters only used by drill-down links
+7. **Verify the complete data flow** - Check: link_params → filter name → placeholder match → filter template → value substitution
+8. **Set default filter values** - Provides better user experience
+9. **Add help text to filters** - Guides users on expected input
 
 ## Resources
 
@@ -346,5 +486,7 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ---
 
-**Skill Version:** 1.0
-**Last Updated:** 2025-12-29
+**Skill Version:** 1.1
+**Last Updated:** 2026-01-07
+**Change Log:**
+- v1.1 (2026-01-07): Added critical "Two-Level Placeholder System" section, expanded drill-down documentation, added debugging guide, fixed common issues table

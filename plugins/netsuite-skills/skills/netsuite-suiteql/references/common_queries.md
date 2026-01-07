@@ -319,6 +319,100 @@ FROM Transaction AS T
 WHERE T.Type = 'SalesOrd'
 ```
 
+## Invoice & Cost Calculation Patterns
+
+**⚠️ Note:** Standard Transaction fields like `subtotal`, `total`, `shippingcost`, `handlingcost` are **NOT exposed in SuiteQL**. Use TransactionLine aggregations and TransactionShipment instead.
+
+### TransactionLine Item Types
+Understanding `itemtype` values is critical for accurate totals:
+
+| itemtype | Description | Include in Subtotal? |
+|----------|-------------|---------------------|
+| `InvtPart` | Inventory items (product lines) | ✅ Yes |
+| `NonInvtPart` | Non-inventory items | ✅ Yes |
+| `Service` | Service items | ✅ Yes |
+| `ShipItem` | Shipping charges | ❌ No (separate) |
+| `OthCharge` | Other charges (handling, fees) | ❌ No (separate) |
+| `Discount` | Discount lines | ⚠️ Usually no |
+| `Payment` | Payment application lines | ❌ No |
+| `Markup` | Markup lines | ⚠️ Depends |
+
+### Invoice Subtotal (Product Lines Only)
+```sql
+-- Get product line subtotal excluding shipping/handling
+SELECT SUM(ABS(TL.netamount)) AS subtotal
+FROM TransactionLine TL
+WHERE TL.transaction = {invoice_id}
+  AND TL.mainline = 'F'
+  AND TL.taxline = 'F'
+  AND TL.itemtype = 'InvtPart'
+```
+
+### Shipping & Handling from Fulfillment
+```sql
+-- Get shipping/handling from linked Item Fulfillment
+SELECT
+    TS.shippingrate AS shipping_cost,
+    TS.handlingrate AS handling_cost
+FROM TransactionShipment TS
+INNER JOIN Transaction T ON T.ID = TS.doc
+WHERE T.custbody_pri_bpa_ff_inv_link = {invoice_id}
+-- Note: custbody_pri_bpa_ff_inv_link is the custom field linking fulfillment to invoice
+```
+
+### Invoice Total (All Line Items)
+```sql
+-- Get full invoice total from transaction lines
+SELECT SUM(ABS(TL.netamount)) AS invoice_total
+FROM TransactionLine TL
+WHERE TL.transaction = {invoice_id}
+  AND TL.mainline = 'F'
+  AND TL.taxline = 'F'
+```
+
+### Complete Invoice Breakdown Pattern
+```sql
+-- Full invoice breakdown with all costs
+SELECT
+    T.TranID AS invoice_number,
+    (SELECT SUM(ABS(TL.netamount))
+     FROM TransactionLine TL
+     WHERE TL.transaction = T.ID
+       AND TL.mainline = 'F' AND TL.taxline = 'F'
+       AND TL.itemtype = 'InvtPart') AS subtotal,
+    (SELECT TS.shippingrate
+     FROM TransactionShipment TS
+     INNER JOIN Transaction IF_TXN ON IF_TXN.ID = TS.doc
+     WHERE IF_TXN.custbody_pri_bpa_ff_inv_link = T.ID) AS shipping,
+    (SELECT TS.handlingrate
+     FROM TransactionShipment TS
+     INNER JOIN Transaction IF_TXN ON IF_TXN.ID = TS.doc
+     WHERE IF_TXN.custbody_pri_bpa_ff_inv_link = T.ID) AS handling,
+    (SELECT SUM(ABS(TL.netamount))
+     FROM TransactionLine TL
+     WHERE TL.transaction = T.ID
+       AND TL.mainline = 'F' AND TL.taxline = 'F') AS total
+FROM Transaction T
+WHERE T.Type = 'CustInvc'
+  AND T.ID = ?
+```
+
+### Item Fulfillment with Costs
+```sql
+-- Get fulfillment with all shipping data
+SELECT
+    T.ID,
+    T.TranID AS fulfillment_number,
+    T.TranDate AS ship_date,
+    BUILTIN.DF(T.ShipMethod) AS ship_method,
+    (SELECT TS.shippingrate FROM TransactionShipment TS WHERE TS.doc = T.ID) AS shipping,
+    (SELECT TS.handlingrate FROM TransactionShipment TS WHERE TS.doc = T.ID) AS handling,
+    (SELECT TS.weight FROM TransactionShipment TS WHERE TS.doc = T.ID) AS weight
+FROM Transaction T
+WHERE T.Type = 'ItemShip'
+  AND T.ID = ?
+```
+
 ## Parameterized Query Patterns
 
 ### Single Parameter

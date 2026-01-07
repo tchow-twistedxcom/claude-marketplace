@@ -1,7 +1,7 @@
 {
   "name": "netsuite-skills",
-  "version": "1.4.0",
-  "description": "NetSuite expertise skills for debugging, diagnosing, and deploying complex NetSuite implementations. Includes Prolecto PRI Container Tracking (with 23+ Application Settings configuration knowledge), SuiteCloud Development Framework (SDF) deployment automation with automatic stale credential detection and refresh, CI/CD integration, certificate-based authentication, authId management, credential storage architecture (CI vs browser mode), post-sandbox-refresh credential validation, multi-environment deployment workflows, SuiteQL query execution via NetSuite API Gateway, File Cabinet management (upload/find files), and script deployment analysis (active/inactive deployments)",
+  "version": "1.5.0",
+  "description": "NetSuite expertise skills for debugging, diagnosing, and deploying complex NetSuite implementations. Includes Prolecto PRI Container Tracking (with 23+ Application Settings configuration knowledge), SuiteCloud Development Framework (SDF) deployment automation with automatic stale credential detection and refresh, CI/CD integration, certificate-based authentication, authId management, credential storage architecture (CI vs browser mode), post-sandbox-refresh credential validation, multi-environment deployment workflows, SuiteQL query execution via NetSuite API Gateway (now with TransactionShipment table docs, field exposure limitations, cost calculation patterns), File Cabinet management (upload/find files), script deployment analysis (active/inactive deployments), and PRI Query Renderer record management (column data types, record links, filter configuration)",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -41,6 +41,7 @@
     "./skills/netsuite-sdf-deployment",
     "./skills/netsuite-suiteql",
     "./skills/netsuite-file-cabinet",
-    "./skills/netsuite-script-deployments"
+    "./skills/netsuite-script-deployments",
+    "./skills/pri-query-renderer"
   ]
 }

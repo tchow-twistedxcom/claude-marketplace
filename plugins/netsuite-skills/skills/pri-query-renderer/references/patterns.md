@@ -52,6 +52,61 @@ When a column should link to different record types based on context:
 }
 ```
 
+### Record Link via linkParams Pattern
+
+**⚠️ Important:** There are TWO ways to configure record links. The frontend supports both.
+
+**Method 1: Separate Fields (Standard)**
+```json
+{
+  "name": "invoice_number",
+  "custrecord_pri_qt_qc_heading": "Invoice #",
+  "custrecord_pri_qt_qc_link_type": 2,
+  "custrecord_pri_qt_qc_recordtype": "invoice",
+  "custrecord_pri_qt_qc_parms": "id={invoice_id}"
+}
+```
+
+**Method 2: Combined linkParams (Also Supported)**
+
+When `recordType` is null/empty, the frontend extracts the record type from `linkParams`:
+```json
+{
+  "name": "invoice_number",
+  "custrecord_pri_qt_qc_heading": "Invoice #",
+  "custrecord_pri_qt_qc_link_type": 2,
+  "custrecord_pri_qt_qc_recordtype": null,
+  "custrecord_pri_qt_qc_parms": "type=invoice&id={invoice_id}"
+}
+```
+
+**Frontend Handling (QueryResults.tsx):**
+```typescript
+// Extract recordType from linkParams if not set directly
+let recordType = col.recordType;
+if (!recordType && col.linkParams) {
+  const typeMatch = col.linkParams.match(/type=([^&]+)/);
+  if (typeMatch) recordType = typeMatch[1];
+}
+```
+
+**When to Use Each Method:**
+- **Method 1**: Cleaner, recommended for new columns
+- **Method 2**: Useful when configuring via UI that only has one params field
+
+**Common NetSuite Record Types for Links:**
+| Type | NetSuite Page | URL Suffix |
+|------|---------------|------------|
+| `salesorder` | Sales Order | salesord.nl |
+| `invoice` | Invoice | custinvc.nl |
+| `itemfulfillment` | Item Fulfillment | itemship.nl |
+| `customer` | Customer | custjob.nl |
+| `purchaseorder` | Purchase Order | purchord.nl |
+| `itemreceipt` | Item Receipt | itemrcpt.nl |
+| `transferorder` | Transfer Order | trnfrord.nl |
+| `inventoryitem` | Inventory Item | invtitem.nl |
+| `vendor` | Vendor | vendor.nl |
+
 ---
 
 ## Filter Configuration Patterns

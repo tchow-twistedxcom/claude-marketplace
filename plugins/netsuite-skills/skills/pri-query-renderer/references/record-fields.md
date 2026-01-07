@@ -43,20 +43,61 @@ Defines how each field in the query results is displayed.
 | `custrecord_pri_qt_qc_totals_row` | Checkbox | No | Show column totals (T/F) |
 | `custrecord_pri_qt_qc_parms` | Text | No | Parameters for linked query |
 
-### Data Types (List Field - Use Numeric IDs)
+### Data Types - Numeric IDs (NetSuite List Field)
 
-| ID | Value | Description | Formatting |
-|----|-------|-------------|------------|
-| 1 | Date | Date values | Date formatting |
+**⚠️ CRITICAL:** This is a NetSuite List Field. You MUST use numeric IDs when creating/updating columns via API.
+
+| ID | Description | Frontend Display | Formatting Applied |
+|----|-------------|------------------|-------------------|
+| 1 | Date | Date formatted | `MM/DD/YYYY` or localized |
 | 2 | Integer | Whole numbers | Thousands separators |
-| 3 | Currency | Money values | Symbol + decimals |
-| 4 | Decimal | Decimal numbers | Decimal formatting |
-| 5 | Checkbox | Boolean values | Converts to Yes/No text |
-| 6 | Percent | Percentage values | Percentage formatting |
-| 7 | Float | Floating point | Numeric formatting |
-| (null) | Text | Plain text | No special formatting |
+| 3 | Currency | Money values | `$X,XXX.XX` |
+| 4 | Decimal | Decimal numbers | Decimal places preserved |
+| 5 | Checkbox | Boolean | Converts to Yes/No text |
+| 6 | Percent | Percentage | `XX.XX%` |
+| 7 | Float | Floating point | Numeric, minimal formatting |
+| (null/omit) | Text (default) | Plain text | No special formatting |
 
-**Important**: Use the numeric ID when setting via API (e.g., `"custrecord_pri_qt_qc_data_type": 2` for Integer).
+**Common Mistake - Date Shows Blank:**
+If your date column shows blank/empty values, check that `data_type` is set to `1` (Date), NOT `2` (Integer).
+
+```json
+// ❌ WRONG - Ship date will be blank because Integer (2) can't format dates
+{ "name": "ship_date", "custrecord_pri_qt_qc_data_type": 2 }
+
+// ✅ CORRECT - Date type (1) formats dates properly
+{ "name": "ship_date", "custrecord_pri_qt_qc_data_type": 1 }
+```
+
+**Frontend Type Mapping:**
+The NetSuite Reports frontend (`priColumnUtils.ts`) maps these numeric IDs to internal types:
+```typescript
+const numericMap: Record<number, ColumnDataType> = {
+  1: 'date',      // Date formatting
+  2: 'number',    // Integer formatting
+  3: 'currency',  // Currency with $ symbol
+  4: 'number',    // Decimal as number
+  5: 'boolean',   // Checkbox display
+  6: 'number',    // Percent formatting
+  7: 'number'     // Float as number
+};
+// Null/undefined → 'text' (default)
+```
+
+**API Usage:**
+```json
+// Creating a column via twxUpsertRecord
+{
+  "procedure": "twxUpsertRecord",
+  "type": "customrecord_pri_qt_query_column",
+  "fields": {
+    "name": "ship_date",
+    "custrecord_pri_qt_qc_parent": 302,
+    "custrecord_pri_qt_qc_heading": "Ship Date",
+    "custrecord_pri_qt_qc_data_type": 1  // ← Use numeric ID, not "date"
+  }
+}
+```
 
 ### Link Types (List Field - Use Numeric IDs)
 

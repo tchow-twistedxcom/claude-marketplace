@@ -1,0 +1,125 @@
+<!--
+  TEMPLATE: Mandatory Parent-Child Relationship with Related List
+
+  Use Case: Child record MUST have a parent, parent shows related list
+
+  Instructions:
+  1. Replace PARENT_SCRIPTID with your parent record scriptid
+  2. Replace CHILD_SCRIPTID with your child record scriptid
+  3. Replace TAB_SCRIPTID with your subtab scriptid
+  4. Replace display names and labels as needed
+  5. Deploy parent record first, then child record
+-->
+
+<!-- ========================================
+     PARENT RECORD (Deploy First)
+     ======================================== -->
+<customrecordtype scriptid="PARENT_SCRIPTID">
+  <recordname>Parent Record Name</recordname>
+  <accesstype>CUSTRECORDENTRYPERM</accesstype>
+  <allowattachments>T</allowattachments>
+  <enablesystemnotes>T</enablesystemnotes>
+
+  <!-- Define subtab that will show related list -->
+  <subtabs>
+    <subtab>
+      <tabtitle>Children</tabtitle>
+      <tabparent></tabparent>  <!-- Empty = main tab -->
+      <scriptid>TAB_SCRIPTID</scriptid>
+    </subtab>
+  </subtabs>
+
+  <!-- Link subtab to child record type -->
+  <recordsublists>
+    <recordsublist>
+      <recorddescr>[scriptid=CHILD_SCRIPTID]</recorddescr>
+      <recordtab>[scriptid=PARENT_SCRIPTID.TAB_SCRIPTID]</recordtab>
+    </recordsublist>
+  </recordsublists>
+
+  <!-- Parent fields go here -->
+  <customrecordcustomfields>
+    <customrecordcustomfield scriptid="custrecord_parent_name">
+      <fieldtype>TEXT</fieldtype>
+      <label>Parent Name</label>
+      <ismandatory>T</ismandatory>
+    </customrecordcustomfield>
+  </customrecordcustomfields>
+</customrecordtype>
+
+
+<!-- ========================================
+     CHILD RECORD (Deploy Second)
+     ======================================== -->
+<customrecordtype scriptid="CHILD_SCRIPTID">
+  <recordname>Child Record Name</recordname>
+  <accesstype>CUSTRECORDENTRYPERM</accesstype>
+  <allowattachments>T</allowattachments>
+  <enablesystemnotes>T</enablesystemnotes>
+
+  <customrecordcustomfields>
+    <!-- Parent relationship field -->
+    <customrecordcustomfield scriptid="custrecord_child_parent">
+      <fieldtype>SELECT</fieldtype>
+      <label>Parent Record</label>
+
+      <!-- CRITICAL SETTINGS for parent-child relationship -->
+      <ismandatory>T</ismandatory>  <!-- Child MUST have parent -->
+      <isparent>T</isparent>  <!-- Creates parent-child relationship -->
+      <selectrecordtype>[scriptid=PARENT_SCRIPTID]</selectrecordtype>
+
+      <!-- CRITICAL: Must match parent's subtab scriptid exactly -->
+      <parentsubtab>[scriptid=PARENT_SCRIPTID.TAB_SCRIPTID]</parentsubtab>
+
+      <!-- What happens if parent is deleted -->
+      <onparentdelete>SET_NULL</onparentdelete>
+      <!-- Options:
+           SET_NULL - Clear parent field (child survives)
+           NO_ACTION - Prevent parent deletion if children exist
+           DELETE_CASCADE - Delete child when parent deleted (DANGEROUS)
+      -->
+
+      <showinlist>T</showinlist>
+      <storevalue>T</storevalue>
+      <accesslevel>2</accesslevel>
+    </customrecordcustomfield>
+
+    <!-- Other child fields -->
+    <customrecordcustomfield scriptid="custrecord_child_name">
+      <fieldtype>TEXT</fieldtype>
+      <label>Child Name</label>
+      <ismandatory>T</ismandatory>
+    </customrecordcustomfield>
+  </customrecordcustomfields>
+</customrecordtype>
+
+
+<!-- ========================================
+     DEPLOYMENT CHECKLIST
+     ========================================
+     [ ] Parent has <subtabs> section with TAB_SCRIPTID
+     [ ] Parent has <recordsublists> linking to child
+     [ ] Child field has <isparent>T</isparent>
+     [ ] Child field has <parentsubtab> with exact scriptid reference
+     [ ] Deploy parent first, then child
+     [ ] Test: Create child, link to parent, verify appears in related list
+     ========================================
+-->
+
+<!-- ========================================
+     EXAMPLE USAGE
+     ========================================
+
+     Scenario: Orders with Order Lines
+
+     PARENT_SCRIPTID = customrecord_order
+     TAB_SCRIPTID = tab_lines
+     CHILD_SCRIPTID = customrecord_order_line
+
+     Result:
+     - Order record shows "Lines" tab
+     - Tab displays all order lines for that order
+     - Order lines must have an order (mandatory)
+     - Deleting order clears parent field on lines (SET_NULL)
+     ========================================
+-->

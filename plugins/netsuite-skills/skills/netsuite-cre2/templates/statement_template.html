@@ -1,0 +1,570 @@
+<?xml version="1.0"?><!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
+<pdf>
+<head>
+
+<!-- CRE Customer Statement  -->
+<!-- Output: CRE PDF -->
+<!-- 31-May-2021 01 -->
+
+
+<macrolist>
+<macro id="nlheader">
+
+	<#assign debug_on = 0>
+	<#assign company_addr1 = "269 South Beverly Drive">
+	<#assign company_city = "Los Angeles">
+	<#assign company_state = "CA">
+	<#assign company_zip = "90212">
+	<#assign company_country = "United States">
+	<#assign remit_email = "ar@prolecto.com">
+
+	<table align="left" class="header" style="table-layout: fixed;">
+		<tr>
+
+			<td colspan="6" align="right" style="padding-bottom: 8px;">
+				<table class="header">
+					<tr>
+						<td colspan="4" align="left"><p style="text-align: left;"><img src="https://system.na3.netsuite.com/core/media/media.nl?id=4&amp;c=840889&amp;h=6ab1958d501e190de097"  style="float: none; margin: 2px" /></p></td>
+						<td colspan="4" align="left" style="vertical-align: middle;">
+							<p style="text-align: left; line-height: 120%;">
+							<span style="text-align: left;">
+								${company_addr1}<br />
+								${company_city} ${company_state} ${company_zip}<br />
+								${company_country}
+							</span>
+								<br />
+								<span style="text-align: left;">${remit_email}</span>
+								<br />
+
+							</p>
+						</td>
+					</tr>
+				</table>
+			</td>
+
+			<td colspan="4" align="right">
+				<table class="header2">
+					<tr>
+						<td colspan="8" align="center" style="font-size: 22pt; border: 0px solid #000000;"><p style="text-align: center; vertical-align: middle;"><b>STATEMENT</b></p></td>
+					</tr>
+					<tr>
+						<th colspan="3" align="right"><p style="text-align: right;">Date</p></th>
+						<#assign aDateTime = .now>
+						<#assign aDate = aDateTime?date>
+						<td colspan="5" align="left"><p style="text-align: left;">${aDate?string.medium}</p></td>
+					</tr>
+          <tr>
+						<th colspan="3" align="right"><p style="text-align: right;">Credit Limit</p></th>
+						<td colspan="5" align="left"><p style="text-align: left;">${record.creditlimit}</p></td>
+					</tr>
+					<tr>
+						<th colspan="3" align="right"><p style="text-align: right;">Terms</p></th>
+						<td colspan="5" align="left"><p style="text-align: left;">${record.terms["name"]}</p></td>
+					</tr>
+					<tr>
+						<th colspan="3" align="right"><p style="text-align: right;">Sales Rep</p></th>
+						<td colspan="5" align="left"><p style="text-align: left;">${customer.rows[0].salesrep}</p></td>
+					</tr>
+				</table>
+			</td>
+
+		</tr>
+	</table>
+
+</macro>
+
+<macro id="nlfooter">
+	<table class="footer" style="width: 100%; table-layout: fixed;">
+		<tr>
+			<td colspan="2" align="right" style="padding-top: 10px;">Page <pagenumber/> of <totalpages/></td>
+		</tr>
+	</table>
+</macro>
+
+</macrolist>
+
+<style type="text/css">
+table.itemtable, table.remittance, table.remittance2, table.header, table.header2, table.footer {
+	font-family: sans-serif;
+	font-size: 9pt;
+	table-layout: fixed;
+	width: 100%;
+}
+table.itemtable th{
+	font-weight: bold;
+	font-size: 8pt;
+	vertical-align: middle;
+	padding: 5px 6px 3px;
+	background-color: #3c96d8;
+	border: 0.5px solid #aad2ee;
+	color: #ffffff;
+}
+table.remittance th {
+	font-weight: bold;
+	font-size: 8pt;
+	vertical-align: middle;
+	padding: 5px 6px 3px;
+	background-color: #3c96d8;
+	border: 0.5px solid #aad2ee;
+	color: #ffffff;
+}
+table.remittance2 th {
+	font-weight: bold;
+	font-size: 8pt;
+	vertical-align: middle;
+	padding: 5px 6px 3px;
+	background-color: #3c96d8;
+	border: 0.5px solid #aad2ee;
+	color: #ffffff;
+}
+table.header th {
+	font-weight: bold;
+	font-size: 8pt;
+	vertical-align: middle;
+	padding: 5px 6px 3px;
+	background-color: #3c96d8;
+	border: 0.5px solid #aad2ee;
+	color: #ffffff;
+}
+table.header2 th {
+	font-weight: bold;
+	font-size: 8pt;
+	vertical-align: middle;
+	padding: 5px 6px 3px;
+	background-color: #3c96d8;
+	border: 0.5px solid #aad2ee;
+	color: #ffffff;
+}
+table.footer th {
+	font-weight: bold;
+	font-size: 8pt;
+	vertical-align: middle;
+	padding: 5px 6px 3px;
+	background-color: #3c96d8;
+	border: 0.5px solid #aad2ee;
+	color: #ffffff;
+}
+table.itemtable td {padding: 4px 6px;}
+table.remittance tr td {padding: 4px 6px;}
+table.remittance2 tr td {padding: 4px 6px;}
+table.header tr td {padding: 4px 6px;}
+table.header2 tr td {padding: 4px 6px;}
+table.footer tr td {padding: 4px 6px;}
+table.itemtable tr td {padding: 4px 6px;}
+table.remittance tr td {padding: 4px 6px;}
+table.remittance2 tr td {padding: 4px 6px;}
+table.header tr td {padding: 4px 6px;}
+table.header2 tr td {padding: 4px 6px;}
+table.footer tr td {padding: 4px 6px;}
+b {
+	font-weight: bold;
+	color: #333333;
+}
+table.header th {
+	font-weight: bold;
+	font-size: 9pt;
+	vertical-align: top;
+	padding: 5px;
+	background-color: #3c96d8;
+	color: #ffffff;
+}
+table.header td {
+	padding: 5px;
+	font-size: 9pt;
+	vertical-align: top;
+}
+table.header2 th {
+	font-weight: bold;
+	font-size: 9pt;
+	vertical-align: middle;
+	padding: 5px;
+	border: 0.5px solid #aad2ee;
+	background-color: #3c96d8;
+	color: #ffffff;
+}
+table.header2 td {
+	padding: 5px;
+	font-size: 9pt;
+	vertical-align: middle;
+	border: 0.5px solid #aad2ee;
+}
+table.footer td {
+	padding: 0;
+	font-size: 8pt;
+}
+table.itemtable th {
+	padding-bottom: 10px;
+	padding-top: 10px;
+	border: 0.5px solid #aad2ee;
+	vertical-align: bottom;
+	font-size: 7pt;
+}
+table.itemtable td {
+	vertical-align: top;
+	padding: 3px;
+	font-size: 7pt;
+	border-bottom: 0.5px solid #aad2ee;
+}
+table.body td {
+	padding-top: 2px;
+}
+table.total {
+	page-break-inside: avoid;
+}
+tr.totalrow {
+	background-color: #3c96d8;
+	line-height: 200%;
+}
+td.totalboxtop {
+	font-size: 12pt;
+	background-color: #3c96d8;
+}
+td.addressheader {
+	font-size: 8pt;
+	padding-top: 6px;
+	padding-bottom: 2px;
+}
+td.address {
+	font-size: 9pt;
+	padding-top: 3px;
+}
+td.totalboxmid {
+	font-size: 20pt;
+	padding-top: 15px;
+	background-color: #3c96d8;
+}
+td.totalboxbot {
+	background-color: #3c96d8;
+	font-weight: bold;
+}
+table.remittance th {
+	padding-bottom: 5px;
+	padding-top: 5px;
+	border: 0.5px solid #aad2ee;
+	vertical-align: middle;
+	font-size: 7.5pt;
+}
+table.remittance td {
+	vertical-align: middle;
+	padding: 4px;
+	font-size: 7.5pt;
+	border: 0.5px solid #aad2ee;
+}
+table.remittance2 th {
+	padding-bottom: 5px;
+	padding-top: 5px;
+	border: 0.5px solid #aad2ee;
+	vertical-align: middle;
+	font-size: 8pt;
+}
+table.remittance2 td {
+	vertical-align: top;
+	padding: 4px;
+	font-size: 8pt;
+	border: 0.5px solid #aad2ee;
+}
+span.title {
+	font-size: 28pt;
+}
+span.number {
+	font-size: 16pt;
+}
+span.itemname {
+	font-weight: normal;
+	line-height: 125%;
+}
+hr {
+	width: 100%;
+	color: #3c96d8;
+	background-color: #3c96d8;
+	height: 1px;
+}
+</style>
+</head>
+
+<body header="nlheader" header-height="21%" footer="nlfooter" footer-height="5%" padding="0.25in 0.15in 0.25in 0.15in" size="Letter-landscape">
+
+
+<table class="header" style="width: 100%; table-layout: fixed; margin-top: 10px;">
+	<tr>
+		<td colspan="10" align="left" class="addressheader"><b>Billing Address</b></td>
+	</tr>
+	<tr>
+		<td colspan="6" align="left" class="address">
+			<p style="text-align: left;">
+				${record.billaddressee?string}<br />
+				${record.billaddr1}<br />
+				<#if record.billaddr2?has_content>${record.billaddr2}<br /></#if>
+		${record.billcity}
+	${record.billstate}
+${record.billzip}<br />
+	${record.billcountry}
+<br />
+Phone: ${record.phone}
+<br />
+Email: ${record.email?string}
+<br />
+</p>
+</td>
+</tr>
+</table>
+
+<table class="itemtable" style="width: 100%; margin-top: 10px; table-layout: fixed;">
+
+	<thead>
+	<tr>
+		<th colspan="5" align="left"><p style="text-align: left;">Customer Name</p></th>
+		<th colspan="4" align="left"><p style="text-align: left;">Doc No.</p></th>
+		<th colspan="4" align="left"><p style="text-align: left;">P.O. No.</p></th>
+		<th colspan="5" align="left"><p style="text-align: left;">Memo</p></th>
+		<th colspan="4" align="left"><p style="text-align: left;">Trans Type</p></th>
+		<th colspan="4" align="left"><p style="text-align: left;">Invoice Date</p></th>
+		<th colspan="4" align="left"><p style="text-align: left;">Due Date</p></th>
+		<th colspan="5" align="right"><p style="text-align: right;">Original Amount</p></th>
+
+		<#if  debug_on == 1>
+		<th colspan="3" align="center" style="background-color: #ffe6e6;"><p style="text-align: center;">Days<br />Calc</p></th>
+		</#if>
+
+		<th colspan="5" align="right"><p style="text-align: right;">Current</p></th>
+		<th colspan="5" align="right"><p style="text-align: right;">1-30 Days</p></th>
+		<th colspan="5" align="right"><p style="text-align: right;">31-60 Days</p></th>
+		<th colspan="5" align="right"><p style="text-align: right;">61-90 Days</p></th>
+		<th colspan="5" align="right"><p style="text-align: right;">91+ Days</p></th>
+		<th colspan="5" align="right"><p style="text-align: right;">Cumulative<br />Balance</p></th>
+	</tr>
+	</thead>
+
+	<#assign currency_symbol = "$">
+	<#assign running_balance = 0.00>
+	<#assign band_aging_current_total = 0.00>
+	<#assign band_aging_1_30_total = 0.00>
+	<#assign band_aging_31_60_total = 0.00>
+	<#assign band_aging_61_90_total = 0.00>
+	<#assign band_aging_over90_total = 0.00>
+	<#assign band_aging_openbalance_total = 0.00>
+	<#assign show_balance_forward_msg = 1>
+	<#assign have_linedata_switch = 0>
+	<#assign current_customer_id = "">
+	<#assign previous_customer_id = "">
+	<#assign first_time_through = 1>
+	<#assign display_header = 1>
+	<#assign display_lineitem = 0>
+
+	<#if tran?has_content>
+		<#list tran.rows as tran>
+
+		<#assign current_customer_id = tran.custname?string>
+
+		<!-- Handle First Run for the Current and Previous Customers -->
+		<#if first_time_through == 1>
+			<#assign previous_customer_id = current_customer_id>
+		</#if>
+
+		<#if current_customer_id != previous_customer_id> <!-- Sub Customer Change -->
+
+			<!-- Display Customer Sub Total At Bottom -->
+			<tr>
+				<#if debug_on == 1>
+				<td colspan="38" align="left" style="border-bottom: 0.5px solid #ffffff; border-right: 0.5px solid #ffffff;"><p style="text-align: left;">&nbsp;</p></td>
+				<#else>
+				<td colspan="35" align="left" style="border-bottom: 0.5px solid #ffffff; border-right: 0.5px solid #ffffff;"><p style="text-align: left;">&nbsp;</p></td>
+				</#if>
+
+				<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_current_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_current_total}</p></#if></th>
+				<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_1_30_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_1_30_total}</p></#if></th>
+				<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_31_60_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_31_60_total}</p></#if></th>
+				<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_61_90_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_61_90_total}</p></#if></th>
+				<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_over90_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_over90_total}</p></#if></th>
+				<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><p style="text-align: right;">${currency_symbol}${band_aging_openbalance_total}</p></th>
+			</tr>
+
+			<#assign band_aging_current_total = 0.00>
+			<#assign band_aging_1_30_total = 0.00>
+			<#assign band_aging_31_60_total = 0.00>
+			<#assign band_aging_61_90_total = 0.00>
+			<#assign band_aging_over90_total = 0.00>
+			<#assign band_aging_openbalance_total = 0.00>
+			<#assign running_balance = 0.00>
+			<#assign display_header = 1> <!-- Sub Customer Name Banner Display Switch -->
+			<#assign display_lineitem = 1> <!-- Display the line item after the previous customer sub total -->
+
+		</#if><!-- End of Sub Customer Change  -->
+
+
+		 <!-- Very first line on report or Still on Same Customer -->
+
+			<#assign display_lineitem = 0>
+			<#assign first_time_through = 0>
+
+			<#if display_header == 1>
+				<tr>
+					<td colspan="60" align="left" style="padding-top: 20px; padding-bottom: 6px; font-size: 9pt;"><p style="text-align: left;"><b>${tran.custname} Balance Forward</b></p></td>
+					<td colspan="5" align="right" style="padding-top: 20px; padding-bottom: 6px; font-size: 9pt;"><p style="text-align: right;"><b>${currency_symbol}${running_balance}</b></p></td>
+				</tr>
+				<#assign display_header = 0>
+			</#if>
+
+			<tr>
+				<td colspan="5" align="left"><p style="text-align: left;">${tran.custname}</p></td>
+				<td colspan="4" align="left"><p style="text-align: left;"><a href="#">${tran.tranid}</a></p></td>
+				<td colspan="4" align="left"><p style="text-align: left;"><#if tran.pono?number != 0>${tran.pono}</#if></p></td>
+				<td colspan="5" align="left"><p style="text-align: left;"><#if tran.memo?string?contains(" ")>${tran.memo}</#if></p></td>
+				<td colspan="4" align="left">${tran.type}</td>
+				<td colspan="4" align="left"><p style="text-align: left;">${tran.trandate}</p></td>
+				<td colspan="4" align="left"><p style="text-align: left;"><#if tran.duedate?string?contains("/")>${tran.duedate}</#if></p></td>
+
+				<!-- Doc Amount -->
+				<td colspan="5" align="right">
+					<p style="text-align: right;">${tran.amount}</p>
+				</td>
+
+				<#if  debug_on == 1>
+				<td colspan="3" align="center" style="background-color: #ffe6e6;"><p style="text-align: center;">111</p></td>
+				</#if>
+
+				<#if tran.openbalance?has_content>
+					<#assign running_balance = running_balance + tran.openbalance?number>
+				</#if>
+
+				<td colspan="5" align="right"><#if tran.current?number != 0><p style="text-align: right;">${currency_symbol}${tran.current?number}</p></#if></td>
+				<td colspan="5" align="right"><#if tran.due130?number != 0><p style="text-align: right;">${currency_symbol}${tran.due130?number}</p></#if></td>
+				<td colspan="5" align="right"><#if tran.due3160?number != 0><p style="text-align: right;">${currency_symbol}${tran.due3160?number}</p></#if></td>
+				<td colspan="5" align="right"><#if tran.due6190?number != 0><p style="text-align: right;">${currency_symbol}${tran.due6190?number}</p></#if></td>
+				<td colspan="5" align="right"><#if tran.due91plus?number != 0><p style="text-align: right;">${currency_symbol}${tran.due91plus?number}</p></#if></td>
+				<td colspan="5" align="right"><p style="text-align: right;">${currency_symbol}${running_balance}</p></td>
+			</tr>
+
+			<!-- Band Column Accumulators -->
+			<#assign band_aging_current_total = band_aging_current_total + tran.current?number>
+			<#assign band_aging_1_30_total = band_aging_1_30_total + tran.due130?number>
+			<#assign band_aging_31_60_total = band_aging_31_60_total + tran.due3160?number>
+			<#assign band_aging_61_90_total = band_aging_61_90_total + tran.due6190?number>
+			<#assign band_aging_over90_total = band_aging_over90_total + tran.due91plus?number>
+			<#assign band_aging_openbalance_total = band_aging_openbalance_total + tran.openbalance?number>
+
+			<!-- Grab Current and Previous Customer Names and Related IDs -->
+			<#assign previous_customer_id = current_customer_id>
+
+		</#list>
+	</#if>
+	<tr>
+		<#if debug_on == 1>
+		<td colspan="38" align="left" style="border-bottom: 0.5px solid #ffffff; border-right: 0.5px solid #ffffff;"><p style="text-align: left;">&nbsp;</p></td>
+		<#else>
+		<td colspan="35" align="left" style="border-bottom: 0.5px solid #ffffff; border-right: 0.5px solid #ffffff;"><p style="text-align: left;">&nbsp;</p></td>
+		</#if>
+
+		<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_current_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_current_total}</p></#if></th>
+		<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_1_30_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_1_30_total}</p></#if></th>
+		<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_31_60_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_31_60_total}</p></#if></th>
+		<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_61_90_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_61_90_total}</p></#if></th>
+		<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><#if band_aging_over90_total != 0><p style="text-align: right;">${currency_symbol}${band_aging_over90_total}</p></#if></th>
+		<th colspan="5" align="right" style="padding: 3px; padding-top: 10px; padding-bottom: 10px;"><p style="text-align: right;">${currency_symbol}${band_aging_openbalance_total}</p></th>
+	</tr>
+</table>
+
+<!-- Remittance and Aging -->
+<#assign  aging_remit_past_due = 0.00>
+<#assign  total_aging_current = 0.00>
+<#assign  total_aging_1_30 = 0.00>
+<#assign  total_aging_31_60 = 0.00>
+<#assign  total_aging_61_90 = 0.00>
+<#assign  total_aging_over90 = 0.00>
+
+
+<table class="remittance" style="width: 100%; margin-top: 10px; table-layout: fixed;">
+	<tr>
+		<td colspan="35" align="right" style="padding: 0px; text-align: right; vertical-align: top; border: 0.5px solid #ffffff;">
+			<table class="remittance2" style="width: 100%; margin-top: 10px; table-layout: fixed;">
+				<tr>
+					<td colspan="35" align="center" style="border: 0.5px solid #aad2ee;"><b>Please Remit Payment to:</b></td>
+				</tr>
+				<tr>
+					<th colspan="18" align="center" style="border: 0.5px solid #aad2ee;">Wire / ACH</th>
+					<th colspan="17" align="center" style="border: 0.5px solid #aad2ee;">Check</th>
+				</tr>
+				<tr>
+					<td colspan="18" align="left" style="border: 0.5px solid #aad2ee;">
+						<p style="text-align: left;">Bank Name: Beverly Hills Bank<br />
+							Account: Prolecto Resources, Inc<br />
+							Account Number: 3322499895<br />
+							Swift Code: SVBKUS6S<br />
+							Wire Routing Number: 121140399<br />
+							Address: 269 S. Beverly Drive. #1100<br />Beverly Hills, CA 90210</p>
+					</td>
+					<td colspan="17" align="left" style="border: 0.5px solid #aad2ee;">
+						<p style="text-align: left;">Prolecto Resources, Inc.<br />
+							Attn: Accounts Receivable<br />
+							1042 Fort Union Blvd. #1107<br />
+							Midvale, UT 84047</p></td>
+				</tr>
+				<tr>
+					<td colspan="35" align="center" style="border: 0.5px solid #aad2ee; padding: 10px;"><p style="text-align: center;"><b>Please send all inquiries to ${remit_email}</b></p></td>
+				</tr>
+			</table>
+		</td>
+		<td colspan="5" align="right" style="padding: 0px; text-align: right; vertical-align: top; border: 0.5px solid #ffffff;">&nbsp;</td>
+		<td colspan="25" align="right" style="padding: 0px; text-align: right; vertical-align: top; border: 0.5px solid #ffffff;">
+			<table class="remittance" style="width: 100%; margin-top: 10px; table-layout: fixed;">
+				<tr>
+					<td colspan="25" align="center"><p style="text-align: center;"><b>Amount Due</b></p></td>
+				</tr>
+				<tr>
+					<th colspan="5" align="center"><p style="text-align: center;">Current</p></th>
+					<th colspan="5" align="center"><p style="text-align: center;">1-30 Days</p></th>
+					<th colspan="5" align="center"><p style="text-align: center;">31-60 Days</p></th>
+					<th colspan="5" align="center"><p style="text-align: center;">61-90 Days</p></th>
+					<th colspan="5" align="center"><p style="text-align: center;">91+ Days</p></th>
+				</tr>
+
+
+				<#if aging?has_content>
+				<!-- Assign Aging Values Convert to Float -->
+				<tr>
+					<td colspan="5" align="center"> <!-- Current -->
+						<p style="text-align: center;">
+							<#if aging.rows[0].current?number != 0>
+							${currency_symbol}${aging.rows[0].current}</#if>
+						</p>
+					</td>
+					<td colspan="5" align="center"> <!-- fxOneToThirty -->
+						<p style="text-align: center;">
+							<#if aging.rows[0].due130?number != 0>
+							${currency_symbol}${aging.rows[0].due130}</#if>
+						</p>
+					</td>
+					<td colspan="5" align="center"> <!-- fxThirtyOneToSixty -->
+						<p style="text-align: center;">
+							<#if aging.rows[0].due3160?number != 0>
+							${currency_symbol}${aging.rows[0].due3160}</#if>
+						</p>
+					</td>
+					<td colspan="5" align="center"> <!-- fxSixtyOneToNinety -->
+						<p style="text-align: center;">
+							<#if aging.rows[0].due6190?number != 0>
+							${currency_symbol}${aging.rows[0].due6190}</#if>
+						</p>
+					</td>
+					<td colspan="5" align="center"> <!-- fxOverNinety -->
+						<p style="text-align: center;">
+							<#if aging.rows[0].due91plus?number != 0>
+							${currency_symbol}${aging.rows[0].due91plus}</#if>
+						</p>
+					</td>
+				</tr>
+				<#assign  aging_remit_past_due = aging_remit_past_due + aging.rows[0].due130?number + aging.rows[0].due3160?number +
+				aging.rows[0].due6190?number + aging.rows[0].due91plus?number>
+				</#if>
+				<tr>
+					<th colspan="25" align="center"><p style="text-align: center;">Please remit this Past Due Amount</p></th>
+				</tr>
+				<tr>
+					<td colspan="25" align="center"><p style="text-align: center;"><b>${currency_symbol}${aging_remit_past_due}</b></p></td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+</table>
+</body>
+</pdf>

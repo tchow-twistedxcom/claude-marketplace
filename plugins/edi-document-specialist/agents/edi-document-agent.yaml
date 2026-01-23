@@ -1,0 +1,161 @@
+name: edi-document-specialist
+description: |
+  EDI document mapping, PDF template generation, and notification specialist
+  for B2B Dashboard.
+
+  Use this agent when:
+  - Creating or modifying CRE2 PDF templates for EDI documents
+  - Mapping X12 EDI segments to template fields
+  - Setting up notification rules for EDI events
+  - Debugging PDF rendering issues (logo distortion, layout overlap)
+  - Creating trading partner-specific templates
+  - Understanding X12 segment structures (810, 850, 855, 856, 860)
+
+triggers:
+  - keywords:
+    - "edi template"
+    - "pdf template"
+    - "cre2 profile"
+    - "810 invoice"
+    - "850 purchase order"
+    - "855 acknowledgment"
+    - "856 ship notice"
+    - "860 change"
+    - "bfo rendering"
+    - "freemarker"
+    - "trading partner pdf"
+    - "logo distortion"
+    - "layout overlap"
+  - file_patterns:
+    - "*_PDF.html"
+    - "*DataExtractor.js"
+    - "*.edi"
+    - "customrecord_twx_edi_*.xml"
+
+tools:
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - Bash
+
+skills:
+  # This plugin's skills
+  - edi-mapping
+  - pdf-templates
+  # Dependent skills from netsuite-skills plugin
+  - netsuite-cre2
+  - netsuite-file-cabinet
+
+examples:
+  - prompt: "Create a PDF template for 810 invoices for Acme Corp"
+    steps:
+      - "1. Check existing templates: list_folder.py for folder 1285029"
+      - "2. Clone existing profile: clone_profile.py 17 --name 'TWX-EDI-810-ACME-PDF'"
+      - "3. Create template using template-patterns.md as reference"
+      - "4. Upload template: upload_file.py to folder 1285029"
+      - "5. Update profile template_id if needed"
+      - "6. Test with cre2_render.py debug"
+
+  - prompt: "The logo is distorted in the Rocky PDF"
+    steps:
+      - "1. Check bfo-compatibility.md for image handling rules"
+      - "2. Use dpi attribute instead of height (higher DPI = smaller image)"
+      - "3. For large source images like Rocky logo, use dpi='2000'"
+      - "4. Verify URL escaping: & must be &amp;"
+
+  - prompt: "Map the 810 invoice fields to template variables"
+    steps:
+      - "1. Reference x12-segments-810.md for segment mappings"
+      - "2. BIG segment → invoiceDate, invoiceNumber, poNumber"
+      - "3. N1 loop → partners[] (BILL TO, SHIP TO)"
+      - "4. IT1 loop → invoiceDetails[] (lineNumber, quantity, etc.)"
+      - "5. TDS segment → totalAmount (remember: divide by 100)"
+
+  - prompt: "Text is overlapping in the PDF"
+    steps:
+      - "1. Check bfo-compatibility.md layout section"
+      - "2. Replace <br/> tags with table rows + padding-bottom"
+      - "3. For section spacing, use table with margin-top"
+      - "4. Never rely on CSS margins for div elements"
+
+workflow_patterns:
+  new_trading_partner_template:
+    description: "Create a new template for a specific trading partner"
+    steps:
+      - name: "Discover existing templates"
+        tool: "netsuite-file-cabinet/list_folder.py"
+        args: "--folder 1285029 --env sb2"
+
+      - name: "Get source profile configuration"
+        tool: "netsuite-cre2/cre2_profile.py"
+        args: "full-config --profile-id 17 --env sb2"
+
+      - name: "Clone profile for new partner"
+        tool: "netsuite-cre2/clone_profile.py"
+        args: "<source_id> --name '<NEW_PROFILE_NAME>' --env sb2"
+
+      - name: "Create partner-specific template"
+        reference: "pdf-templates/resources/template-patterns.md"
+        notes: "Adjust logo DPI for partner's logo size"
+
+      - name: "Validate template"
+        tool: "netsuite-cre2/validate_template.py"
+        args: "<template_path>"
+
+      - name: "Upload template"
+        tool: "netsuite-file-cabinet/upload_file.py"
+        args: "<template_path> --folder 1285029 --env sb2"
+
+      - name: "Test rendering"
+        tool: "netsuite-cre2/cre2_render.py"
+        args: "debug --profile-id <new_profile_id> --record-id <test_record> --env sb2"
+
+  debug_pdf_issue:
+    description: "Debug PDF rendering problems"
+    steps:
+      - name: "Get template data"
+        tool: "netsuite-cre2/cre2_render.py"
+        args: "debug --profile-id <id> --record-id <record> --env sb2"
+
+      - name: "Compare local vs NetSuite template"
+        tool: "netsuite-file-cabinet/compare_file.py"
+        args: "<local_path> --file-id <ns_file_id> --env sb2"
+
+      - name: "Check BFO compatibility"
+        reference: "pdf-templates/resources/bfo-compatibility.md"
+        notes: "Review image handling, layout rules"
+
+      - name: "Validate template syntax"
+        tool: "netsuite-cre2/validate_template.py"
+        args: "<template_path>"
+
+knowledge_base:
+  x12_documents:
+    - "810 - Invoice (BIG, N1, IT1, ITD, TDS segments)"
+    - "850 - Purchase Order (BEG, PO1, N1, DTM segments)"
+    - "855 - PO Acknowledgment (BAK, ACK, PO1 segments)"
+    - "856 - Advance Ship Notice (BSN, HL, TD1, TD5 segments)"
+    - "860 - PO Change Request (BCH, POC segments)"
+
+  bfo_quirks:
+    - "Use dpi attribute for images (not height/width)"
+    - "Higher DPI = smaller rendered image"
+    - "Use tables for layout (not divs with CSS)"
+    - "Use padding-bottom for line spacing (not <br/>)"
+    - "Use table margin-top for section spacing"
+    - "Escape & as &amp; in URLs"
+    - "Inline styles only (no CSS classes)"
+
+  cre2_components:
+    - "Profile: Links record type to template and JS hook"
+    - "Data Source (Query): SuiteQL providing data to template"
+    - "Template: HTML/FreeMarker file generating PDF"
+    - "JS Hook: Data extraction and transformation logic"
+
+context_loading:
+  on_activate:
+    - "Read relevant X12 segment reference based on document type"
+    - "Load BFO compatibility guide for template issues"
+    - "Check existing profiles and templates in NetSuite"

@@ -1,0 +1,34 @@
+name: pdf-templates
+description: |
+  BFO PDF renderer compatibility and CRE2 template patterns.
+  Use this skill when creating or debugging PDF templates for NetSuite
+  CRE2 Framework, especially for BFO rendering issues.
+
+triggers:
+  keywords:
+    - bfo
+    - pdf template
+    - cre2 template
+    - freemarker
+    - pdf rendering
+    - logo distortion
+    - layout overlap
+    - pdf spacing
+  file_patterns:
+    - "*_PDF.html"
+    - "*.ftl"
+
+resources:
+  - resources/bfo-compatibility.md
+  - resources/freemarker-reference.md
+  - resources/template-patterns.md
+
+examples:
+  - query: "Logo is distorted in PDF"
+    action: "Use dpi attribute instead of height - see bfo-compatibility.md"
+  - query: "Text is overlapping in PDF"
+    action: "Use tables with padding-bottom instead of <br/> tags"
+  - query: "How do I iterate over line items?"
+    action: "Use <#list> directive - see freemarker-reference.md"
+  - query: "How do I format currency?"
+    action: "Use formatCurrency() or string interpolation - see template-patterns.md"

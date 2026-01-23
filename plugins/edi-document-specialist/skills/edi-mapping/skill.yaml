@@ -1,0 +1,39 @@
+name: edi-mapping
+description: |
+  X12 EDI segment references with field-to-template variable mappings.
+  Use this skill when mapping EDI document fields to CRE2 PDF templates
+  or understanding X12 segment structures.
+
+triggers:
+  keywords:
+    - x12
+    - edi segment
+    - 810 invoice
+    - 850 purchase order
+    - 855 acknowledgment
+    - 856 ship notice
+    - 860 change
+    - BIG segment
+    - N1 segment
+    - IT1 segment
+    - ITD segment
+    - TDS segment
+  content_patterns:
+    - "BIG0[1-9]"
+    - "IT10[1-9]"
+    - "N10[1-4]"
+
+resources:
+  - resources/x12-segments-810.md
+  - resources/x12-segments-850.md
+  - resources/x12-segments-855.md
+  - resources/x12-segments-856.md
+  - resources/x12-segments-860.md
+
+examples:
+  - query: "What fields are in an 810 invoice header?"
+    action: "Reference x12-segments-810.md for BIG segment mappings"
+  - query: "How do I map the invoice total to a template?"
+    action: "TDS01 segment maps to invoiceSummary.totalAmount (divide by 100)"
+  - query: "Where is the PO number in an 810?"
+    action: "BIG04 maps to invoiceSummary.poNumber"

@@ -1,0 +1,38 @@
+name: edi-document-specialist
+version: 1.0.0
+description: |
+  EDI document mapping, PDF template generation, and notification specialist
+  for B2B Dashboard. Provides knowledge about X12 EDI segments, BFO PDF
+  rendering compatibility, and CRE2 template patterns.
+
+author: tchow
+license: MIT
+
+skills:
+  - edi-mapping
+  - pdf-templates
+
+agents:
+  - edi-document-agent
+
+dependencies:
+  plugins:
+    - netsuite-skills  # For netsuite-cre2 and netsuite-file-cabinet skills
+
+triggers:
+  keywords:
+    - edi template
+    - pdf template
+    - cre2
+    - 810 invoice
+    - 850 purchase order
+    - 855 acknowledgment
+    - 856 ship notice
+    - 860 change
+    - bfo
+    - freemarker
+    - x12 segment
+  file_patterns:
+    - "*_PDF.html"
+    - "*DataExtractor.js"
+    - "*.edi"

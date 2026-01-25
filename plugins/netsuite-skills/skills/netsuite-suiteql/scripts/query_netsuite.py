@@ -370,7 +370,34 @@ def main():
         print_usage()
         sys.exit(0)
 
-    query = sys.argv[1]
+    # Check if first argument is an option (indicates wrong argument order)
+    first_arg = sys.argv[1]
+    if first_arg.startswith('-'):
+        print(f"ERROR: Options must come AFTER the query, not before.")
+        print(f"       You provided '{first_arg}' as the first argument.")
+        print()
+        print("Correct usage:")
+        print("  python3 query_netsuite.py 'SELECT ...' --env sb2 --account twx")
+        print()
+        print("Wrong usage:")
+        print("  python3 query_netsuite.py --env sb2 'SELECT ...'  # <- Options before query")
+        print()
+        print("Run with --help for more examples.")
+        sys.exit(1)
+
+    query = first_arg
+
+    # Validate query looks like SQL
+    query_upper = query.upper().strip()
+    if not any(query_upper.startswith(kw) for kw in ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH']):
+        print(f"ERROR: First argument doesn't look like a SQL query: '{query[:50]}...'")
+        print()
+        print("The query must start with SELECT, INSERT, UPDATE, DELETE, or WITH.")
+        print("Make sure to quote your query if it contains spaces:")
+        print("  python3 query_netsuite.py 'SELECT id, name FROM customer'")
+        print()
+        print("Run with --help for more examples.")
+        sys.exit(1)
     params = None
     account = DEFAULT_ACCOUNT
     environment = DEFAULT_ENVIRONMENT

@@ -3,10 +3,12 @@
 NetSuite File Upload
 
 Upload files to NetSuite File Cabinet via the NetSuite API Gateway.
-Uses the fileCreate procedure which overwrites existing files with the same name.
+- Uses fileCreate procedure for new files (--folder-id)
+- Uses fileUpdate procedure for existing files (--file-id)
 
 Usage:
   python3 upload_file.py --file ./script.js --folder-id 137935 --env prod
+  python3 upload_file.py --file ./script.js --file-id 52794157 --env sb2
   python3 upload_file.py --file ./script.js --name "custom.js" --folder-id 137935 --env sb2
 """
 
@@ -185,14 +187,125 @@ def upload_file(
         return {'error': f'Unexpected error: {str(e)}'}
 
 
+def get_file_info(
+    file_id: int,
+    account: str = DEFAULT_ACCOUNT,
+    environment: str = DEFAULT_ENVIRONMENT
+) -> Dict[str, Any]:
+    """
+    Get file metadata from NetSuite by file ID using SuiteQL.
+
+    Args:
+        file_id: NetSuite file internal ID
+        account: NetSuite account
+        environment: NetSuite environment
+
+    Returns:
+        Dictionary with file info (name, folder) or error
+    """
+    resolved_account = resolve_account(account)
+    resolved_env = resolve_environment(environment)
+
+    payload = {
+        'action': 'queryRun',
+        'procedure': 'queryRun',
+        'query': f'SELECT id, name, folder FROM file WHERE id = {file_id}',
+        'params': [],
+        'returnAllRows': False,
+        'netsuiteAccount': resolved_account,
+        'netsuiteEnvironment': resolved_env
+    }
+
+    try:
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            GATEWAY_URL,
+            data=data,
+            headers={
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Origin': 'http://localhost:3000'
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+            if result.get('success'):
+                records = result.get('data', {}).get('records', [])
+                if records and len(records) > 0:
+                    record = records[0]
+                    return {
+                        'success': True,
+                        'id': record.get('id'),
+                        'name': record.get('name'),
+                        'folder': record.get('folder')
+                    }
+                else:
+                    return {'error': f'File not found: {file_id}'}
+            else:
+                return {'error': result.get('error', {}).get('message', 'Query failed')}
+
+    except Exception as e:
+        return {'error': f'Failed to get file info: {str(e)}'}
+
+
+def update_file(
+    file_path: str,
+    file_id: int,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    account: str = DEFAULT_ACCOUNT,
+    environment: str = DEFAULT_ENVIRONMENT
+) -> Dict[str, Any]:
+    """
+    Update an existing file in NetSuite File Cabinet by its ID.
+
+    This works by:
+    1. Looking up the file's current folder via SuiteQL
+    2. Using fileCreate to overwrite the file (using existing name unless --name provided)
+
+    Args:
+        file_path: Local path to file with new contents
+        file_id: NetSuite file internal ID to update
+        name: New filename (optional, uses existing filename if not provided)
+        description: New description (optional)
+        account: NetSuite account
+        environment: NetSuite environment
+
+    Returns:
+        Dictionary with file info or error
+    """
+    # First, get the existing file's info (folder and name)
+    file_info = get_file_info(file_id, account, environment)
+    if not file_info.get('success'):
+        return file_info
+
+    folder_id = file_info.get('folder')
+    existing_name = file_info.get('name')
+
+    if not folder_id:
+        return {'error': f'Could not determine folder for file {file_id}'}
+
+    # Use existing name if no override provided
+    final_name = name or existing_name
+
+    # Now upload using the folder ID (which will overwrite by name)
+    return upload_file(file_path, folder_id, final_name, description, account, environment)
+
+
 def print_usage():
     print("""NetSuite File Upload
 
 Usage: python3 upload_file.py --file <path> --folder-id <id> [options]
+       python3 upload_file.py --file <path> --file-id <id> [options]
+
+Required (one of):
+  --folder-id <id>       NetSuite folder internal ID (creates/overwrites by name)
+  --file-id <id>         NetSuite file internal ID (updates existing file by ID)
 
 Required:
   --file <path>          Local file to upload
-  --folder-id <id>       NetSuite folder internal ID
 
 Options:
   --name <name>          Override filename in NetSuite
@@ -201,8 +314,11 @@ Options:
   --env <environment>    Environment (default: sandbox2)
 
 Examples:
-  # Upload script to production
+  # Upload new file to folder
   python3 upload_file.py --file ./myScript.js --folder-id 137935 --env prod
+
+  # Update existing file by ID (useful when you know the file ID)
+  python3 upload_file.py --file ./myScript.js --file-id 52794157 --env sb2
 
   # Upload with custom name
   python3 upload_file.py --file ./local.js --name "remote.js" --folder-id 137935 --env sb2
@@ -212,7 +328,7 @@ Supported File Types:
   .css (STYLESHEET), .txt (PLAINTEXT), .csv (CSV), .pdf (PDF),
   .png/.jpg/.gif (images), .zip (ZIP)
 
-Note: Files with same name in the folder will be overwritten.
+Note: --folder-id overwrites by filename, --file-id updates by internal ID.
 """)
 
 
@@ -223,6 +339,7 @@ def main():
 
     file_path = None
     folder_id = None
+    file_id = None
     name = None
     description = None
     account = DEFAULT_ACCOUNT
@@ -236,6 +353,9 @@ def main():
             i += 2
         elif arg == '--folder-id' and i + 1 < len(sys.argv):
             folder_id = int(sys.argv[i + 1])
+            i += 2
+        elif arg == '--file-id' and i + 1 < len(sys.argv):
+            file_id = int(sys.argv[i + 1])
             i += 2
         elif arg == '--name' and i + 1 < len(sys.argv):
             name = sys.argv[i + 1]
@@ -252,19 +372,37 @@ def main():
         else:
             i += 1
 
-    if not file_path or not folder_id:
-        print("ERROR: --file and --folder-id are required")
+    # Validate required arguments
+    if not file_path:
+        print("ERROR: --file is required")
+        print_usage()
+        sys.exit(1)
+
+    if not folder_id and not file_id:
+        print("ERROR: Either --folder-id or --file-id is required")
+        print_usage()
+        sys.exit(1)
+
+    if folder_id and file_id:
+        print("ERROR: Cannot specify both --folder-id and --file-id")
         print_usage()
         sys.exit(1)
 
     resolved_account = resolve_account(account)
     resolved_env = resolve_environment(environment)
-    print(f"Uploading to {resolved_account}/{resolved_env}...")
 
-    result = upload_file(file_path, folder_id, name, description, account, environment)
+    # Use appropriate function based on argument
+    if file_id:
+        print(f"Updating file {file_id} in {resolved_account}/{resolved_env}...")
+        result = update_file(file_path, file_id, name, description, account, environment)
+        action = "updated"
+    else:
+        print(f"Uploading to {resolved_account}/{resolved_env}...")
+        result = upload_file(file_path, folder_id, name, description, account, environment)
+        action = "uploaded"
 
     if result.get('success'):
-        print(f"SUCCESS: File uploaded")
+        print(f"SUCCESS: File {action}")
         print(f"  File ID: {result.get('file_id')}")
         print(f"  Name: {result.get('name')}")
         print(f"  Folder: {result.get('folder')}")

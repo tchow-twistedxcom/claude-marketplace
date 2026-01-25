@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""
+NetSuite Skills CLI - Unified command router for NetSuite operations.
+
+Usage:
+    netsuite <command> [arguments...]
+    netsuite --help
+    netsuite --list
+
+Commands are organized by skill area:
+    suiteql     - SuiteQL query operations
+    file        - File Cabinet operations
+    cre2        - CRE2 PDF rendering operations
+    logs        - Execution log operations
+    deploy      - Script deployment operations
+
+Run 'netsuite <command> --help' for command-specific help.
+"""
+
+import sys
+import os
+import subprocess
+from pathlib import Path
+
+# Get the base directory of the netsuite-skills plugin
+PLUGIN_DIR = Path(__file__).parent
+SKILLS_DIR = PLUGIN_DIR / 'skills'
+
+# Command mapping: command name -> (skill, script)
+COMMANDS = {
+    # SuiteQL Operations
+    'query': ('netsuite-suiteql', 'query_netsuite.py'),
+    'suiteql': ('netsuite-suiteql', 'query_netsuite.py'),
+    'update': ('netsuite-suiteql', 'update_record.py'),
+    'update-record': ('netsuite-suiteql', 'update_record.py'),
+
+    # File Cabinet Operations
+    'upload': ('netsuite-file-cabinet', 'upload_file.py'),
+    'upload-file': ('netsuite-file-cabinet', 'upload_file.py'),
+    'download': ('netsuite-file-cabinet', 'download_file.py'),
+    'download-file': ('netsuite-file-cabinet', 'download_file.py'),
+    'find-file': ('netsuite-file-cabinet', 'find_file.py'),
+    'list-folder': ('netsuite-file-cabinet', 'list_folder.py'),
+    'compare-file': ('netsuite-file-cabinet', 'compare_file.py'),
+
+    # CRE2 PDF Operations
+    'render': ('netsuite-cre2', 'render_pdf.py'),
+    'render-pdf': ('netsuite-cre2', 'render_pdf.py'),
+    'open-pdf': ('netsuite-cre2', 'download_pdf.py'),
+    'verify-pdf': ('netsuite-cre2', 'verify_pdf.py'),
+    'find-records': ('netsuite-cre2', 'find_test_records.py'),
+    'analyze-json': ('netsuite-cre2', 'analyze_json_fields.py'),
+
+    # Execution Logs
+    'logs': ('netsuite-execution-logs', 'query_execution_logs.py'),
+    'execution-logs': ('netsuite-execution-logs', 'query_execution_logs.py'),
+
+    # Script Deployments
+    'deployments': ('netsuite-script-deployments', 'list_deployments.py'),
+    'list-deployments': ('netsuite-script-deployments', 'list_deployments.py'),
+}
+
+# Command groups for help display
+COMMAND_GROUPS = {
+    'SuiteQL Operations': [
+        ('query, suiteql', 'Execute SuiteQL queries'),
+        ('update, update-record', 'Update NetSuite records'),
+    ],
+    'File Cabinet Operations': [
+        ('upload, upload-file', 'Upload files to File Cabinet'),
+        ('download, download-file', 'Download files from File Cabinet'),
+        ('find-file', 'Search for files by name'),
+        ('list-folder', 'List folder contents'),
+        ('compare-file', 'Compare local file with NetSuite'),
+    ],
+    'CRE2 PDF Operations': [
+        ('render, render-pdf', 'Render CRE2 PDF (returns URL)'),
+        ('open-pdf', 'Render PDF and open in browser'),
+        ('verify-pdf', 'Verify PDF renders correctly'),
+        ('find-records', 'Find test records for CRE2'),
+        ('analyze-json', 'Analyze EDI JSON fields'),
+    ],
+    'Execution Logs': [
+        ('logs, execution-logs', 'Query script execution logs'),
+    ],
+    'Script Deployments': [
+        ('deployments, list-deployments', 'List script deployments'),
+    ],
+}
+
+
+def print_help():
+    """Print help message."""
+    print("""NetSuite Skills CLI - Unified command router for NetSuite operations
+
+Usage:
+    netsuite <command> [arguments...]
+    netsuite --list
+    netsuite --help
+
+Commands:""")
+
+    for group_name, commands in COMMAND_GROUPS.items():
+        print(f"\n  {group_name}:")
+        for cmd_names, description in commands:
+            print(f"    {cmd_names:28} {description}")
+
+    print("""
+Examples:
+    netsuite query 'SELECT id FROM customer WHERE ROWNUM <= 5' --env sb2
+    netsuite upload --file ./script.js --folder-id 12345 --env sb2
+    netsuite render --profile-id 1116 --record-id 7470800 --env sb2
+    netsuite logs --script-id 1234 --env sb2
+
+Run 'netsuite <command> --help' for command-specific help.
+
+Note: The NetSuite API Gateway must be running at http://localhost:3001
+""")
+
+
+def print_list():
+    """Print all available commands."""
+    print("Available commands:")
+    for cmd in sorted(COMMANDS.keys()):
+        skill, script = COMMANDS[cmd]
+        print(f"  {cmd:24} → {skill}/scripts/{script}")
+
+
+def get_script_path(skill: str, script: str) -> Path:
+    """Get the full path to a script."""
+    return SKILLS_DIR / skill / 'scripts' / script
+
+
+def run_command(command: str, args: list):
+    """Run the specified command with arguments."""
+    if command not in COMMANDS:
+        print(f"Error: Unknown command '{command}'")
+        print(f"Run 'netsuite --help' to see available commands.")
+        sys.exit(1)
+
+    skill, script = COMMANDS[command]
+    script_path = get_script_path(skill, script)
+
+    if not script_path.exists():
+        print(f"Error: Script not found: {script_path}")
+        sys.exit(1)
+
+    # Run the script with the provided arguments
+    cmd = ['python3', str(script_path)] + args
+    result = subprocess.run(cmd)
+    sys.exit(result.returncode)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print_help()
+        sys.exit(0)
+
+    command = sys.argv[1]
+
+    if command in ['--help', '-h', 'help']:
+        print_help()
+        sys.exit(0)
+
+    if command in ['--list', '-l', 'list']:
+        print_list()
+        sys.exit(0)
+
+    # Pass remaining arguments to the command
+    run_command(command, sys.argv[2:])
+
+
+if __name__ == '__main__':
+    main()

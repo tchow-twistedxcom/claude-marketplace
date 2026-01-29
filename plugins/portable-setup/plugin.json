@@ -1,6 +1,6 @@
 {
   "name": "portable-setup",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers",
   "author": {
     "name": "tchow",

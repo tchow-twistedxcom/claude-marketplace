@@ -112,6 +112,14 @@ if [ -d "config/claude" ]; then
         echo -e "  ${GREEN}✅${NC} Installed custom statusline scripts"
     fi
 
+    # Copy hooks directory
+    if [ -d "config/claude/hooks" ]; then
+        mkdir -p ~/.claude/hooks
+        cp -r config/claude/hooks/* ~/.claude/hooks/ 2>/dev/null || true
+        chmod +x ~/.claude/hooks/*.sh 2>/dev/null || true
+        echo -e "  ${GREEN}✅${NC} Installed hooks (skill evaluation, etc.)"
+    fi
+
     # Note about excluded custom content
     echo -e "  ${YELLOW}ℹ️${NC}  SuperClaude framework not included (add your own if needed)"
     echo -e "  ${YELLOW}ℹ️${NC}  Custom agents and commands not included (add your own as needed)"
@@ -140,8 +148,6 @@ if [ -d "config/claude-code" ]; then
         echo -e "  ${GREEN}✅${NC} .env already exists (not overwriting)"
     fi
 
-    # Note about excluded custom content
-    echo -e "  ${YELLOW}ℹ️${NC}  Custom hooks not included (add your own as needed)"
 else
     echo -e "  ${YELLOW}⚠️${NC} config/claude-code directory not found"
 fi

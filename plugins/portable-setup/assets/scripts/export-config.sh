@@ -56,6 +56,13 @@ if [ -d ~/.claude ]; then
         cp ~/.claude/statusline*.sh "$EXPORT_DIR/config/claude/" 2>/dev/null || true
         echo "  ✅ Copied custom statusline scripts"
     fi
+
+    # Copy hooks directory (portable hooks for skill evaluation, etc.)
+    if [ -d ~/.claude/hooks ]; then
+        mkdir -p "$EXPORT_DIR/config/claude/hooks"
+        cp -r ~/.claude/hooks/* "$EXPORT_DIR/config/claude/hooks/" 2>/dev/null || true
+        echo "  ✅ Copied hooks directory"
+    fi
 else
     echo "  ⚠️  ~/.claude/ directory not found"
 fi
@@ -68,9 +75,6 @@ if [ -d ~/.config/claude-code ]; then
         cp ~/.config/claude-code/config.json "$EXPORT_DIR/config/claude-code/"
         echo "  ✅ Copied config.json"
     fi
-
-    # Skip hooks directory (custom hooks excluded)
-    echo "  ⏭️  Skipping custom hooks directory"
 
     # Create .env template (strip secrets)
     if [ -f ~/.config/claude-code/.env ]; then
@@ -229,9 +233,9 @@ Installed Versions:
 
 Configuration Summary:
 - System configuration files: $(find "$EXPORT_DIR/config" -type f 2>/dev/null | wc -l)
+- Hooks: Included (skill evaluation, etc.)
 - SuperClaude framework: Excluded (user-specific)
 - Custom agents: Excluded (user-specific)
-- Custom hooks: Excluded (user-specific)
 - Custom commands: Excluded (user-specific)
 - Agent-deck: Will be cloned from $(cat "$EXPORT_DIR/config/agent-deck/repo.txt" 2>/dev/null || echo "default repo")
 EOF

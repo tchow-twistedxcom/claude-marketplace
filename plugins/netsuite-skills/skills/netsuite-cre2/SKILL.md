@@ -1,7 +1,7 @@
 # NetSuite CRE 2.0 (Content Renderer Engine) Skill
 
 skill_name: netsuite-cre2
-version: 1.2.0
+version: 1.5.0
 description: Complete CRE 2.0 skill for Prolecto's Content Renderer Engine 2 - FreeMarker template development, profile management, and PDF/HTML document generation in NetSuite
 trigger_patterns:
   - "CRE2"
@@ -164,300 +164,52 @@ Each profile can have multiple data sources:
 
 ## FreeMarker Template Syntax
 
-CRE 2.0 uses FreeMarker for template processing.
+CRE 2.0 uses FreeMarker for template processing. Key constructs: `${variable}`, `<#if>`, `<#list>`, `<#assign>`, `?has_content`, `?number`, `?string["0.00"]`.
 
-### Variable Interpolation
-
-```freemarker
-${variable}                          <!-- Simple variable -->
-${record.companyname}                <!-- Record field -->
-${customer.rows[0].salesrep}         <!-- Saved search result -->
-${tran.openbalance?number}           <!-- Type conversion -->
-```
-
-### Conditionals
-
-```freemarker
-<#if condition>
-    content when true
-<#elseif other_condition>
-    alternate content
-<#else>
-    default content
-</#if>
-
-<!-- Examples -->
-<#if tran.openbalance?has_content>
-    ${tran.openbalance}
-</#if>
-
-<#if (tran.daystodiscount > 0)>
-    <span style="color: green;">${tran.daystodiscount} days</span>
-<#elseif (tran.daystodiscount == 0)>
-    <span style="color: orange;">Today</span>
-<#else>
-    <span style="color: #999;">Expired</span>
-</#if>
-```
-
-### List Iteration
-
-```freemarker
-<#list collection as item>
-    ${item.field}
-</#list>
-
-<!-- Example: Transaction lines -->
-<#list tran.rows as tran>
-    <tr>
-        <td>${tran.tranid}</td>
-        <td>${tran.amount}</td>
-        <td>${tran.openbalance}</td>
-    </tr>
-</#list>
-
-<!-- Example: Item fulfillment lines -->
-<#list itemfulfillment.item as itemline>
-    <tr>
-        <td>${itemline.item}</td>
-        <td>${itemline.description}</td>
-        <td>${itemline.quantity}</td>
-    </tr>
-</#list>
-```
-
-### Variable Assignment
-
-```freemarker
-<#assign variable_name = value>
-
-<!-- Examples -->
-<#assign debug_on = 0>
-<#assign currency_symbol = "$">
-<#assign running_balance = 0.00>
-<#assign company_addr1 = "269 South Beverly Drive">
-
-<!-- Calculations -->
-<#assign running_balance = running_balance + tran.openbalance?number>
-<#assign band_aging_current_total = band_aging_current_total + tran.current?number>
-```
-
-### Built-in Functions
-
-```freemarker
-<!-- Content checks -->
-${value?has_content}                 <!-- True if not null/empty -->
-${value?string}                      <!-- Convert to string -->
-${value?number}                      <!-- Convert to number -->
-
-<!-- String operations -->
-${value?replace('old', 'new')}       <!-- Replace text -->
-${value?upper_case}                  <!-- Uppercase -->
-${value?lower_case}                  <!-- Lowercase -->
-${value?trim}                        <!-- Trim whitespace -->
-
-<!-- Date/Time -->
-<#assign aDateTime = .now>           <!-- Current datetime -->
-<#assign aDate = aDateTime?date>     <!-- Extract date -->
-${aDate?string.medium}               <!-- Format: Jan 19, 2026 -->
-${aDate?string("MM/dd/yyyy")}        <!-- Custom format -->
-
-<!-- Number formatting -->
-${value?string["0.00"]}              <!-- Two decimal places -->
-${value?string.currency}             <!-- Currency format -->
-```
-
-### Macros (Reusable Components)
-
-```freemarker
-<macrolist>
-    <macro id="nlheader">
-        <!-- Header content -->
-    </macro>
-
-    <macro id="nlfooter">
-        <table class="footer">
-            <tr>
-                <td>Page <pagenumber/> of <totalpages/></td>
-            </tr>
-        </table>
-    </macro>
-</macrolist>
-
-<!-- Use in body -->
-<body header="nlheader" header-height="21%"
-      footer="nlfooter" footer-height="5%">
-```
+See **[freemarker_syntax.md](references/freemarker_syntax.md)** for full syntax reference with examples.
 
 ---
 
 ## PDF Template Structure
 
-### Document Type Declaration
+PDF templates use BFO engine with XML doctype declaration, `<macrolist>` for header/footer macros, inline `<style>`, and `<body>` with `header`, `header-height`, `footer`, `footer-height`, `padding`, and `size` attributes. Use `table-layout: fixed` and `<colgroup>` for item tables.
 
-```xml
-<?xml version="1.0"?>
-<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
-<pdf>
-<head>
-    <macrolist>
-        <!-- Macros here -->
-    </macrolist>
-    <style type="text/css">
-        /* CSS styles */
-    </style>
-</head>
-<body header="header_macro" header-height="20%"
-      footer="footer_macro" footer-height="5%"
-      padding="0.25in 0.15in" size="Letter-landscape">
-    <!-- Content -->
-</body>
-</pdf>
-```
-
-### Common CSS Classes
-
-```css
-table.itemtable {
-    font-family: sans-serif;
-    font-size: 9pt;
-    table-layout: fixed;
-    width: 100%;
-}
-
-table.itemtable th {
-    font-weight: bold;
-    background-color: #3c96d8;
-    color: #ffffff;
-    padding: 5px;
-}
-
-table.itemtable td {
-    vertical-align: top;
-    padding: 3px;
-    border-bottom: 0.5px solid #aad2ee;
-}
-```
-
-### Page Configuration
-
-| Attribute | Values | Description |
-|-----------|--------|-------------|
-| `size` | Letter, Letter-landscape, A4, A4-landscape | Page size |
-| `header-height` | Percentage or measurement | Header space |
-| `footer-height` | Percentage or measurement | Footer space |
-| `padding` | CSS padding values | Page margins |
+See **[freemarker_syntax.md](references/freemarker_syntax.md)** and **[bfo_freemarker_gotchas.md](references/bfo_freemarker_gotchas.md)** for full syntax and BFO-specific rules.
 
 ---
 
 ## Email Template Structure
 
-### HTML Email Template
-
-```html
-<?xml version="1.0"?>
-<!DOCTYPE pdf PUBLIC "-//big.faceless.org//report" "report-1.1.dtd">
-<pdf>
-<head>
-    <style type="text/css">
-        @media screen and (max-width: 480px) {
-            .mobile-hide { display: none !important; }
-            .mobile-center { text-align: center !important; }
-        }
-    </style>
-</head>
-<body style="background-color: #eeeeee; margin: 0; padding: 0;">
-    <!-- Email content -->
-</body>
-</pdf>
-```
-
-### Data Access in Emails
-
-```freemarker
-<!-- Customer info -->
-<#if customer[0].isperson>
-    ${customer[0].firstname} ${customer[0].lastname}
-<#else>
-    ${customer[0].companyname}
-</#if>
-
-<!-- Transaction data -->
-${itemfulfillment.tranid}
-${itemfulfillment.shipAddress}
-${itemfulfillment.shipMethod}
-
-<!-- Related records -->
-${salesorder[0].trackingnumbers}
-${salesorder[0].trackingLink}
-
-<!-- Preferences -->
-${preferences.naming_customer}
-```
+Email templates use the same BFO XML wrapper but with email-specific patterns: inline CSS, `@media` queries for mobile, and data access via `${customer[0].field}`, `${transaction.field}`, `${preferences.field}`. See **[common_patterns.md](references/common_patterns.md)** for examples.
 
 ---
 
 ## CRE 2.0 Engine API
 
-### JavaScript API Usage
+Bundle: `/.bundle/369503/CRE2/PRI_CRE2_Engine`. Core pattern:
 
 ```javascript
-/**
- * @NApiVersion 2.1
- * @NModuleScope SameAccount
- */
-define(['/.bundle/369503/CRE2/PRI_CRE2_Engine'], (creEngine) => {
-
-    function renderDocument(profileId, recordId, outputFolder) {
-        // Create CRE2 engine instance
-        const CRE2 = creEngine.createCRE2Engine(profileId);
-
-        // Load record data
-        CRE2.Load({ recordId: recordId });
-
-        // Optional: Set output folder
-        if (outputFolder) {
-            CRE2.fileFolder.originalValue = outputFolder;
-        }
-
-        // Render and save quietly (no email)
-        CRE2.TranslateAndSendQuietly();
-
-        return CRE2.getGeneratedFileId();
-    }
-
-    return { renderDocument };
-});
+const CRE2 = creEngine.createCRE2Engine(profileId);
+CRE2.Load({ recordId: recordId });
+CRE2.TranslateAndSendQuietly();  // Render without sending
+const fileId = CRE2.getGeneratedFileId();
 ```
-
-### API Methods
 
 | Method | Description |
 |--------|-------------|
-| `createCRE2Engine(profileId)` | Create engine instance for profile |
-| `CRE2.Load({recordId})` | Load record data into engine |
-| `CRE2.TranslateAndSendQuietly()` | Render document without sending |
-| `CRE2.TranslateAndSend()` | Render and send via configured delivery |
-| `CRE2.getGeneratedFileId()` | Get File Cabinet ID of output |
-
-### Engine Properties
-
-```javascript
-// File output location
-CRE2.fileFolder.originalValue = '/SuiteScripts/Output/';
-
-// Access rendered content
-const pdfContent = CRE2.getRenderedContent();
-const fileId = CRE2.getGeneratedFileId();
-```
+| `createCRE2Engine(profileId)` | Create engine instance |
+| `CRE2.Load({recordId})` | Load record data |
+| `CRE2.TranslateAndSendQuietly()` | Render without sending |
+| `CRE2.TranslateAndSend()` | Render and send |
+| `CRE2.getGeneratedFileId()` | Get output file ID |
+| `CRE2.enableAnonymousAccess({expirationHours, accessLimit})` | Enable GUID-based anonymous access |
+| `CRE2.getAnonymousUrl()` | Get anonymous access URL |
 
 ---
 
 ## Lifecycle Hooks
 
-CRE 2.0 provides lifecycle hooks that allow custom logic at different stages of document generation. These are configured on the CRE2 Profile record.
-
-### Hook Types
+CRE 2.0 provides lifecycle hooks for custom logic at different render stages:
 
 | Hook | Timing | Use Case |
 |------|--------|----------|
@@ -466,999 +218,185 @@ CRE 2.0 provides lifecycle hooks that allow custom logic at different stages of 
 | `beforeTranslate` | Before FreeMarker processing | Final data adjustments |
 | `afterTranslate` | After rendering complete | Post-processing, notifications |
 
-### Configuring Hooks
-
-Hooks are configured on the CRE2 Profile record using script references:
-
-```javascript
-// Example: afterLoad hook to add computed fields
-/**
- * @NApiVersion 2.1
- * @NModuleScope SameAccount
- */
-define(['N/log'], (log) => {
-
-    function afterLoad(context) {
-        // context.data contains loaded data sources
-        // context.record contains the base record
-
-        // Add computed field
-        if (context.data.tran && context.data.tran.rows) {
-            let totalAmount = 0;
-            context.data.tran.rows.forEach(row => {
-                totalAmount += parseFloat(row.amount || 0);
-            });
-            context.data.computedTotal = totalAmount;
-        }
-
-        return context;
-    }
-
-    return { afterLoad };
-});
-```
-
-### Hook Context Object
-
-```javascript
-{
-    record: {          // Base record being rendered
-        id: 12345,
-        type: 'customer',
-        // ... record fields
-    },
-    data: {            // Loaded data sources
-        tran: { rows: [...] },
-        aging: { rows: [...] },
-        // ... other data sources
-    },
-    profile: {         // CRE2 profile settings
-        id: 15,
-        outputType: 'pdf',
-        // ...
-    },
-    params: {}         // Custom parameters passed to engine
-}
-```
-
-### Common Hook Patterns
-
-**beforeLoad - Validation**
-```javascript
-function beforeLoad(context) {
-    // Validate record before processing
-    if (!context.record.email) {
-        throw new Error('Customer has no email address');
-    }
-    return context;
-}
-```
-
-**afterLoad - Data Transformation**
-```javascript
-function afterLoad(context) {
-    // Add discount eligibility flag to each transaction
-    context.data.tran.rows.forEach(row => {
-        row.discountEligible = row.daystodiscount > 0;
-    });
-    return context;
-}
-```
-
-**afterTranslate - Notification**
-```javascript
-function afterTranslate(context) {
-    // Log successful generation
-    log.audit('PDF Generated', {
-        recordId: context.record.id,
-        fileId: context.generatedFileId
-    });
-    return context;
-}
-```
+Hooks receive a `context` object with `record`, `data`, `profile`, and `params` properties. See **[js_override_hooks.md](references/js_override_hooks.md)** for full patterns and examples.
 
 ---
 
 ## Query Linking Strategy
 
-CRE2 supports linking queries to reference data from parent or related queries using FreeMarker syntax in WHERE clauses.
+CRE2 queries support FreeMarker variables in WHERE clauses for dynamic linking:
 
-### Linking to Base Record
+| Pattern | Example | Use Case |
+|---------|---------|----------|
+| Base record | `WHERE T.Entity = ${record.id}` | Filter by profile's base record |
+| Cross-query | `WHERE TL.Transaction = ${parent_tran.id}` | Reference another data source |
+| String params | `WHERE Status = '${record.status}'` | Strings need single quotes |
+| Numeric params | `WHERE Entity = ${record.id}` | Numbers: no quotes |
+| List expansion | `WHERE ID IN (${childIds?join(",")})` | Arrays for IN clauses |
+| Null defaults | `WHERE Parent = ${record.parent!0}` | Prevent SQL errors |
 
-Use `${record.id}` to filter by the base record:
-
-```sql
--- In a Customer-based profile, filter transactions by customer
-SELECT T.ID, T.TranID, T.Amount
-FROM Transaction T
-WHERE T.Entity = ${record.id}
-  AND T.Type = 'CustInvc'
-```
-
-### Cross-Query Linking
-
-Reference values from other data sources in WHERE clauses:
-
-```sql
--- Link to a parent query's results
-SELECT TL.ID, TL.Item, TL.Quantity
-FROM TransactionLine TL
-WHERE TL.Transaction = ${parent_tran.id}
-```
-
-### Dynamic Parameter Substitution
-
-FreeMarker variables are evaluated before query execution:
-
-```sql
--- Use computed values from hooks
-SELECT * FROM Transaction
-WHERE TranDate >= '${params.startDate}'
-  AND TranDate <= '${params.endDate}'
-```
-
-### Query Linking Rules
-
-1. **Single Quotes for Strings**: Wrap FreeMarker string variables in single quotes
-   ```sql
-   WHERE Status = '${record.status}'
-   ```
-
-2. **No Quotes for Numbers**: Numeric values don't need quotes
-   ```sql
-   WHERE Entity = ${record.id}
-   ```
-
-3. **List Expansion**: For IN clauses with arrays
-   ```sql
-   WHERE ID IN (${childIds?join(",")})
-   ```
-
-4. **Default Values**: Handle nulls to prevent SQL errors
-   ```sql
-   WHERE Parent = ${record.parent!0}
-   ```
+See **[cre2_data_sources.md](references/cre2_data_sources.md)** for full data source configuration.
 
 ---
 
 ## Anonymous Rendering
 
-CRE2 supports anonymous (unauthenticated) document rendering using GUID-based security. This enables external access to generated documents without requiring NetSuite login.
-
-### How It Works
-
-1. **GUID Generation**: When enabled, CRE2 generates a unique GUID for each document
-2. **Secure URL**: A URL with the GUID provides one-time or time-limited access
-3. **No Authentication**: External users can access the document via the GUID URL
-
-### Enabling Anonymous Rendering
-
-On the CRE2 Profile:
-1. Enable **Allow Anonymous Access**
-2. Set **GUID Expiration** (optional, in hours)
-3. Configure **Access Limit** (optional, number of times)
-
-### API Usage
-
-```javascript
-// Render with anonymous access
-const CRE2 = creEngine.createCRE2Engine(profileId);
-CRE2.Load({ recordId: recordId });
-
-// Enable anonymous mode
-CRE2.enableAnonymousAccess({
-    expirationHours: 24,    // Link expires after 24 hours
-    accessLimit: 5          // Allow 5 downloads
-});
-
-CRE2.TranslateAndSendQuietly();
-
-// Get the anonymous access URL
-const anonymousUrl = CRE2.getAnonymousUrl();
-log.debug('Anonymous URL', anonymousUrl);
-```
-
-### Security Considerations
-
-- GUIDs should be sufficiently random (CRE2 handles this)
-- Set appropriate expiration times for sensitive documents
-- Use access limits for single-use documents
-- Audit anonymous access for compliance
+GUID-based unauthenticated document access. Enable on CRE2 Profile (Allow Anonymous Access, set expiration/access limit). API: `CRE2.enableAnonymousAccess({expirationHours, accessLimit})` → `CRE2.getAnonymousUrl()`. See Engine API table above.
 
 ---
 
 ## Workflow Integration
 
-CRE2 can be triggered from NetSuite Workflows and Action scripts for automated document generation.
-
-### Workflow Action Script
-
-```javascript
-/**
- * @NApiVersion 2.1
- * @NScriptType WorkflowActionScript
- */
-define(['/.bundle/369503/CRE2/PRI_CRE2_Engine', 'N/log'], (creEngine, log) => {
-
-    function onAction(context) {
-        const record = context.newRecord;
-        const profileId = 15;  // Your CRE2 profile ID
-
-        try {
-            const CRE2 = creEngine.createCRE2Engine(profileId);
-            CRE2.Load({ recordId: record.id });
-            CRE2.TranslateAndSend();  // Generate and send via profile settings
-
-            log.audit('Document Generated', {
-                recordId: record.id,
-                recordType: record.type
-            });
-
-            return 'success';
-        } catch (e) {
-            log.error('CRE2 Generation Failed', e.message);
-            return 'error';
-        }
-    }
-
-    return { onAction };
-});
-```
-
-### Workflow Configuration
-
-1. Create **Custom Action** pointing to the Workflow Action Script
-2. Add to Workflow at desired state transition
-3. Configure trigger conditions (e.g., on Approval, on Fulfillment)
-
-### Scheduled Script Integration
-
-For batch document generation:
-
-```javascript
-/**
- * @NApiVersion 2.1
- * @NScriptType ScheduledScript
- */
-define(['/.bundle/369503/CRE2/PRI_CRE2_Engine', 'N/search', 'N/log'],
-    (creEngine, search, log) => {
-
-    function execute(context) {
-        const profileId = 15;
-
-        // Find records needing documents
-        const results = search.create({
-            type: 'customer',
-            filters: [
-                ['custentity_statement_pending', 'is', 'T']
-            ],
-            columns: ['internalid']
-        }).run().getRange({ start: 0, end: 100 });
-
-        results.forEach(result => {
-            try {
-                const CRE2 = creEngine.createCRE2Engine(profileId);
-                CRE2.Load({ recordId: result.id });
-                CRE2.TranslateAndSendQuietly();
-            } catch (e) {
-                log.error('Failed for ' + result.id, e.message);
-            }
-        });
-    }
-
-    return { execute };
-});
-```
+CRE2 can be triggered from Workflows (`WorkflowActionScript`) and Scheduled Scripts for automated/batch document generation. Pattern: `creEngine.createCRE2Engine(profileId)` → `CRE2.Load({recordId})` → `CRE2.TranslateAndSend()`.
 
 ---
 
 ## Background Processing & Queue Management
 
-For large batch operations or when generating documents for many recipients, CRE2 supports background processing with queue management.
-
-### When to Use Queue Management
-
-- **>10 Recipients**: Bulk email operations
-- **Large Documents**: Complex PDFs that take time to render
-- **Rate Limiting**: When hitting NetSuite governance limits
-- **Reliability**: When failures shouldn't stop the batch
-
-### Queue Manager API
-
-```javascript
-/**
- * @NApiVersion 2.1
- * @NModuleScope SameAccount
- */
-define(['/.bundle/369503/CRE2/PRI_CRE2_QueueManager', 'N/log'],
-    (queueManager, log) => {
-
-    function queueDocuments(recordIds, profileId) {
-        // Create queue for bulk processing
-        const queue = queueManager.createQueue({
-            profileId: profileId,
-            batchSize: 10,              // Process 10 at a time
-            retryOnFailure: true,       // Auto-retry failures
-            maxRetries: 3,
-            notifyOnComplete: true      // Send summary when done
-        });
-
-        // Add records to queue
-        recordIds.forEach(id => {
-            queue.add({ recordId: id });
-        });
-
-        // Start background processing
-        const queueId = queue.submit();
-
-        log.audit('Queue Submitted', {
-            queueId: queueId,
-            recordCount: recordIds.length
-        });
-
-        return queueId;
-    }
-
-    function checkQueueStatus(queueId) {
-        const status = queueManager.getStatus(queueId);
-        return {
-            total: status.totalRecords,
-            completed: status.completedRecords,
-            failed: status.failedRecords,
-            pending: status.pendingRecords,
-            isComplete: status.isComplete
-        };
-    }
-
-    return { queueDocuments, checkQueueStatus };
-});
-```
-
-### Queue Status Tracking
-
-Queues create records in `customrecord_pri_cre2_queue` for tracking:
-
-| Field | Description |
-|-------|-------------|
-| `custrecord_pri_cre2q_status` | Pending, Processing, Complete, Failed |
-| `custrecord_pri_cre2q_total` | Total records in queue |
-| `custrecord_pri_cre2q_completed` | Successfully processed count |
-| `custrecord_pri_cre2q_failed` | Failed record count |
-| `custrecord_pri_cre2q_errors` | Error details for failed records |
-
-### Bulk Emailer Logic
-
-When sending to >10 recipients, CRE2 automatically uses queue management:
-
-```javascript
-// Automatic queue management for bulk email
-const CRE2 = creEngine.createCRE2Engine(profileId);
-
-// When sending to multiple recipients
-CRE2.bulkSend({
-    recordIds: customerIds,     // Array of record IDs
-    batchSize: 50,             // Optional: override default batch size
-    useQueue: true             // Force queue even for < 10 recipients
-});
-```
+For >10 recipients or large batch operations, use `PRI_CRE2_QueueManager`:
+- `queueManager.createQueue({profileId, batchSize, retryOnFailure, maxRetries})`
+- Queue status tracked in `customrecord_pri_cre2_queue`
+- `CRE2.bulkSend({recordIds, batchSize, useQueue: true})` for bulk email
 
 ---
 
 ## Email Template Features
 
-### File Attachments
+Profile email fields: `custrecord_pri_cre2_email_to/cc/bcc/subject/body/attach/from`. Supports FreeMarker in subject/body, PDF attachments, and multiple file attachments via `CRE2.addAttachment({fileId})`.
 
-CRE2 supports attaching the generated PDF to emails using the `{fileAttachment}` placeholder:
+---
 
-```html
-<!-- In email template -->
-<p>Please find your statement attached.</p>
+## Email Profile Configuration
 
-<!-- The {fileAttachment} placeholder tells CRE2 to attach the PDF -->
-<!-- It's configured on the profile, not in the template HTML -->
+### ⚠️ CRITICAL: Email Body Precedence Rules
+
+CRE2 has **TWO fields** for email body content:
+
+| Field | Purpose | Precedence |
+|-------|---------|------------|
+| `custrecord_pri_cre2_email_body` | Inline HTML body | **1st (highest)** |
+| `custrecord_pri_cre2_gen_file_tmpl_doc` | Template file reference | 2nd (fallback) |
+
+**Rule**: If `custrecord_pri_cre2_email_body` has ANY content, it is used. Template file is ONLY used when inline body is NULL/empty.
+
+This is the #1 source of confusion when working with CRE2 email profiles.
+
+### When to Use Each
+
+| Approach | Use When |
+|----------|----------|
+| **Inline body only** | Simple emails, no conditional logic |
+| **Template file only** | Complex templates, conditional sections, reusability |
+| **Both** | **AVOID** - Creates confusion |
+
+### Clearing Inline Body to Use Template File
+
+```bash
+python3 update_record.py customrecord_pri_cre2_profile <ID> \
+  --field 'custrecord_pri_cre2_email_body=' --env sb2
 ```
 
-### Profile Email Configuration
+### Email vs PDF Profile Differences
 
-| Field | Description |
-|-------|-------------|
-| `custrecord_pri_cre2_email_to` | Recipient field (e.g., `${record.email}`) |
-| `custrecord_pri_cre2_email_cc` | CC recipients |
-| `custrecord_pri_cre2_email_bcc` | BCC recipients |
-| `custrecord_pri_cre2_email_subject` | Email subject with FreeMarker |
-| `custrecord_pri_cre2_email_body` | Email body template |
-| `custrecord_pri_cre2_email_attach` | Attach generated PDF (checkbox) |
-| `custrecord_pri_cre2_email_from` | Sender email/employee ID |
+| Aspect | Email Profile | PDF Profile |
+|--------|--------------|-------------|
+| Output | HTML email sent to recipient | PDF file generated |
+| Rendering Engine | Email client (Outlook, Gmail) | BFO PDF engine |
+| Body Source | Inline body OR template file | Template file only |
+| CSS Support | Limited (inline only) | BFO subset |
+| Images | External URLs **required** | Can embed or use URLs |
+| Testing | Send test email | `render_pdf.py` script |
 
-### Dynamic Email Subject
+### Migration Checklist (Native → CRE2)
 
-```freemarker
-<!-- Email subject template -->
-Statement for ${record.companyname} - ${.now?string["MMMM yyyy"]}
+When migrating native email templates to CRE2:
 
-<!-- Result: "Statement for Acme Corp - January 2026" -->
-```
+1. [ ] **Query existing template** - Don't assume design, examine it first
+2. [ ] **Extract branding assets** - Logo IDs, colors, icons
+3. [ ] **Map variables to CRE2 syntax** - `${transaction.field}` → `${datasource.rows[0].field}`
+4. [ ] **Preserve design philosophy** - Don't add complexity native doesn't have
+5. [ ] **Leave inline body empty** - Use template file for complex templates
+6. [ ] **Test with/without conditions** - If using conditional sections
 
-### Email Body with Personalization
+See **[email_profiles.md](references/email_profiles.md)** for full documentation including FreeMarker syntax differences and common issues.
 
-```freemarker
-<!-- Email body template -->
-Dear ${record.companyname},
+See **[migration_workflow.md](references/migration_workflow.md)** for step-by-step migration process.
 
-Please find your account statement attached for the period ending ${.now?string["MM/dd/yyyy"]}.
-
-Your current balance is: ${currency_symbol}${total_balance?string["0.00"]}
-
-<#if aging_over90 gt 0>
-IMPORTANT: You have ${currency_symbol}${aging_over90?string["0.00"]} past due over 90 days.
-Please contact us to discuss payment arrangements.
-</#if>
-
-Thank you for your business.
-
-Best regards,
-Accounts Receivable
-```
-
-### Multiple Attachments
-
-For templates that need multiple file attachments:
-
-```javascript
-// Attach additional files programmatically
-const CRE2 = creEngine.createCRE2Engine(profileId);
-CRE2.Load({ recordId: recordId });
-
-// Add extra attachments
-CRE2.addAttachment({ fileId: termsFileId });    // Terms & Conditions
-CRE2.addAttachment({ fileId: catalogFileId });  // Product catalog
-
-CRE2.TranslateAndSend();
-```
+See **[branding_assets.md](references/branding_assets.md)** for Twisted X logo IDs and colors by context.
 
 ---
 
 ## SuiteQL Data Sources
 
-### Adding SuiteQL to Profile
+Add SuiteQL data sources to CRE2 profiles: type **SuiteQL**, name becomes the FreeMarker variable, use `${record.id}` for dynamic filtering. Access results via `datasource.rows`.
 
-1. Open CRE2 Profile
-2. Add new Data Source
-3. Select Type: **SuiteQL**
-4. Name the data source (e.g., `discount_lines`)
-5. Enter query with `{record.id}` placeholder
+Key limitations: `discountamount`, `discountdate`, `foreignamountremaining`, `total` not directly available — must be calculated from Term/TransactionAccountingLine tables.
 
-### Example: Discount Information Query
-
-```sql
-SELECT
-    T.ID,
-    T.TranID AS DocNo,
-    T.TranDate AS InvoiceDate,
-    T.DueDate,
-    (SELECT SUM(TAL.Debit)
-     FROM TransactionAccountingLine TAL
-     WHERE TAL.Transaction = T.ID) AS OriginalAmount,
-    BUILTIN.DF(T.Terms) AS Terms,
-    Trm.DiscountPercent,
-    T.TranDate + Trm.DaysUntilExpiry AS DiscountDate,
-    TRUNC(T.TranDate + Trm.DaysUntilExpiry) - TRUNC(SYSDATE) AS DaysToDiscount,
-    CASE
-        WHEN Trm.DiscountPercent IS NOT NULL
-        THEN ROUND(
-            (SELECT SUM(TAL.Debit)
-             FROM TransactionAccountingLine TAL
-             WHERE TAL.Transaction = T.ID) * Trm.DiscountPercent / 100, 2)
-        ELSE NULL
-    END AS DiscountAmount
-FROM Transaction T
-LEFT JOIN Term Trm ON T.Terms = Trm.ID
-WHERE T.Type = 'CustInvc'
-  AND T.Entity = {record.id}
-ORDER BY T.TranDate DESC
-```
-
-### SuiteQL Variables in Templates
-
-```freemarker
-<!-- Access SuiteQL results -->
-<#if discount_lines?has_content>
-    <#list discount_lines.rows as disc>
-        <tr>
-            <td>${disc.docno}</td>
-            <td>${disc.terms}</td>
-            <td>${disc.discountpercent}%</td>
-            <td>${disc.discountamount}</td>
-            <td>
-                <#if (disc.daystodiscount > 0)>
-                    ${disc.daystodiscount} days
-                <#else>
-                    Expired
-                </#if>
-            </td>
-        </tr>
-    </#list>
-</#if>
-```
-
-### SuiteQL Field Limitations
-
-Some fields are NOT exposed in SuiteQL:
-
-| Field | Status | Workaround |
-|-------|--------|------------|
-| `discountamount` | ❌ Not available | Calculate from Term table |
-| `discountdate` | ❌ Not available | `TranDate + Term.DaysUntilExpiry` |
-| `foreignamountremaining` | ❌ Not available | Use TransactionAccountingLine |
-| `total` | ❌ Not available | `SUM(TAL.Debit)` |
+See **[cre2_data_sources.md](references/cre2_data_sources.md)** for full examples including discount queries and SuiteQL field workarounds.
 
 ---
 
 ## Common Template Patterns
 
-### Running Balance Calculation
+Common patterns: running balance calculation, aging bucket accumulators, customer group breaks, conditional styling, debug mode toggle.
 
-```freemarker
-<#assign running_balance = 0.00>
-
-<#list tran.rows as tran>
-    <#if tran.openbalance?has_content>
-        <#assign running_balance = running_balance + tran.openbalance?number>
-    </#if>
-    <tr>
-        <td>${tran.tranid}</td>
-        <td>${tran.amount}</td>
-        <td>${currency_symbol}${running_balance}</td>
-    </tr>
-</#list>
-```
-
-### Aging Bucket Accumulators
-
-```freemarker
-<#assign band_aging_current_total = 0.00>
-<#assign band_aging_1_30_total = 0.00>
-<#assign band_aging_31_60_total = 0.00>
-<#assign band_aging_61_90_total = 0.00>
-<#assign band_aging_over90_total = 0.00>
-
-<#list tran.rows as tran>
-    <#assign band_aging_current_total = band_aging_current_total + tran.current?number>
-    <#assign band_aging_1_30_total = band_aging_1_30_total + tran.due130?number>
-    <#assign band_aging_31_60_total = band_aging_31_60_total + tran.due3160?number>
-    <#assign band_aging_61_90_total = band_aging_61_90_total + tran.due6190?number>
-    <#assign band_aging_over90_total = band_aging_over90_total + tran.due91plus?number>
-</#list>
-```
-
-### Customer Group Breaks
-
-```freemarker
-<#assign current_customer_id = "">
-<#assign previous_customer_id = "">
-<#assign first_time_through = 1>
-
-<#list tran.rows as tran>
-    <#assign current_customer_id = tran.custname?string>
-
-    <#if first_time_through == 1>
-        <#assign previous_customer_id = current_customer_id>
-    </#if>
-
-    <#if current_customer_id != previous_customer_id>
-        <!-- Display subtotal for previous customer -->
-        <tr class="subtotal">
-            <td colspan="5">Subtotal for ${previous_customer_id}</td>
-            <td>${currency_symbol}${customer_total}</td>
-        </tr>
-
-        <!-- Reset accumulators -->
-        <#assign customer_total = 0.00>
-    </#if>
-
-    <!-- Process current row -->
-    <tr>
-        <td>${tran.tranid}</td>
-        <td>${tran.amount}</td>
-    </tr>
-
-    <#assign previous_customer_id = current_customer_id>
-    <#assign first_time_through = 0>
-</#list>
-```
-
-### Conditional Styling
-
-```freemarker
-<td colspan="4" align="center">
-    <#if tran.daystodiscount?has_content>
-        <#if (tran.daystodiscount > 0)>
-            <p style="text-align: center; color: green;">${tran.daystodiscount} days</p>
-        <#elseif (tran.daystodiscount == 0)>
-            <p style="text-align: center; color: orange;">Today</p>
-        <#else>
-            <p style="text-align: center; color: #999;">Expired</p>
-        </#if>
-    <#else>
-        <p style="text-align: center;">-</p>
-    </#if>
-</td>
-```
-
-### Debug Mode Toggle
-
-```freemarker
-<#assign debug_on = 0>
-
-<#if debug_on == 1>
-    <td colspan="3" style="background-color: #ffe6e6;">
-        <p>Debug: ${tran.internalid}</p>
-    </td>
-</#if>
-```
+See **[common_patterns.md](references/common_patterns.md)** for full examples.
 
 ---
 
 ## Testing and Debugging
 
-### Test in NetSuite UI
+**NetSuite UI**: Customization > Printing & Branding > CRE2 Profiles > Open profile > Test/Preview.
 
-1. Navigate to **Customization > Printing & Branding > CRE2 Profiles**
-2. Open your profile
-3. Click **Test** or **Preview**
-4. Select a test record
-5. View rendered output
+**Debug data**: Add `<#if debug_on == 1><pre>${record?keys?join(", ")}</pre></#if>` before `</body>`.
 
-### Debug Data Sources
+**SuiteQL testing**: `python3 $SQL_SCRIPTS/query_netsuite.py "<query>" --env sb2 --format table`
 
-Add debug output to see available data:
+**EDI PDF testing**: `python3 $CRE2_SCRIPTS/render_pdf.py --profile-id <ID> --record-id <ID> --env sb2 --open-browser`
 
-```freemarker
-<#if debug_on == 1>
-    <h3>Available Data Sources</h3>
-    <pre>
-    record: ${record?keys?join(", ")}
-    customer: ${customer?has_content?string("yes", "no")}
-    tran: ${tran?has_content?string("yes", "no")} (${tran.rows?size} rows)
-    </pre>
-</#if>
-```
-
-### Common Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `${variable}` shows blank | Variable not in data source | Check data source query |
-| `?number` fails | Value is null/empty | Add `?has_content` check first |
-| List iteration empty | No rows returned | Verify query returns data |
-| PDF rendering fails | Invalid XML/HTML | Check for unclosed tags |
-
-### SuiteQL Query Testing
-
-Test queries before adding to profile:
-
-```bash
-cd ~/.claude/plugins/marketplaces/tchow-essentials/plugins/netsuite-skills/skills/netsuite-suiteql
-python3 scripts/query_netsuite.py "<query>" --env sb1 --format table
-```
+| Error | Fix |
+|-------|-----|
+| `${var}` blank | Check data source query |
+| `?number` fails | Add `?has_content` check |
+| Empty iteration | Verify query returns data, use `datasource.rows` |
+| PDF render fails | Check unclosed XML/HTML tags |
 
 ---
 
 ## Common Pitfalls and Troubleshooting
 
-Critical lessons learned from production debugging. These issues often produce cryptic errors or silent failures.
-
-### 1. FreeMarker Parameter Syntax in SuiteQL
-
-**Problem**: Using `{record.id}` instead of `${record.id}` in SuiteQL data source queries.
-
-```sql
--- WRONG: Causes SQL parse error
-WHERE T.Entity = {record.id}
-
--- CORRECT: Proper FreeMarker interpolation
-WHERE T.Entity = ${record.id}
-```
-
-**Symptom**: SQL parse error, data source returns no results, or template fails to render.
-
-### 2. SuiteQL Status Filter Quirk
-
-**Problem**: Filtering by `T.Status = 'A'` (Open/Approved) returns 0 rows even when matching records exist.
-
-```sql
--- WRONG: Returns 0 rows unexpectedly
-WHERE T.Type = 'CustInvc' AND T.Status = 'A'
-
--- CORRECT: Use negative filter or remove entirely
-WHERE T.Type = 'CustInvc' AND T.Status <> 'B'
-
--- ALSO CORRECT: Remove status filter, filter in template
-WHERE T.Type = 'CustInvc'
-```
-
-**Symptom**: Empty data source despite confirmed matching records in NetSuite.
-
-### 3. CRE2 Data Source Access Pattern
-
-**Problem**: Forgetting that data sources have a `.rows` property for iteration.
-
-```freemarker
-<!-- WRONG: Iterating directly on data source -->
-<#list discount_lines as dl>
-
-<!-- CORRECT: Access the .rows property -->
-<#list discount_lines.rows as dl>
-```
-
-**Symptom**: Empty loop, no output, or FreeMarker error about iteration.
-
-### 4. CRITICAL: Row Objects Do Not Serialize in FreeMarker Hashes
-
-**Problem**: When building lookup maps from CRE2 data sources, storing the row object reference does NOT work. The row object does not transfer properly when assigned to a hash.
-
-```freemarker
-<!-- WRONG: Row object reference doesn't transfer -->
-<#assign discount_map = {}>
-<#list discount_lines.rows as dl>
-    <#assign discount_map = discount_map + {dl.docno: dl}>
-</#list>
-<!-- Later access fails silently: discount_map[key].discountamount returns nothing -->
-
-<!-- CORRECT: Store explicit field values as a new hash -->
-<#assign discount_map = {}>
-<#list discount_lines.rows as dl>
-    <#assign discount_map = discount_map + {dl.docno: {
-        "discountamount": dl.discountamount!0,
-        "daystodiscount": dl.daystodiscount!0,
-        "discountdate": dl.discountdate!""
-    }}>
-</#list>
-<!-- Now discount_map[key].discountamount works correctly -->
-```
-
-**Symptom**: Silent failure - lookup appears to work but all values are empty/null. No error message.
-
-### 5. CRITICAL: Avoid Conditionals with CRE2 Lookup Values
-
-**Problem**: FreeMarker conditionals (`?has_content`, `??`, comparisons) do not work reliably with values retrieved from lookup maps built from CRE2 data sources. The values may appear to exist but conditionals evaluate incorrectly.
-
-```freemarker
-<!-- WRONG: Conditionals fail silently with CRE2 lookup values -->
-<#assign disc = discount_map[docno]!{}>
-<#if disc.discountamount?? && disc.discountamount != 0>
-    ${disc.discountamount}
-</#if>
-<!-- Often shows nothing even when discountamount has a value -->
-
-<!-- CORRECT: Use direct output with default values -->
-<#assign disc = discount_map[docno]!{}>
-${disc.discountamount!"-"}
-```
-
-**Symptom**: Conditionals always evaluate to false even when data exists. Values display when you remove the conditional wrapper.
-
-**Workaround Pattern for Optional Display**:
-```freemarker
-<!-- If you must show different content based on value, output with defaults -->
-<td align="right">${disc.discountamount!"-"}</td>
-<td align="center">${disc.daystodiscount!"-"}</td>
-```
-
-### 6. PDF Table Structure Errors
-
-**Problem**: Placing `<tr>` elements before `<thead>` breaks PDF rendering.
-
-```html
-<!-- WRONG: Breaks PDF with UNEXPECTED_ERROR -->
-<table>
-    <tr>...</tr>           <!-- TR before THEAD -->
-    <thead>...</thead>
-    <tbody>...</tbody>
-</table>
-
-<!-- CORRECT: Proper table structure -->
-<table>
-    <thead>
-        <tr>...</tr>
-    </thead>
-    <tbody>
-        <tr>...</tr>
-    </tbody>
-</table>
-```
-
-**Symptom**: Cryptic `UNEXPECTED_ERROR` during PDF generation with no useful details.
-
-### 7. Debug Output Placement
-
-**Problem**: Placing debug output in the middle of the document can break PDF structure.
-
-```freemarker
-<!-- WRONG: Debug in middle can break table/structure -->
-<table>
-    <#-- Debug here breaks rendering -->
-    <tr><td>${debug_info}</td></tr>
-</table>
-
-<!-- CORRECT: Add debug section at END of document, before </body> -->
-</table>
-
-<!-- Debug Section (before </body>) -->
-<#if debug_on == 1>
-    <div style="page-break-before: always;">
-        <h3>Debug Information</h3>
-        <pre>
-        discount_lines count: ${(discount_lines.rows)?size}
-        <#list discount_lines.rows as dl>
-            ${dl.docno}: ${dl.discountamount!"-"}
-        </#list>
-        </pre>
-    </div>
-</#if>
-
-</body>
-```
-
-**Symptom**: PDF rendering fails when debug is enabled; works when disabled.
-
-### 8. SuiteQL Inequality Operator
-
-**Problem**: SuiteQL does not support `!=` for inequality. Use `<>` instead.
-
-```sql
--- WRONG: SuiteQL syntax error
-WHERE Tran.status != 'CustInvc:B'
-
--- CORRECT: Use SQL standard inequality
-WHERE Tran.status <> 'CustInvc:B'
-```
-
-**Symptom**: Query fails with syntax error or returns no results.
-
-### 9. Customer Internal ID vs Entity ID
-
-**Problem**: NetSuite customer records have both an Entity ID (e.g., "CUST8428") and an Internal ID (e.g., 27959). SuiteQL filters require the Internal ID.
-
-```sql
--- WRONG: Using entity ID number
-WHERE TRL.entity = 8428
-
--- CORRECT: Use internal ID
-WHERE TRL.entity = 27959
-
--- CORRECT: In CRE2 template, ${record.id} gives internal ID
-WHERE TRL.entity = ${record.id}
-```
-
-**How to find Internal ID**: Query the Customer table:
-```sql
-SELECT id, entityid, companyname FROM Customer WHERE entityid LIKE '%8428%'
--- Returns: id=27959, entityid='CUST8428', companyname='Dodds Shoe Co - HQ'
-```
-
-### 10. AR Account Numbers Vary by NetSuite Instance
-
-**Problem**: Different NetSuite accounts use different internal IDs for the same GL account. Hardcoding account IDs will fail in different environments.
-
-```sql
--- WRONG: Hardcoded account ID (may not exist in target environment)
-WHERE TRA.account = 7
-
--- CORRECT: Verify account ID for your environment
--- Query: SELECT id, accountsearchdisplayname FROM Account WHERE accountsearchdisplayname LIKE '%A/R%'
--- SB1 Result: id=514, name='11001 A/R - Trade'
-WHERE TRA.account = 514
-```
-
-**Best Practice**: Document account IDs per environment or use account number/name lookup.
-
-### 11. CRE2 Query Record Configuration
-
-**Problem**: CRE2 SuiteQL data sources require proper configuration in `customrecord_pri_cre2_query`:
-
-| Field | Required Value | Description |
-|-------|---------------|-------------|
-| `custrecord_pri_cre2q_querytype` | `1` | Must be 1 for SuiteQL (not Saved Search) |
-| `custrecord_pri_cre2q_parent` | Profile ID | Links query to CRE2 profile |
-| `custrecord_pri_cre2q_name` | Variable name | How template accesses data (e.g., `aging`) |
-
-**Symptom**: Data source is defined but returns nothing in template; no error message.
-
-### 12. Nested Subqueries Can Timeout in CRE2
-
-**Problem**: Complex subqueries in WHERE clauses can cause CRE2 rendering to timeout, especially when evaluated per-row.
-
-```sql
--- WRONG: Subquery runs for every row - causes timeout
-WHERE (Trl.entity = ${record.id}
-   OR Trl.entity IN (SELECT id FROM Customer WHERE parent = ${record.id}))
-
--- CORRECT: Simple direct filter (for single customer without children)
-WHERE Trl.entity = ${record.id}
-```
-
-**Symptom**: PDF generation runs for a long time then stops/times out with no output.
-
-**Workaround for Parent/Child Customers**: Use a separate `cus_children` data source that runs once and caches results, then reference it via FreeMarker.
-
-### 13. Currency and Date Formatting
-
-**Problem**: Currency values display without proper formatting; dates wrap in narrow columns.
-
-```freemarker
-<!-- WRONG: No formatting -->
-<td>${tran.amount}</td>
-<td>${tran.trandate}</td>
-
-<!-- CORRECT: Currency formatting with 2 decimals -->
-<td>${currency_symbol}${tran.amount?number?string["0.00"]}</td>
-
-<!-- CORRECT: Prevent date wrapping -->
-<td style="white-space: nowrap;">${tran.trandate}</td>
-```
-
-**Symptom**: Amounts show as "1234.5" instead of "$1,234.50"; dates wrap mid-value.
-
-### Troubleshooting Checklist
-
-When CRE2 templates fail silently or produce unexpected output:
-
-1. **Check FreeMarker syntax**: `${variable}` not `{variable}`
-2. **Verify data source returns data**: Add row count debug output
-3. **Check .rows access**: `datasource.rows` not just `datasource`
-4. **Avoid row object references in hashes**: Store explicit field values
-5. **Remove conditionals around lookup values**: Use direct output with defaults
-6. **Validate table structure**: Proper thead/tbody/tr ordering
-7. **Move debug output to end**: Before `</body>` tag
-8. **Test SuiteQL separately**: Use netsuite-suiteql skill to verify query
-9. **Use `<>` not `!=`**: SuiteQL uses SQL standard inequality operator
-10. **Verify customer internal ID**: Entity ID ≠ Internal ID
-11. **Check AR account IDs**: They vary by NetSuite instance
-12. **Verify query record config**: querytype=1, parent=profile ID
-13. **Simplify complex subqueries**: Avoid per-row subqueries that timeout
-
-### Quick Debug Template
-
-Add this at the end of your template (before `</body>`) to diagnose data issues:
-
-```freemarker
-<#assign debug_on = 1>
-
-<#if debug_on == 1>
-<div style="page-break-before: always; font-family: monospace; font-size: 8pt;">
-    <h3>CRE2 Debug Output</h3>
-
-    <h4>Record Info</h4>
-    <p>Record ID: ${record.id!"-"}</p>
-    <p>Company: ${record.companyname!"-"}</p>
-
-    <h4>Data Source: discount_lines</h4>
-    <#if discount_lines?? && discount_lines.rows??>
-        <p>Row count: ${discount_lines.rows?size}</p>
-        <table border="1" cellpadding="3">
-            <tr><th>DocNo</th><th>DiscountAmt</th><th>DaysToDisc</th></tr>
-            <#list discount_lines.rows as dl>
-                <tr>
-                    <td>${dl.docno!"-"}</td>
-                    <td>${dl.discountamount!"-"}</td>
-                    <td>${dl.daystodiscount!"-"}</td>
-                </tr>
-            </#list>
-        </table>
-    <#else>
-        <p style="color: red;">discount_lines is null or has no rows</p>
-    </#if>
-
-    <h4>Lookup Map Test</h4>
-    <#if discount_map??>
-        <p>Map keys: ${discount_map?keys?join(", ")}</p>
-    <#else>
-        <p style="color: red;">discount_map not defined</p>
-    </#if>
-</div>
-</#if>
-```
+Critical pitfalls that cause silent failures in CRE2 templates:
+
+| # | Pitfall | Quick Fix |
+|---|---------|-----------|
+| 1 | `{record.id}` missing `$` in SuiteQL | Use `${record.id}` |
+| 2 | `T.Status = 'A'` returns 0 rows | Use `T.Status <> 'B'` |
+| 3 | Iterating on data source directly | Use `datasource.rows` |
+| 4 | Row objects don't serialize in FreeMarker hashes | Store explicit field values |
+| 5 | Conditionals fail on lookup map values | Use direct output with `!default` |
+| 6 | `<tr>` before `<thead>` | Proper thead/tbody/tr ordering |
+| 7 | Debug output in middle of doc | Place before `</body>` |
+| 8 | `!=` in SuiteQL | Use `<>` |
+| 9 | Entity ID ≠ Internal ID | Use `${record.id}` for internal ID |
+| 10 | Hardcoded AR account IDs | Verify per environment |
+| 11 | Query record misconfigured | `querytype=1`, `parent=profile ID` |
+| 12 | Nested subqueries timeout | Simplify or use separate data source |
+| 13 | Currency/date formatting | `?number?string["0.00"]`, `white-space: nowrap` |
+
+**BFO-specific pitfalls** (empty strings, `?trim` on numeric strings, CSS limitations, numeric zero guards):
+See **[bfo_freemarker_gotchas.md](references/bfo_freemarker_gotchas.md)** for full details with code examples.
+
+### Quick Troubleshooting Checklist
+
+1. Check FreeMarker syntax: `${variable}` not `{variable}`
+2. Verify data source returns data (add row count debug)
+3. Access `datasource.rows` not just `datasource`
+4. Store explicit field values in lookup maps
+5. Use direct output with `!default` for lookup values
+6. Validate table structure (thead/tbody order)
+7. Debug output goes before `</body>`
+8. Test SuiteQL separately via `query_netsuite.py`
+9. Verify customer internal ID (not entity ID)
 
 ---
 
@@ -1496,76 +434,138 @@ Templates stored in File Cabinet:
 
 ---
 
+## EDI Consolidated Template Architecture
+
+### Overview
+
+EDI PDF templates were consolidated from ~80 partner-specific templates to **1 template per document type** (~14 total). Partner-specific differences (logo DPI) are now data-driven.
+
+### How It Works
+
+1. **Data Extractor** (`twx_CRE2_EDI_DataExtractor.js`, file ID 52794157) populates `tpLogoDpi` based on a hardcoded map:
+
+```javascript
+var TP_LOGO_DPI_MAP = {
+    'Runnings': '200',     // Small source image
+    'Buchheit': '200',
+    'Academy': '800',      // Medium source image
+    'Bomgaars': '800',
+    // ... others at 800
+};
+var DEFAULT_LOGO_DPI = '2000';  // Large source images (most partners)
+
+ediResult.tpLogoDpi = TP_LOGO_DPI_MAP[tpName] || DEFAULT_LOGO_DPI;
+```
+
+2. **Templates** use data-driven DPI on the trading partner logo:
+
+```freemarker
+<img src="${OVERRIDE.EDI.tradingPartnerLogo}" dpi="${OVERRIDE.EDI.tpLogoDpi!'2000'}" />
+```
+
+3. **CRE2 Profiles** all point to the consolidated generic template file ID per doc type.
+
+### Consolidated Template File IDs (sb2)
+
+| Doc Type | Template File Name | File ID |
+|----------|-------------------|---------|
+| 810 | TWX_EDI_810_PDF.html | 52794158 |
+| 850 | TWX_EDI_850_PDF.html | 52794159 |
+| 855 | TWX_EDI_855_PDF.html | 52794160 |
+| 856 | TWX_EDI_856_PDF.html | 52794161 |
+| 860 | TWX_EDI_860_PDF.html | 52794162 |
+| 820 | TWX_EDI_820_PDF.html | 52800858 |
+| 824 | TWX_EDI_824_PDF.html | 52800859 |
+| 846 | TWX_EDI_846_PDF.html | 52800958 |
+
+### Gold Standard Pattern
+
+All consolidated templates follow this pattern (derived from the Runnings 850 template):
+
+- **Header**: Pure `<table>` with 3 columns: Twisted X logo (`dpi="400"`) | Document title + TP name | TP logo (`dpi="${OVERRIDE.EDI.tpLogoDpi!'2000'}"`)
+- **Body**: `header-height="75px"`, `padding="0.5in"`, `size="Letter"`
+- **Layout**: Pure `<table>` elements (no `<div>` wrappers)
+- **Color scheme**: `#1B4F72` accent, `#2C3E50` headings
+- **Guards**: `?? && ?has_content` for strings, `> 0` for numeric fields
+- **Variables**: `tpDisplayName` (not `partner_name`)
+- **Date fields**: `deliveryRequestedDate` and `cancelAfterDate` in summary (850/855/856/860)
+
+### Adding a New Trading Partner
+
+No template changes needed. If the partner's logo needs non-default DPI:
+
+1. Add entry to `TP_LOGO_DPI_MAP` in the data extractor
+2. Upload data extractor with `--file-id 52794157`
+3. The consolidated template automatically picks up the new DPI
+
+---
+
 ## Scripts Reference
 
-### Profile Management
+Key scripts (all under CRE2 scripts dir). See **[cli_reference.md](references/cli_reference.md)** for complete flags and workflows.
 
-```bash
-# List CRE2 profiles
-python3 scripts/cre2_profile.py list --env sb1
-
-# Get profile details
-python3 scripts/cre2_profile.py get 15 --env sb1
-
-# Test render for customer
-python3 scripts/cre2_profile.py test 15 12345 --env sb1
-```
-
-### Template Validation
-
-```bash
-# Validate FreeMarker syntax
-python3 scripts/validate_template.py path/to/template.html
-
-# Extract variables from template
-python3 scripts/validate_template.py --extract-vars path/to/template.html
-```
-
-### Render Document
-
-```bash
-# Render PDF for record
-python3 scripts/cre2_render.py render 15 12345 --env sb1
-
-# Preview in browser
-python3 scripts/cre2_render.py preview 15 12345 --env sb1
-
-# Debug mode (show data)
-python3 scripts/cre2_render.py debug 15 12345 --env sb1
-```
+| Script | Purpose | Example |
+|--------|---------|---------|
+| `cre2_profile.py` | List/get/test profiles | `list --env sb1` |
+| `validate_template.py` | Check FreeMarker syntax | `--extract-vars template.html` |
+| `render_pdf.py` | Render PDF for record | `--profile-id 16 --record-id 9425522 --env sb2` |
+| `find_test_records.py` | Find test records by TP/doc | `--tp-id 22 --doc-type 850` |
+| `render_test_matrix.py` | Batch render across TPs | `--doc-type 850 --env sb2 --open-browser` |
 
 ---
 
 ## Best Practices
 
-### Template Development
+### BFO PDF Template Checklist
 
-1. **Start Simple**: Build basic template, add complexity incrementally
-2. **Use Debug Mode**: Add `debug_on` flag for development
-3. **Test Data**: Verify data sources return expected data before template work
-4. **Handle Nulls**: Always check `?has_content` before using values
-5. **CSS Inline**: Use inline styles for email templates
+Before uploading any PDF template, verify:
 
-### Data Sources
+1. [ ] Empty string properties `delete`d in JS extractor
+2. [ ] No `?trim` in conditional guards
+3. [ ] No CSS `max-width`/`max-height` on `<img>` (use `dpi` only)
+4. [ ] Pure `<table>` layout (no `<div>` wrappers)
+5. [ ] No `display: table/table-cell/flex/grid` CSS
+6. [ ] `header-height="75px"` for dual-logo headers
+7. [ ] Numeric guards use `> 0` (not just `??`)
+8. [ ] `<colgroup>` with `table-layout: fixed` for multi-column tables
+9. [ ] Test with sparse, rich, and small-logo partners
 
-1. **SuiteQL for Joins**: Use SuiteQL when joining multiple tables
-2. **Saved Search for Standard**: Use existing saved searches when possible
-3. **Parameterize**: Use `{record.id}` for dynamic filtering
-4. **Test Queries**: Validate queries in SuiteQL workbench first
+See **[bfo_freemarker_gotchas.md](references/bfo_freemarker_gotchas.md)** for full details.
 
-### Performance
+### General
 
-1. **Limit Rows**: Add filters to prevent large data sets
-2. **Optimize Queries**: Index filtering columns
-3. **Cache Static Data**: Assign constants to variables once
-
-### Maintenance
-
-1. **Version Templates**: Include version in template comments
-2. **Document Data Sources**: Comment what each data source provides
-3. **Backup Before Changes**: Copy template before modifications
+- Start simple, add complexity incrementally
+- Verify data sources return data before template work
+- Use SuiteQL for joins, saved searches for standard queries
+- Use `${record.id}` for dynamic filtering (not entity ID)
+- Version templates, document data sources, backup before changes
 
 ---
+
+## Reference Files
+
+For detailed information on specific topics, see:
+
+### Email Profiles (NEW)
+- **[email_profiles.md](references/email_profiles.md)** - Email body precedence rules, native-to-CRE2 variable mapping, conditional sections, CSS limitations. **Read this before creating email profiles.**
+- **[migration_workflow.md](references/migration_workflow.md)** - Step-by-step process for migrating native NetSuite email templates to CRE2. **Read this before rebuilding existing email templates.**
+- **[branding_assets.md](references/branding_assets.md)** - Twisted X logo IDs, social icons, colors by context (email vs PDF vs EDI). **Reference this for correct branding assets.**
+
+### Core References
+- **[cli_reference.md](references/cli_reference.md)** - Complete CLI reference for all CRE2, SuiteQL, and File Cabinet scripts with exact flags, argument order, and common workflows
+- **[edi_json_structures.md](references/edi_json_structures.md)** - Actual JSON structures for each EDI document type (850, 810, 855, 856, 824, 860, 852, 864). **Read this before writing extraction code.**
+- **[upload_safety.md](references/upload_safety.md)** - Pre-upload checklist, duplicate prevention, and troubleshooting when changes don't appear. **Read this before uploading files.**
+- **[bfo_freemarker_gotchas.md](references/bfo_freemarker_gotchas.md)** - BFO PDF engine quirks: empty string handling, `?trim` failures on numeric strings, the Delete Pattern, layout rules, image DPI. **Read this before writing or debugging PDF templates.**
+- **[common_patterns.md](references/common_patterns.md)** - Common FreeMarker template patterns
+- **[cre2_data_sources.md](references/cre2_data_sources.md)** - Data source configuration
+- **[freemarker_syntax.md](references/freemarker_syntax.md)** - FreeMarker syntax reference
+- **[js_override_hooks.md](references/js_override_hooks.md)** - JavaScript override hook patterns
+
+### ⚠️ Critical: File Upload Rules
+
+**Data Extractor:** Always use `--file-id 52794157` (NEVER `--folder-id`).
+**Templates:** Use `--file-id <ID>` for existing, `--folder-id 1285029` for new.
+See [upload_safety.md](references/upload_safety.md) and the `CRE2_NetSuite_Folders` Serena memory.
 
 ## Related Skills
 
@@ -1575,5 +575,5 @@ python3 scripts/cre2_render.py debug 15 12345 --env sb1
 
 ---
 
-*Last updated: 2026-01-20*
-*Skill version: 1.2.0*
+*Last updated: 2026-01-30*
+*Skill version: 1.5.0*

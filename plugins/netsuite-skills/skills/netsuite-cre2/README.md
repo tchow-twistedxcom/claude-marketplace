@@ -127,6 +127,60 @@ function beforeTranslate(cre2) {
 
 See **[references/js_override_hooks.md](references/js_override_hooks.md)** for complete patterns.
 
+## Email Profiles Quick Start
+
+### ⚠️ Critical: Email Body Precedence
+
+CRE2 email profiles have **TWO body sources** with precedence rules:
+
+| Field | Priority | When Used |
+|-------|----------|-----------|
+| `custrecord_pri_cre2_email_body` (inline) | 1st | Always if has content |
+| `custrecord_pri_cre2_gen_file_tmpl_doc` (file) | 2nd | Only if inline is empty |
+
+**Common Mistake**: Setting both inline body AND template file - inline always wins!
+
+### Migrating Native Email Templates to CRE2
+
+**ALWAYS** examine the existing template first:
+
+```bash
+# 1. Query existing native template
+python3 query_netsuite.py "SELECT content FROM emailtemplate WHERE id = 433" --env prod
+
+# 2. Extract branding assets (logo IDs, colors)
+# 3. Map native variables to CRE2 syntax:
+#    ${transaction.entity.companyname} → ${customer.rows[0].companyname}
+#    ${transaction.tranid} → ${salesorder.rows[0].tranid}
+
+# 4. Create CRE2 profile with EMPTY inline body (use template file)
+# 5. Test with and without conditional sections
+```
+
+### Email-Specific FreeMarker
+
+```freemarker
+<!-- Data source access -->
+${customer.rows[0].companyname}
+${salesorder.rows[0].tranid}
+
+<!-- Conditional section (pay link, etc.) -->
+<#if (salesorder.rows[0].custbody_8qp_paylink)?has_content>
+  <a href="${salesorder.rows[0].custbody_8qp_paylink}">PAY NOW</a>
+</#if>
+```
+
+### Email Images
+
+Must use external URLs with hash:
+```html
+<img src="https://4138030.app.netsuite.com/core/media/media.nl?id=20634688&c=4138030&h=HASH" />
+```
+
+See **[references/email_profiles.md](references/email_profiles.md)** for full documentation.
+See **[references/migration_workflow.md](references/migration_workflow.md)** for migration steps.
+See **[references/branding_assets.md](references/branding_assets.md)** for logo IDs and colors.
+
 ## Troubleshooting
 
 | Issue | Solution |

@@ -102,6 +102,13 @@
       "description": "n8n workflow automation via MCP - 38 tools for workflow management, node discovery, validation, templates, execution monitoring, AI agent patterns, and integration best practices",
       "version": "2.0.0",
       "keywords": ["n8n", "workflow", "automation", "integration", "ai-agents", "mcp"]
+    },
+    {
+      "name": "adventurelog-skills",
+      "source": "./plugins/adventurelog-skills",
+      "description": "AdventureLog trip planning skill for creating rich, fully-detailed trips via the REST API. Covers collections, locations, transportation, lodging, notes, checklists, itinerary days, and scheduling",
+      "version": "1.0.0",
+      "keywords": ["adventurelog", "trip-planner", "travel", "itinerary", "vacation", "lodging"]
     }
   ]
 }

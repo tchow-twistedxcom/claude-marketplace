@@ -1,6 +1,6 @@
 ---
 name: netsuite-suiteql
-description: Execute ad hoc SuiteQL queries against NetSuite using the NetSuite API Gateway. Use this skill when you need to test queries, verify data, or explore NetSuite records during Record Display development or container lifecycle testing. Triggers include "run query", "test SuiteQL", "check container data", "query NetSuite", or any data validation needs.
+description: Execute ad hoc SuiteQL queries and perform CRUD operations on NetSuite records using the NetSuite API Gateway. Use this skill when you need to test queries, update records, verify data, or explore NetSuite records during Record Display development or container lifecycle testing. Triggers include "run query", "update record", "create record", "test SuiteQL", "check container data", "query NetSuite", "fix NetSuite record", or any data validation needs.
 ---
 
 # NetSuite SuiteQL Query Execution Skill
@@ -45,6 +45,23 @@ python3 scripts/query_netsuite.py 'SELECT id, name FROM customer WHERE ROWNUM <=
 Execute a parameterized query:
 ```bash
 python3 scripts/query_netsuite.py 'SELECT * FROM customrecord_pri_frgt_cnt WHERE id = ?' --params 12345 --env sb2
+```
+
+## Account Reference
+
+| Account | Alias | Account ID | Auth Type | Environments |
+|---------|-------|------------|-----------|--------------|
+| TwistedX | twx | 4829859 | OAuth 1.0a | prod, sb1, sb2 |
+| Dutyman | dm | 8055418 | OAuth 2.0 M2M | **prod, sb1 only** |
+
+**Note:** Dutyman does NOT support sandbox2 (sb2). Use `--env prod` or `--env sb1`.
+
+```bash
+# TwistedX example (supports all environments)
+python3 scripts/query_netsuite.py 'SELECT id, name FROM customer WHERE ROWNUM <= 5' --account twx --env sb2
+
+# Dutyman example (prod or sb1 only)
+python3 scripts/query_netsuite.py 'SELECT id, name FROM customer WHERE ROWNUM <= 5' --account dm --env prod
 ```
 
 ## Core Workflow
@@ -235,6 +252,189 @@ python3 scripts/query_netsuite.py '<same_query>' --params <container_id>
 4. Deploy Record Display feature
 5. Verify deployed feature using same query
 
+## Record Operations (Create, Update, Delete)
+
+While this skill focuses primarily on SuiteQL queries, record CRUD operations use the `twxUpsertRecord` procedure through the same API Gateway. For record modifications, use the `update_record.py` script.
+
+### Quick Start - Record Operations
+
+**Update an existing record:**
+```bash
+python3 scripts/update_record.py customrecord_twx_notification_rule 2 \
+  --field custrecord_twx_rule_conditions='{"status":"Processing Error"}' \
+  --field custrecord_twx_rule_template=1 \
+  --env sb2
+```
+
+**Create a new record:**
+```bash
+python3 scripts/update_record.py customrecord_twx_notification_template --create \
+  --field name="New Template" \
+  --field custrecord_twx_template_subject="Subject Line" \
+  --field custrecord_twx_template_body="Email body" \
+  --env sb2
+```
+
+### Record Operation Workflow
+
+#### 1. **Identify Record Type and ID**
+Determine what you need to modify:
+- Record type (e.g., `customrecord_twx_notification_rule`)
+- Record ID (query to find it first if needed)
+- Fields to update
+
+#### 2. **Query First (Recommended)**
+Before updating, query the record to see current values:
+```bash
+python3 scripts/query_netsuite.py 'SELECT * FROM customrecord_twx_notification_rule WHERE id = ?' --params 2 --env sb2
+```
+
+#### 3. **Update Record**
+Use `update_record.py` to modify fields:
+```bash
+python3 scripts/update_record.py <record_type> <record_id> \
+  --field <fieldname>=<value> \
+  [--env sb2] [--account twx]
+```
+
+#### 4. **Verify Update**
+Query again to confirm changes:
+```bash
+python3 scripts/query_netsuite.py 'SELECT * FROM customrecord_twx_notification_rule WHERE id = ?' --params 2 --env sb2
+```
+
+### Common Record Operations
+
+#### Update Notification Rule
+**Problem:** Rule has invalid status or template
+**Solution:**
+```bash
+# Fix status from "error" to "Processing Error"
+python3 scripts/update_record.py customrecord_twx_notification_rule 2 \
+  --field custrecord_twx_rule_conditions='{"status":"Processing Error"}' \
+  --env sb2
+
+# Assign valid template
+python3 scripts/update_record.py customrecord_twx_notification_rule 2 \
+  --field custrecord_twx_rule_template=1 \
+  --env sb2
+
+# Update multiple fields at once
+python3 scripts/update_record.py customrecord_twx_notification_rule 2 \
+  --field custrecord_twx_rule_conditions='{"status":"Processing Error"}' \
+  --field custrecord_twx_rule_template=1 \
+  --env sb2
+```
+
+#### Create Notification Template
+```bash
+python3 scripts/update_record.py customrecord_twx_notification_template --create \
+  --field name="TMPL-0005: EDI Processing Alert" \
+  --field custrecord_twx_template_subject="EDI Alert: {transaction_type} {status}" \
+  --field custrecord_twx_template_body="<html><body>Transaction {tranId} status: {status}</body></html>" \
+  --env sb2
+```
+
+#### Disable/Enable Records
+```bash
+# Disable a rule
+python3 scripts/update_record.py customrecord_twx_notification_rule 5 \
+  --field custrecord_twx_rule_active=false \
+  --env sb2
+
+# Enable a rule
+python3 scripts/update_record.py customrecord_twx_notification_rule 5 \
+  --field custrecord_twx_rule_active=true \
+  --env sb2
+```
+
+### Field Value Types
+
+The script automatically handles different data types:
+
+**String values:**
+```bash
+--field name="My Template"
+--field description="Some text"
+```
+
+**Numeric values:**
+```bash
+--field custrecord_twx_rule_template=1
+--field priority=5
+```
+
+**JSON/Object values (use single quotes):**
+```bash
+--field custrecord_twx_rule_conditions='{"status":"Processing Error"}'
+--field custrecord_twx_rule_recipients='["email1@example.com","email2@example.com"]'
+```
+
+**Boolean values:**
+```bash
+--field custrecord_twx_rule_active=true
+--field custrecord_twx_rule_active=false
+```
+
+### Combining Query + Update Workflow
+
+**Typical development pattern:**
+
+```bash
+# 1. Find the record you need to update
+python3 scripts/query_netsuite.py \
+  'SELECT id, name, custrecord_twx_rule_conditions FROM customrecord_twx_notification_rule WHERE name LIKE ?' \
+  --params 'RULE-%' --env sb2
+
+# 2. Examine current values to determine what to change
+# (Review query output)
+
+# 3. Update the record
+python3 scripts/update_record.py customrecord_twx_notification_rule 2 \
+  --field custrecord_twx_rule_conditions='{"status":"Processing Error"}' \
+  --env sb2
+
+# 4. Verify the update
+python3 scripts/query_netsuite.py \
+  'SELECT id, name, custrecord_twx_rule_conditions FROM customrecord_twx_notification_rule WHERE id = ?' \
+  --params 2 --env sb2
+```
+
+### Error Handling
+
+**Field doesn't exist:**
+```
+ERROR: HTTP 400: Invalid field name 'custrecord_invalid_field'
+```
+→ Check field scriptid in NetSuite or query CustomField table
+
+**Record not found:**
+```
+ERROR: HTTP 404: Record not found
+```
+→ Query to verify record ID exists
+
+**Invalid field value:**
+```
+ERROR: HTTP 400: Invalid value for field
+```
+→ Check field type (text, list, checkbox) and provide appropriate value
+
+**Gateway not running:**
+```
+ERROR: Gateway connection error: Connection refused
+```
+→ Start the NetSuite API Gateway: `cd ~/NetSuiteApiGateway && docker compose up -d`
+
+### Record Operations Best Practices
+
+1. **Query First:** Always query before updating to see current state
+2. **Test in Sandbox:** Use `--env sb2` for testing, only update prod when verified
+3. **One Field at a Time:** For complex updates, change one field and verify before next
+4. **JSON Format:** Use `--json` flag for scripted operations that need structured output
+5. **Document Updates:** Keep track of what you changed and why
+6. **Verify After:** Always query after update to confirm changes took effect
+
 ## Resources
 
 ### scripts/query_netsuite.py
@@ -243,6 +443,15 @@ Main executable Python script for query execution. Handles:
 - Multiple output formats (json, table, csv)
 - Parameter handling and environment selection
 - Error handling and timeout management
+
+### scripts/update_record.py
+Executable Python script for record CRUD operations. Handles:
+- Record creation (--create flag)
+- Record updates (by ID)
+- Field value type detection (string, number, JSON, boolean)
+- Multiple field updates in single operation
+- Same account/environment support as query_netsuite.py
+- Error handling for field validation and record access
 
 ### references/common_queries.md
 Library of pre-built query patterns including:

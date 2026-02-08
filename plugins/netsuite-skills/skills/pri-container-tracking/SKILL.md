@@ -26,7 +26,8 @@ Activate this skill when:
 - Production PO, blanket PO, item version
 - Landed cost allocation, LC template
 - IR to TO Linker, container distribution
-- Bundle 125246, Bundle 132118 (Infrastructure), Bundle 168443 (RSM)
+- Direct import, direct container, auto-pick, auto-invoice
+- Bundle 125246, Bundle 132118 (Infrastructure), Bundle 168443 (RSM), Bundle 311735 (BPA)
 - Queue stuck, dates not syncing, line locked
 - Application settings, field mapping configuration
 - PRI_AS_Engine, SYNCSRCDEF, customrecord_pri_app_setting
@@ -118,6 +119,7 @@ Application Settings
 - **PRI_APPLICATION_SETTINGS_CATALOG.md** (20KB) - Complete settings catalog with all 23+ configurations
 - **PRI_APPLICATION_SETTINGS_ARCHITECTURE.md** (27KB) - Configuration system architecture and patterns
 - **PRI_APPLICATION_SETTINGS_FIELD_MAPPING_ANALYSIS.md** (20KB) - Deep-dive on field mapping engine
+- **PRI_DIRECT_IMPORT_AUTOMATION.md** (18KB) - Direct container auto-pick and auto-invoice flow (cross-bundle)
 
 **Modification Workflow:**
 1. Load Application Settings Catalog to find relevant setting
@@ -509,6 +511,9 @@ All comprehensive documentation organized by category:
 - **Application Settings Catalog** (20KB) - Complete catalog of all 23+ settings with JSON examples
 - **Application Settings Field Mapping Analysis** (20KB) - Deep-dive on field mapping engine internals
 
+**Cross-Bundle Automation:**
+- **Direct Import Automation** (18KB) - Complete direct container flow: IR → Queue → IF (auto-pick) → Invoice (auto-invoice via BPA Bundle 311735)
+
 **System Understanding:**
 - **Master Reference** (76KB) - Start here for troubleshooting workflows and diagnostic guides
 - **Backend Processing** (57KB) - Event-driven workflows, scheduled automation, business rules
@@ -536,8 +541,9 @@ Manual remediation tools deployable as Suitelets:
 
 ---
 
-**Skill Version:** 1.1
-**Last Updated:** 2025-11-12
+**Skill Version:** 1.2
+**Last Updated:** 2026-01-29
 **Analysis Confidence:** 95%+ (based on systematic code analysis)
-**Documentation Size:** ~390KB across 11 reference files
-**New in v1.1:** Application Settings configuration knowledge (23+ settings documented)
+**Documentation Size:** ~408KB across 12 reference files
+**New in v1.2:** Direct Import Automation documentation - complete cross-bundle flow for auto-pick (Bundle 125246) and auto-invoice (Bundle 311735)
+**v1.1:** Application Settings configuration knowledge (23+ settings documented)

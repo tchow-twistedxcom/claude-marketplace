@@ -1,0 +1,34 @@
+{
+  "name": "google-analytics",
+  "version": "1.0.0",
+  "description": "Google Analytics 4 and Search Console integration for SEO optimization and conversion attribution. Multi-account support for managing multiple properties. Query-to-revenue attribution, cannibalization detection, and opportunity analysis workflows.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://developers.google.com/analytics",
+  "license": "MIT",
+  "keywords": [
+    "google-analytics",
+    "ga4",
+    "search-console",
+    "gsc",
+    "seo",
+    "conversion-attribution",
+    "ecommerce",
+    "organic-search",
+    "keyword-analysis",
+    "revenue-attribution",
+    "shopify"
+  ],
+  "commands": [
+    "./commands/google-setup.md",
+    "./commands/google-manage.md"
+  ],
+  "skills": [
+    "./skills/ga4-analytics",
+    "./skills/gsc-search",
+    "./skills/ga4-gsc-combine",
+    "./skills/seo-optimizer"
+  ]
+}

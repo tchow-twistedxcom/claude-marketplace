@@ -19,6 +19,39 @@ Use this skill when you need to:
 - Configure webhooks and metafields
 - Use Shopify CLI for development workflows
 
+## App Types (Critical Knowledge)
+
+**Understanding app types prevents 90% of deployment issues.**
+
+### Custom Apps vs Partner Apps
+
+| Aspect | Custom App | Partner App |
+|--------|-----------|-------------|
+| Created in | Store Admin (dev.shopify.com) | CLI/Partner Dashboard (partners.shopify.com) |
+| Distribution | Single store only | Multiple stores |
+| CI/CD | Merchant token | `SHOPIFY_CLI_PARTNERS_TOKEN` |
+
+**Key insight:** Extension UUIDs are **app-scoped**. Deploying to wrong app = wrong UUID = CSS not loading.
+
+For complete details, see [App Types and Distribution](reference/app-types-and-distribution.md)
+
+### Critical CLI Commands
+
+> **⚠️ `shopify app init` creates NEW apps with NEW UUIDs**
+>
+> Use `shopify app config link` to connect to EXISTING apps.
+> Using `init` for existing apps creates duplicates and deployment failures.
+
+```bash
+# Connect to existing app (99% of cases)
+shopify app config link
+
+# Create brand new app ONLY
+shopify app init
+```
+
+For deployment workflow, see [App Deployment Guide](reference/app-deployment-guide.md)
+
 ## Core Platform Components
 
 ### 1. Shopify CLI
@@ -402,13 +435,44 @@ render('Checkout::Dynamic::Render', () => <Extension />);
 ## Reference Documentation
 
 This skill includes detailed reference documentation:
+
+### Deployment & App Management (Start Here for Issues)
+- [App Deployment Guide](reference/app-deployment-guide.md) - **init vs config link, troubleshooting**
+- [App Types and Distribution](reference/app-types-and-distribution.md) - Custom vs Partner apps
+- [Theme App Extensions](reference/theme-app-extensions.md) - **UUIDs, CDN paths, embeds**
+
+### API & Development
 - [GraphQL Admin API Reference](reference/graphql-admin-api.md) - Comprehensive API guide
 - [Shopify CLI Commands](reference/cli-commands.md) - Complete CLI reference
 - [UI Extensions](reference/ui-extensions.md) - Extension types and components
 
 ## Troubleshooting
 
-### Common Issues
+### Deployment Issues (Most Common)
+
+**CSS Not Loading After Deployment:**
+1. **Wrong app linked?** Run `shopify app info` - check `client_id` matches expected app
+2. **App not installed?** App must be installed on store for extensions to appear
+3. **Embed disabled?** Theme Customizer → App embeds → Toggle ON
+4. **Wrong UUID?** Compare local `extensions/*/shopify.extension.toml` UUID with live site source
+
+**CDN Returns 404:**
+1. Verify version exists in Partner Dashboard → Versions tab
+2. Check extension was included in deployment
+3. Verify asset filename matches exactly (case-sensitive)
+
+**Extension Not Appearing in Theme Customizer:**
+1. Is app installed? (Check store admin → Apps)
+2. Is extension deployed? (`shopify app versions list`)
+3. Is extension type `"theme"`?
+
+**Deployed to Wrong App (Duplicate App Created):**
+- **Cause:** Used `shopify app init` instead of `shopify app config link`
+- **Fix:** Link to correct app with `shopify app config link`, redeploy
+
+See [App Deployment Guide](reference/app-deployment-guide.md) for complete troubleshooting.
+
+### API Issues
 
 **Rate Limit Errors:**
 - Monitor `X-Shopify-Shop-Api-Call-Limit` header

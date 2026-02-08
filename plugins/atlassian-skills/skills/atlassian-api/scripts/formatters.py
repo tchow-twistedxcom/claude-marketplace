@@ -27,6 +27,45 @@ MAX_COLUMN_WIDTH = 40
 MAX_CONTENT_PREVIEW = 200
 
 
+def adf_to_text(node):
+    """
+    Convert Atlassian Document Format (ADF) node to plain text.
+
+    Handles text, hardBreak, mention, rule, paragraph, heading, and nested content.
+    """
+    if isinstance(node, str):
+        return node
+    if not isinstance(node, dict):
+        return str(node)
+
+    texts = []
+    node_type = node.get('type', '')
+
+    if node_type == 'text':
+        texts.append(node.get('text', ''))
+    elif node_type == 'hardBreak':
+        texts.append('\n')
+    elif node_type == 'mention':
+        texts.append('@' + node.get('attrs', {}).get('text', ''))
+    elif node_type == 'rule':
+        texts.append('\n---\n')
+    elif node_type == 'inlineCard':
+        texts.append(node.get('attrs', {}).get('url', ''))
+    elif node_type == 'mediaGroup' or node_type == 'mediaSingle':
+        texts.append('[media]')
+
+    for child in node.get('content', []):
+        texts.append(adf_to_text(child))
+
+    # Add paragraph/heading breaks
+    if node_type in ('paragraph', 'heading', 'bulletList', 'orderedList'):
+        texts.append('\n')
+    elif node_type == 'listItem':
+        texts.insert(0, '- ')
+
+    return ''.join(texts)
+
+
 def truncate(text, max_length=MAX_COLUMN_WIDTH):
     """Truncate text with ellipsis if too long."""
     if text is None:
@@ -415,7 +454,7 @@ def format_jira_issues(issues, format='table', limit=DEFAULT_LIMIT, domain=''):
 
 def format_jira_issue_detail(issue, format='table', domain=''):
     """
-    Format single Jira issue with full details.
+    Format single Jira issue with full details including comments.
 
     Args:
         issue: Issue object from API
@@ -430,10 +469,38 @@ def format_jira_issue_detail(issue, format='table', domain=''):
 
     fields = issue.get('fields', {})
 
+    # Handle ADF description (dict) vs plain text (string)
+    raw_desc = fields.get('description', '') or ''
+    if isinstance(raw_desc, dict):
+        description_text = adf_to_text(raw_desc).strip()
+    else:
+        description_text = str(raw_desc)
+
+    # Extract comments from fields.comment
+    raw_comments = fields.get('comment', {})
+    comment_list = raw_comments.get('comments', []) if isinstance(raw_comments, dict) else []
+    comments = []
+    for c in comment_list:
+        author = (c.get('author') or {}).get('displayName', 'Unknown')
+        created = format_date(c.get('created', ''))
+        body = c.get('body', '')
+        if isinstance(body, dict):
+            body_text = adf_to_text(body).strip()
+        else:
+            body_text = str(body)
+        visibility = c.get('visibility', {})
+        vis_str = f" [{visibility.get('type','')}: {visibility.get('value','')}]" if visibility else ''
+        comments.append({
+            'author': author,
+            'created': created,
+            'body': body_text,
+            'visibility': vis_str
+        })
+
     detail = {
         'key': issue.get('key', ''),
         'summary': fields.get('summary', ''),
-        'description': fields.get('description', '') or '',
+        'description': description_text,
         'status': fields.get('status', {}).get('name', ''),
         'type': fields.get('issuetype', {}).get('name', ''),
         'priority': (fields.get('priority') or {}).get('name', ''),
@@ -443,7 +510,8 @@ def format_jira_issue_detail(issue, format='table', domain=''):
         'created': format_date(fields.get('created', '')),
         'updated': format_date(fields.get('updated', '')),
         'labels': fields.get('labels', []),
-        'components': [c.get('name', '') for c in fields.get('components', [])]
+        'components': [c.get('name', '') for c in fields.get('components', [])],
+        'comments': comments
     }
 
     if format == 'json':
@@ -467,6 +535,15 @@ def format_jira_issue_detail(issue, format='table', domain=''):
         lines.append("## Description")
         lines.append("")
         lines.append(detail['description'] or '*No description*')
+
+        if comments:
+            lines.append("")
+            lines.append(f"## Comments ({len(comments)})")
+            for c in comments:
+                lines.append("")
+                lines.append(f"### {c['author']} ({c['created']}){c['visibility']}")
+                lines.append("")
+                lines.append(c['body'])
 
         return '\n'.join(lines)
 

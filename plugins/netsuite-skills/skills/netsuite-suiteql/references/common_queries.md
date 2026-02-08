@@ -436,3 +436,32 @@ WHERE Type = ?
 SELECT * FROM Customer WHERE ID IN (?, ?, ?)
 -- Call with: params = [123, 456, 789]
 ```
+
+## Dutyman Account Examples
+
+**Note:** Dutyman only supports `prod` and `sb1` environments (no sb2).
+
+### Query Customers (Dutyman)
+```bash
+python3 scripts/query_netsuite.py 'SELECT id, companyname FROM customer WHERE ROWNUM <= 5' --account dm --env prod
+```
+
+### Query PRI Query Renderer Records (Dutyman)
+```bash
+python3 scripts/query_netsuite.py 'SELECT id, name FROM customrecord_pri_qt_query' --account dm --env prod
+```
+
+### Query Query Filters (Dutyman)
+```bash
+python3 scripts/query_netsuite.py 'SELECT id, name, custrecord_pri_qt_qf_placeholder, custrecord_pri_qt_qf_filter FROM customrecord_pri_qt_query_filter WHERE custrecord_pri_qt_qf_parent = ?' --params 1 --account dm --env prod
+```
+
+### Query Backorder Items (Dutyman)
+```bash
+python3 scripts/query_netsuite.py "SELECT t.tranid, BUILTIN.DF(t.entity) as customer, BUILTIN.DF(t.status) as status FROM transaction t WHERE t.type = 'SalesOrd' AND t.status IN ('SalesOrd:B', 'SalesOrd:D', 'SalesOrd:E') AND ROWNUM <= 10" --account dm --env prod
+```
+
+### Update Record (Dutyman)
+```bash
+python3 scripts/update_record.py customrecord_pri_qt_query 1 --fields '{"custrecord_pri_qt_q_do_not_run": false}' --account dm --env prod
+```

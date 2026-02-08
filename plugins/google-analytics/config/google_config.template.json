@@ -1,0 +1,55 @@
+{
+  "default_account": "production",
+  "accounts": {
+    "production": {
+      "name": "Production Store",
+      "description": "Main production GA4/GSC property",
+      "ga4_property_id": "properties/YOUR_GA4_PROPERTY_ID",
+      "gsc_site_url": "https://yoursite.com",
+      "credentials_path": "~/.config/google/production-service-account.json"
+    },
+    "staging": {
+      "name": "Staging Environment",
+      "description": "Staging/test GA4/GSC property",
+      "ga4_property_id": "properties/YOUR_STAGING_PROPERTY_ID",
+      "gsc_site_url": "https://staging.yoursite.com",
+      "credentials_path": "~/.config/google/staging-service-account.json"
+    }
+  },
+  "defaults": {
+    "date_range_days": 30,
+    "row_limit": 25000,
+    "cache_ttl_hours": {
+      "gsc": 24,
+      "ga4_historical": 24,
+      "ga4_recent": 1
+    },
+    "retry": {
+      "max_attempts": 3,
+      "delay_ms": 2000,
+      "backoff_multiplier": 2
+    }
+  },
+  "output": {
+    "default_format": "table",
+    "available_formats": ["table", "json", "csv"],
+    "output_directory": "~/.cache/google-analytics"
+  },
+  "_comments": {
+    "credentials_path": "Path to Google Cloud service account JSON key file",
+    "ga4_property_id": "Format: properties/XXXXXXXXX - find in GA4 Admin > Property Settings",
+    "gsc_site_url": "Format: https://domain.com OR sc-domain:domain.com for domain properties",
+    "service_account_setup": [
+      "1. Go to console.cloud.google.com",
+      "2. Enable 'Google Analytics Data API' and 'Search Console API'",
+      "3. Create service account in IAM & Admin > Service Accounts",
+      "4. Download JSON key file to credentials_path location",
+      "5. Add service account email to GA4 property (Property > Property Access Management > Add user)",
+      "6. Add service account email to Search Console (Settings > Users and permissions > Add user)"
+    ],
+    "scopes_required": [
+      "https://www.googleapis.com/auth/analytics.readonly",
+      "https://www.googleapis.com/auth/webmasters.readonly"
+    ]
+  }
+}

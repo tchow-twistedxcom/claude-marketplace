@@ -285,6 +285,19 @@ SKILLS = {
         "skill_name": "netsuite-skills:netsuite-script-deployments",
         "description": "NetSuite script deployments (active/inactive, record types)"
     },
+    "netsuite-debugger": {
+        "patterns": [
+            r"\b(INVALID_RCRD_TYPE|UNEXPECTED_ERROR|INSUFFICIENT_PERMISSION)\b",
+            r"\b(netsuite)\b.*\b(error|fail|invalid|debug|troubleshoot)\b",
+            r"\b(gateway|multi[-\s]?tenant)\b.*\b(routing|environment)\b",
+            r"\b(environment)\b.*\b(routing|mismatch|header)\b",
+            r"\b(record\s*type)\b.*\b(invalid|not\s*found|missing)\b",
+            r"\b(X-NetSuite-Environment|sandbox2|sb2)\b.*\b(header|routing)\b",
+            r"\b(deployment)\b.*\b(verify|check)\b.*\b(netsuite|sb2)\b",
+        ],
+        "skill_name": "netsuite-debugger",
+        "description": "NetSuite API Gateway debugging (environment routing, multi-tenant, error diagnosis)"
+    },
     "pri-container-tracking": {
         "patterns": [
             r"\b(pri|prolecto)\b",
@@ -298,6 +311,23 @@ SKILLS = {
         ],
         "skill_name": "netsuite-skills:pri-container-tracking",
         "description": "PRI Container Tracking (logistics, PPO, landed cost, app settings)"
+    },
+    "netsuite-cre2": {
+        "patterns": [
+            r"\b(cre[-\s]?2|cre2|cre\s*2\.0)\b",
+            r"\b(content\s*renderer)\b",
+            r"\b(freemarker)\b.*\b(template|netsuite)\b",
+            r"\b(pdf\s*template|html\s*template)\b.*\b(netsuite)\b",
+            r"\b(customer\s*statement)\b.*\b(pdf|template|generate)\b",
+            r"\b(email\s*template)\b.*\b(netsuite|freemarker)\b",
+            r"\b(document\s*generation)\b.*\b(netsuite)\b",
+            r"\b(prolecto)\b.*\b(template|cre|render)\b",
+            r"\b(render)\b.*\b(pdf|html)\b.*\b(netsuite)\b",
+            r"\b(customrecord_cre2|customrecord_pri_cre2)\b",
+            r"\b(netsuite)\b.*\b(statement|invoice|credit\s*letter)\b.*\b(template|pdf)\b",
+        ],
+        "skill_name": "netsuite-skills:netsuite-cre2",
+        "description": "CRE 2.0 document generation (FreeMarker templates, PDF/HTML, SuiteQL data sources)"
     },
     "celigo-integration": {
         "patterns": [

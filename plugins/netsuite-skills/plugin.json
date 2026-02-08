@@ -1,7 +1,7 @@
 {
   "name": "netsuite-skills",
-  "version": "1.6.0",
-  "description": "NetSuite expertise skills for debugging, diagnosing, and deploying complex NetSuite implementations. Includes Prolecto PRI Container Tracking (with 23+ Application Settings configuration knowledge), SuiteCloud Development Framework (SDF) deployment automation with automatic stale credential detection and refresh, CI/CD integration, certificate-based authentication, authId management, credential storage architecture (CI vs browser mode), post-sandbox-refresh credential validation, multi-environment deployment workflows, comprehensive SDF XML structure guide (custom records with parent-child relationships, custom lists with setText() best practices, entry forms, user event scripts, map/reduce scripts, 9 production examples, reusable templates, troubleshooting for silent failures like empty parentsubtab and setValue() vs setText()), SuiteQL query execution via NetSuite API Gateway (now with TransactionShipment table docs, field exposure limitations, cost calculation patterns), File Cabinet management (upload/find files), script deployment analysis (active/inactive deployments), and PRI Query Renderer record management (column data types, record links, filter configuration)",
+  "version": "1.8.0",
+  "description": "NetSuite expertise skills for debugging, diagnosing, and deploying complex NetSuite implementations. Includes Prolecto PRI Container Tracking (with 23+ Application Settings configuration knowledge), SuiteCloud Development Framework (SDF) deployment automation with automatic stale credential detection and refresh, CI/CD integration, certificate-based authentication, authId management, credential storage architecture (CI vs browser mode), post-sandbox-refresh credential validation, multi-environment deployment workflows, comprehensive SDF XML structure guide (custom records with parent-child relationships, custom lists with setText() best practices, entry forms, user event scripts, map/reduce scripts, 9 production examples, reusable templates, troubleshooting for silent failures like empty parentsubtab and setValue() vs setText()), SuiteQL query execution via NetSuite API Gateway (now with TransactionShipment table docs, field exposure limitations, cost calculation patterns), File Cabinet management (upload/find files), script deployment analysis (active/inactive deployments), PRI Query Renderer record management (column data types, record links, filter configuration), Script Execution Log queries (debug SuiteScripts by querying execution logs with filters for level, time range, and title patterns), CRE 2.0 (Content Renderer Engine 2) for PDF/HTML document generation with FreeMarker templates, profile management, SuiteQL data sources, and template validation, and NetSuite API Toolkit for gateway debugging (environment routing tests, config validation, request inspection, TypeScript type validation, type generation from API responses)",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -45,7 +45,25 @@
     "usereventscript",
     "mapreducescript",
     "settext",
-    "setvalue"
+    "setvalue",
+    "execution-logs",
+    "script-logs",
+    "debug-logs",
+    "cre2",
+    "content-renderer",
+    "freemarker",
+    "pdf-template",
+    "email-template",
+    "document-generation",
+    "prolecto-cre",
+    "api-toolkit",
+    "environment-routing",
+    "type-validation",
+    "type-generation",
+    "gateway-debugging",
+    "config-validation",
+    "typescript-types",
+    "api-contracts"
   ],
   "skills": [
     "./skills/pri-container-tracking",
@@ -54,6 +72,10 @@
     "./skills/netsuite-suiteql",
     "./skills/netsuite-file-cabinet",
     "./skills/netsuite-script-deployments",
-    "./skills/pri-query-renderer"
+    "./skills/pri-query-renderer",
+    "./skills/netsuite-execution-logs",
+    "./skills/netsuite-cre2",
+    "./skills/netsuite-api-toolkit",
+    "./skills/netsuite-debugger"
   ]
 }

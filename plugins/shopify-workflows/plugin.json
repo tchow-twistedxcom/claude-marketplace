@@ -1,7 +1,7 @@
 {
   "name": "shopify-workflows",
   "version": "1.0.0",
-  "description": "Shopify Admin API workflow automation with 5 specialized skills for content creation, merchant operations, marketing campaigns, developer integrations, and analytics",
+  "description": "Shopify Admin API workflow automation with 6 specialized skills for content creation, merchant operations, marketing campaigns, developer integrations, analytics, and sales growth analysis",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -15,6 +15,7 @@
     "./skills/shopify-merchant-daily",
     "./skills/shopify-marketing-ops",
     "./skills/shopify-developer",
-    "./skills/shopify-analytics"
+    "./skills/shopify-analytics",
+    "./skills/shopify-sales-growth"
   ]
 }

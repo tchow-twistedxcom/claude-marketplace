@@ -39,6 +39,15 @@ npm update -g @shopify/cli
 ## App Commands
 
 ### Initialize New App
+
+> **⚠️ WARNING: Only use for BRAND NEW apps!**
+>
+> `shopify app init` creates a NEW app with NEW UUIDs. If you have an existing app,
+> use `shopify app config link` instead. Using `init` for existing apps creates
+> duplicate apps and causes deployment issues (CSS not loading, wrong UUIDs).
+>
+> See [App Deployment Guide](app-deployment-guide.md) for details.
+
 ```bash
 shopify app init
 ```
@@ -52,6 +61,8 @@ shopify app init
 - App configuration (`shopify.app.toml`)
 - Project structure
 - Development dependencies
+- **NEW `client_id`** (different from existing apps!)
+- **NEW extension UUIDs** (will NOT match existing deployments!)
 
 ### Start Development Server
 ```bash
@@ -124,11 +135,44 @@ shopify app info
 Displays app configuration and metadata.
 
 ### Config Link
+
+> **✅ RECOMMENDED: Use this to connect to EXISTING apps**
+>
+> This is what you should use 99% of the time. Only use `shopify app init`
+> for brand new apps that don't exist in any dashboard.
+
 ```bash
 shopify app config link
 ```
 
-Links local project to app in Partners dashboard.
+Links local project to existing app in Partners/Custom dashboard.
+
+**What it does:**
+- Connects to app you select interactively
+- Preserves existing `client_id`
+- Preserves existing extension UUIDs
+- Creates/updates `shopify.app.toml` or `shopify.app.{name}.toml`
+
+**When to use:**
+- Setting up existing project on new machine
+- Switching between multiple apps
+- Reconnecting after config issues
+- **Anytime you're NOT creating a brand new app**
+
+**Example flow:**
+```bash
+$ shopify app config link
+
+? Select your organization:
+> My Partner Organization
+
+? Select an app:
+> Dutyman Theme Extension    # ← Select existing app
+  GraphQL Admin
+  Other App
+
+✓ Linked to Dutyman Theme Extension
+```
 
 ### Config Use
 ```bash

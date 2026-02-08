@@ -5,138 +5,103 @@
     "url": "https://github.com/tchow-twistedxcom"
   },
   "metadata": {
-    "description": "Comprehensive plugin marketplace: SuperClaude framework (5 modes, 6 MCPs) + ClaudeKit skills (35+ skills: Claude Code mastery, debugging, problem-solving, document processing, frontend frameworks) + Enterprise integrations (NetSuite/SDF, Celigo iPaaS, Shopify, Atlassian, Plytix PIM, NinjaOne RMM, M365/Azure AD, Amazon SP-API, Mimecast) + Chrome DevTools MCP",
-    "version": "1.8.0",
+    "description": "Comprehensive plugin marketplace: Personal framework (behavioral rules, engineering principles, 14 specialist agents, 5 MCPs) + ClaudeKit skills (35+ skills) + Enterprise integrations (NetSuite/SDF, Celigo iPaaS, Shopify, Atlassian, Plytix PIM, NinjaOne RMM, M365/Azure AD, Amazon SP-API, Mimecast)",
+    "version": "2.0.0",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "license": "MIT"
   },
   "plugins": [
     {
-      "name": "superclaude-framework",
-      "source": "./plugins/superclaude-framework",
-      "description": "Complete SuperClaude framework with FLAGS, PRINCIPLES, RULES, 5 behavioral modes, and 6 bundled MCPs (Context7, Sequential, Magic, Playwright, Serena, Morphllm)",
+      "name": "personal-framework",
+      "source": "./plugins/personal-framework",
+      "description": "Lean behavioral rules, engineering principles, 14 specialist agents, and MCP server configs (Context7, Sequential, Magic, Serena, Morphllm)",
       "version": "1.0.0",
-      "category": "framework",
-      "keywords": ["framework", "modes", "mcp", "orchestration"],
-      "strict": false
-    },
-    {
-      "name": "chrome-devtools",
-      "source": "./plugins/chrome-devtools",
-      "description": "Chrome DevTools MCP for browser automation, E2E testing, and visual validation (separate from Playwright)",
-      "version": "1.0.0",
-      "category": "testing",
-      "keywords": ["browser", "devtools", "testing", "automation"],
-      "strict": false
+      "keywords": ["framework", "rules", "agents", "mcp"]
     },
     {
       "name": "celigo-integration",
       "source": "./plugins/celigo-integration",
       "description": "Celigo iPaaS integration via Python CLI and skills for managing integrations, flows, connections, jobs, and errors",
       "version": "2.0.0",
-      "category": "integration",
-      "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "iPaaS"],
-      "strict": false
+      "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "iPaaS"]
     },
     {
       "name": "claudekit-skills",
       "source": "./plugins/claudekit-skills",
-      "description": "Curated collection of 35+ specialized skills: Claude Code mastery (v2.0.74 with auto-update, 30+ agents, tool selection, MCP guide), Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, problem-solving (6 techniques), debugging (4 methodologies), document processing (docx/xlsx/pptx/pdf), Google ADK, and more",
-      "version": "1.2.0",
-      "category": "skills",
-      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "problem-solving", "documents", "claude-code", "agents", "auto-update"],
-      "strict": false
+      "description": "Curated collection of 35+ specialized skills: Claude Code mastery, Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, debugging, document processing, Google ADK, and more",
+      "version": "1.0.0",
+      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "documents", "claude-code"]
     },
     {
       "name": "netsuite-skills",
       "source": "./plugins/netsuite-skills",
-      "description": "NetSuite expertise skills for debugging, diagnosing, and deploying complex NetSuite implementations. Includes Prolecto PRI Container Tracking (with 23+ Application Settings configuration knowledge), SuiteCloud Development Framework (SDF) deployment automation with automatic stale credential detection and refresh, CI/CD integration, certificate-based authentication, authId management, credential storage architecture (CI vs browser mode), post-sandbox-refresh credential validation, and multi-environment deployment workflows",
-      "version": "1.3.0",
-      "category": "skills",
-      "keywords": ["netsuite", "erp", "suitescript", "sdf", "suitecloud", "deployment", "ci-cd", "authentication", "prolecto", "freight", "container-tracking", "landed-cost", "customization", "bundle", "application-settings", "field-mapping", "configuration", "tba", "certificate-auth"],
-      "strict": false
+      "description": "NetSuite expertise skills: PRI Container Tracking, SDF deployment, SuiteQL queries, File Cabinet, CRE 2.0, Script Execution Logs, API Toolkit, PRI Query Renderer, and NetSuite debugger",
+      "version": "1.8.0",
+      "keywords": ["netsuite", "erp", "suitescript", "sdf", "suitecloud", "deployment", "suiteql", "cre2", "prolecto"]
     },
     {
       "name": "shopify-workflows",
       "source": "./plugins/shopify-workflows",
       "description": "Shopify Admin API workflow automation with 5 specialized skills for content creation, merchant operations, marketing campaigns, developer integrations, and analytics",
       "version": "1.0.0",
-      "category": "ecommerce",
-      "keywords": ["shopify", "ecommerce", "graphql", "admin-api", "automation", "content", "marketing"],
-      "strict": false
+      "keywords": ["shopify", "ecommerce", "graphql", "admin-api", "automation"]
     },
     {
       "name": "atlassian-skills",
       "source": "./plugins/atlassian-skills",
       "description": "Atlassian Confluence and Jira operations via REST API. Includes page creation/update/archive, search, attachments, markdown-to-Confluence conversion with Mermaid diagram support, Jira issue management, JQL queries, and transitions",
-      "version": "1.1.0",
-      "category": "skills",
-      "keywords": ["atlassian", "confluence", "jira", "documentation", "wiki", "issue-tracking", "markdown", "mermaid", "oauth", "rest-api"],
-      "strict": false
+      "version": "1.2.0",
+      "keywords": ["atlassian", "confluence", "jira", "documentation", "wiki", "issue-tracking"]
     },
     {
       "name": "plytix-skills",
       "source": "./plugins/plytix-skills",
-      "description": "Plytix PIM operations via REST API. Includes product management, digital asset handling, category organization, variant creation, and attribute schema management with multi-account support (production/staging)",
+      "description": "Plytix PIM operations via REST API. Includes product management, digital asset handling, category organization, variant creation, and attribute schema management",
       "version": "1.0.0",
-      "category": "skills",
-      "keywords": ["plytix", "pim", "product-information-management", "dam", "digital-assets", "catalog", "ecommerce", "products", "variants", "categories", "attributes"],
-      "strict": false
+      "keywords": ["plytix", "pim", "product-information-management", "dam", "ecommerce"]
     },
     {
       "name": "ninjaone-skills",
       "source": "./plugins/ninjaone-skills",
-      "description": "NinjaOne RMM API integration for device monitoring, management, ticketing, and reporting. Full coverage of 70+ endpoints across 9 domains with OAuth 2.0 authentication",
+      "description": "NinjaOne RMM API integration for device monitoring, management, ticketing, and reporting. Full coverage of 70+ endpoints with OAuth 2.0 authentication",
       "version": "1.0.0",
-      "category": "skills",
-      "keywords": ["ninjaone", "ninjarmm", "rmm", "remote-monitoring", "msp", "device-management", "patch-management", "alerts", "ticketing", "endpoint"],
-      "strict": false
+      "keywords": ["ninjaone", "ninjarmm", "rmm", "remote-monitoring", "msp", "device-management"]
     },
     {
       "name": "m365-skills",
       "source": "./plugins/m365-skills",
-      "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, and directory management with MSAL OAuth 2.0 authentication",
+      "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, and directory management",
       "version": "1.0.0",
-      "category": "skills",
-      "keywords": ["microsoft-365", "m365", "azure-ad", "entra-id", "graph-api", "users", "groups", "devices", "directory", "oauth", "msal"],
-      "strict": false
+      "keywords": ["microsoft-365", "m365", "azure-ad", "entra-id", "graph-api"]
     },
     {
       "name": "amazon-spapi",
       "source": "./plugins/amazon-spapi",
-      "description": "Amazon Selling Partner API integration via Python CLI. Full coverage for Vendor (1P) operations including POs, shipments, invoices, plus Seller APIs for orders, catalog, inventory, reports, feeds, pricing, finances, and notifications with LWA OAuth, rate limiting, and multi-region support",
+      "description": "Amazon Selling Partner API integration via Python CLI. Full coverage for Vendor (1P) and Seller operations including POs, shipments, invoices, orders, catalog, inventory, reports, feeds, pricing, finances, and notifications",
       "version": "1.0.0",
-      "category": "ecommerce",
-      "keywords": ["amazon", "sp-api", "selling-partner", "vendor", "seller", "marketplace", "ecommerce", "orders", "inventory", "reports", "feeds", "oauth", "lwa"],
-      "strict": false
+      "keywords": ["amazon", "sp-api", "selling-partner", "vendor", "seller", "ecommerce"]
     },
     {
       "name": "mimecast-skills",
       "source": "./plugins/mimecast-skills",
-      "description": "Mimecast email security integration via Python CLI. 28 operations for TTP URL/attachment protection, held messages, user/group management, blocked/permitted sender policies, audit logs, and SIEM integration with HMAC-SHA1 authentication and multi-region support",
+      "description": "Mimecast email security integration via Python CLI. 28 operations for TTP URL/attachment protection, held messages, user/group management, policies, audit logs, and SIEM integration",
       "version": "1.0.0",
-      "category": "security",
-      "keywords": ["mimecast", "email-security", "ttp", "anti-phishing", "anti-malware", "user-management", "policy", "siem", "audit", "held-messages", "threat-intel"],
-      "strict": false
+      "keywords": ["mimecast", "email-security", "ttp", "anti-phishing", "user-management"]
     },
     {
       "name": "portable-setup",
       "source": "./plugins/portable-setup",
       "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers via git",
-      "version": "1.0.4",
-      "category": "utilities",
-      "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization", "git", "backup"],
-      "strict": false
+      "version": "1.0.5",
+      "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization"]
     },
     {
       "name": "n8n-integration",
       "source": "./plugins/n8n-integration",
       "description": "n8n workflow automation via MCP - 38 tools for workflow management, node discovery, validation, templates, execution monitoring, AI agent patterns, and integration best practices",
-      "version": "1.0.0",
-      "category": "integration",
-      "keywords": ["n8n", "workflow", "automation", "integration", "ai-agents", "mcp", "webhook", "orchestration"],
-      "strict": false
+      "version": "2.0.0",
+      "keywords": ["n8n", "workflow", "automation", "integration", "ai-agents", "mcp"]
     }
   ]
 }

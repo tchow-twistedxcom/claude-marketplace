@@ -1,0 +1,26 @@
+{
+  "name": "personal-framework",
+  "version": "1.0.0",
+  "description": "Lean behavioral rules, engineering principles, specialist agents, and MCP server configs",
+  "globalInstructions": [
+    "./.claude/RULES.md",
+    "./.claude/PRINCIPLES.md"
+  ],
+  "agents": [
+    "./agents/backend-architect.md",
+    "./agents/devops-architect.md",
+    "./agents/frontend-architect.md",
+    "./agents/learning-guide.md",
+    "./agents/performance-engineer.md",
+    "./agents/python-expert.md",
+    "./agents/quality-engineer.md",
+    "./agents/refactoring-expert.md",
+    "./agents/requirements-analyst.md",
+    "./agents/root-cause-analyst.md",
+    "./agents/security-engineer.md",
+    "./agents/socratic-mentor.md",
+    "./agents/system-architect.md",
+    "./agents/technical-writer.md"
+  ],
+  "mcpServers": "./.mcp.json"
+}

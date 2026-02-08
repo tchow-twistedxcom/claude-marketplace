@@ -1,6 +1,6 @@
 ---
 name: shopify-analytics
-description: "Analytics reports and data insights (read-only). Use when generating sales reports, analyzing trends, or querying performance metrics."
+description: "Analytics reports, marketing attribution, and data insights (read-only). Use when generating sales reports, analyzing traffic sources, tracking UTM campaigns, or querying performance metrics."
 license: MIT
 ---
 
@@ -16,6 +16,10 @@ Production-ready skill for querying Shopify analytics data, generating reports, 
 - Analyzing trends, cohorts, or performance data
 - Creating custom analytics dashboards
 - Querying historical data for insights
+- **Marketing attribution analysis** (first-touch, last-touch, multi-touch)
+- **UTM campaign tracking** and performance analysis
+- **Traffic source analysis** and conversion attribution
+- **Customer journey mapping** and touchpoint analysis
 
 **Target Users:** Analysts, managers, business intelligence teams, data-driven decision makers
 
@@ -74,6 +78,224 @@ Always validate GraphQL with `validate_graphql_codeblocks` before execution
     pageInfo { hasNextPage endCursor }
   }
 }
+```
+
+---
+
+## Marketing Attribution & Traffic Analysis
+
+### Order Attribution Query (First-Touch & Last-Touch)
+
+**Single Order Full Attribution**
+```graphql
+query OrderAttribution($orderId: ID!) {
+  order(id: $orderId) {
+    id
+    name
+    createdAt
+    totalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    customerJourneySummary {
+      customerOrderIndex
+      daysToConversion
+      ready
+      firstVisit {
+        id
+        occurredAt
+        source
+        sourceDescription
+        sourceType
+        landingPage
+        referrerUrl
+        referralCode
+        utmParameters {
+          source
+          medium
+          campaign
+          content
+          term
+        }
+      }
+      lastVisit {
+        id
+        occurredAt
+        source
+        sourceDescription
+        sourceType
+        landingPage
+        referrerUrl
+        referralCode
+        utmParameters {
+          source
+          medium
+          campaign
+          content
+          term
+        }
+      }
+    }
+  }
+}
+```
+
+**Bulk Orders Attribution Analysis**
+```graphql
+query OrdersWithAttribution($first: Int!, $query: String) {
+  orders(first: $first, query: $query) {
+    edges {
+      node {
+        id
+        name
+        createdAt
+        totalPriceSet {
+          shopMoney {
+            amount
+          }
+        }
+        customerJourneySummary {
+          daysToConversion
+          firstVisit {
+            source
+            sourceType
+            utmParameters {
+              source
+              medium
+              campaign
+            }
+          }
+          lastVisit {
+            source
+            sourceType
+            utmParameters {
+              source
+              medium
+              campaign
+            }
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}
+```
+
+### Customer Journey Moments (Multi-Touch)
+
+**Full Customer Journey Timeline**
+```graphql
+query CustomerJourneyMoments($orderId: ID!) {
+  order(id: $orderId) {
+    id
+    name
+    customerJourneySummary {
+      momentsCount {
+        count
+      }
+      moments(first: 50) {
+        edges {
+          node {
+            occurredAt
+            ... on CustomerVisit {
+              id
+              source
+              sourceType
+              landingPage
+              referrerUrl
+              utmParameters {
+                source
+                medium
+                campaign
+                content
+                term
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Attribution Data Model
+
+**CustomerJourneySummary** - Available on Order objects
+| Field | Type | Description |
+|-------|------|-------------|
+| `customerOrderIndex` | Int | Position in customer's order history |
+| `daysToConversion` | Int | Days from first session to order |
+| `ready` | Boolean | Whether attribution data is ready |
+| `firstVisit` | CustomerVisit | First-touch attribution |
+| `lastVisit` | CustomerVisit | Last-touch attribution |
+| `moments` | [CustomerMoment] | All touchpoints (multi-touch) |
+
+**CustomerVisit** - Individual session data
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | String | Traffic source (Google, Facebook, email, direct) |
+| `sourceType` | MarketingTactic | Marketing tactic type |
+| `landingPage` | URL | First page visited |
+| `referrerUrl` | URL | External referrer URL |
+| `referralCode` | String | Referral code from URL params |
+| `utmParameters` | UTMParameters | Campaign tracking data |
+
+**UTMParameters** - Campaign tracking
+| Field | Description |
+|-------|-------------|
+| `source` | Traffic source (google, facebook, newsletter) |
+| `medium` | Marketing medium (cpc, email, social) |
+| `campaign` | Campaign name |
+| `content` | Ad/link variant identifier |
+| `term` | Paid search keywords |
+
+### Attribution Analysis Patterns
+
+**Traffic Source Aggregation**
+```typescript
+// 1. Query orders with attribution data
+// 2. Group by firstVisit.source for first-touch model
+// 3. Group by lastVisit.source for last-touch model
+// 4. Calculate: revenue per source, conversion rate, AOV
+
+interface AttributionReport {
+  source: string;
+  orders: number;
+  revenue: number;
+  avgDaysToConversion: number;
+  aov: number;
+}
+
+// First-touch: Credit goes to initial touchpoint
+// Last-touch: Credit goes to final touchpoint before purchase
+// Multi-touch: Analyze all moments for full journey
+```
+
+**UTM Campaign Performance**
+```typescript
+// Aggregate orders by UTM parameters:
+// - utm_campaign: Which campaigns drive revenue
+// - utm_medium: Which channels perform best (cpc vs email vs social)
+// - utm_source: Which platforms convert (google vs facebook vs tiktok)
+
+// Example aggregation query filter:
+// query: "created_at:>=2024-01-01 AND financial_status:paid"
+```
+
+**Conversion Window Analysis**
+```typescript
+// Use daysToConversion to understand buying cycles:
+// - Same-day purchases (impulse buyers)
+// - 1-7 days (consideration phase)
+// - 7-30 days (research phase)
+// - Segment by source to identify channel behavior
 ```
 
 ---

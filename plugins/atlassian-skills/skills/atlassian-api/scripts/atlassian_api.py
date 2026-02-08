@@ -31,6 +31,7 @@ from formatters import (
     format_success, format_error, html_to_markdown
 )
 from md_to_confluence import md_to_confluence
+from md_to_adf import md_to_adf
 
 # API Base URLs
 # v2 API for most operations (requires granular OAuth scopes)
@@ -475,56 +476,62 @@ class AtlassianClient:
         url = self.jira_url(f'/issue/{issue_key}')
         return self._request('PUT', url, data)
 
-    def jira_add_comment(self, issue_key, body, internal=False, mention_users=None, visibility_value=None):
+    def jira_add_comment(self, issue_key, body, internal=False, mention_users=None, visibility_value=None, use_markdown=False):
         """
         Add comment to Jira issue.
 
         Args:
             issue_key: Issue key (e.g., "IT-20374")
-            body: Comment text
+            body: Comment text (plain text or markdown if use_markdown=True)
             internal: If True, restrict comment to internal users (default: False)
             mention_users: List of user account IDs or display names to mention (optional)
             visibility_value: Custom visibility restriction value (e.g., "Internal note", "Developers")
                              Format: "role:Administrators" or "group:Internal note"
                              If not specified, internal=True defaults to "role:Administrators"
+            use_markdown: If True, parse body as markdown and convert to ADF (default: False)
         """
-        # Build comment content with mentions
-        content = []
+        # Build comment content
+        if use_markdown:
+            # Convert markdown to ADF
+            adf_doc = md_to_adf(body)
+            content = adf_doc.get('content', [])
+        else:
+            content = []
 
-        # If mentions provided, add them at the start
-        if mention_users:
-            mention_content = []
-            for user in mention_users:
-                # Try to resolve user display name to account ID
-                account_id = self._resolve_user_account_id(user, issue_key)
-                if account_id:
-                    mention_content.append({'type': 'mention', 'attrs': {'id': account_id}})
-                    mention_content.append({'type': 'text', 'text': ' '})
+            # If mentions provided, add them at the start
+            if mention_users:
+                mention_content = []
+                for user in mention_users:
+                    # Try to resolve user display name to account ID
+                    account_id = self._resolve_user_account_id(user, issue_key)
+                    if account_id:
+                        mention_content.append({'type': 'mention', 'attrs': {'id': account_id}})
+                        mention_content.append({'type': 'text', 'text': ' '})
+                    else:
+                        # Fallback: just use display name in text
+                        mention_content.append({'type': 'text', 'text': f'@{user} '})
+
+                if mention_content:
+                    content.append({
+                        'type': 'paragraph',
+                        'content': mention_content
+                    })
+
+            # Add main comment body
+            # Split by newlines and create paragraph for each
+            lines = body.split('\n')
+            for line in lines:
+                if line.strip():  # Skip empty lines
+                    content.append({
+                        'type': 'paragraph',
+                        'content': [{'type': 'text', 'text': line}]
+                    })
                 else:
-                    # Fallback: just use display name in text
-                    mention_content.append({'type': 'text', 'text': f'@{user} '})
-
-            if mention_content:
-                content.append({
-                    'type': 'paragraph',
-                    'content': mention_content
-                })
-
-        # Add main comment body
-        # Split by newlines and create paragraph for each
-        lines = body.split('\n')
-        for line in lines:
-            if line.strip():  # Skip empty lines
-                content.append({
-                    'type': 'paragraph',
-                    'content': [{'type': 'text', 'text': line}]
-                })
-            else:
-                # Empty line = paragraph break
-                content.append({
-                    'type': 'paragraph',
-                    'content': []
-                })
+                    # Empty line = paragraph break
+                    content.append({
+                        'type': 'paragraph',
+                        'content': []
+                    })
 
         data = {
             'body': {
@@ -599,6 +606,11 @@ class AtlassianClient:
             self._log(f"Could not resolve user '{user_identifier}': {e}")
 
         return None
+
+    def jira_delete_comment(self, issue_key, comment_id):
+        """Delete a comment from a Jira issue."""
+        url = self.jira_url(f'/issue/{issue_key}/comment/{comment_id}')
+        return self._request('DELETE', url)
 
     def jira_get_transitions(self, issue_key):
         """Get available transitions for issue."""
@@ -801,12 +813,16 @@ def cmd_jira_add_comment(client, args):
     if args.mention:
         mention_users = [u.strip() for u in args.mention.split(',')]
 
+    # Determine if using markdown format
+    use_markdown = getattr(args, 'markdown', False)
+
     result = client.jira_add_comment(
         args.issue_key,
         args.body,
         internal=args.internal,
         mention_users=mention_users,
-        visibility_value=args.visibility
+        visibility_value=args.visibility,
+        use_markdown=use_markdown
     )
 
     # Build visibility description
@@ -821,6 +837,12 @@ def cmd_jira_add_comment(client, args):
     return format_success(f"Comment added to {args.issue_key}{visibility}{mentions}", {
         'id': result.get('id')
     })
+
+
+def cmd_jira_delete_comment(client, args):
+    """Handle: --jira delete-comment"""
+    client.jira_delete_comment(args.issue_key, args.comment_id)
+    return format_success(f"Comment {args.comment_id} deleted from {args.issue_key}")
 
 
 def cmd_jira_transition(client, args):
@@ -949,7 +971,7 @@ Examples:
     jira_group = parser.add_argument_group('Jira')
     jira_group.add_argument('--jira', metavar='COMMAND',
                            choices=['search', 'get-issue', 'create-issue', 'update-issue', 'add-comment',
-                                    'transition', 'transitions', 'list-projects', 'list-issue-types'],
+                                    'delete-comment', 'transition', 'transitions', 'list-projects', 'list-issue-types'],
                            help='Jira command')
 
     # Jira arguments
@@ -964,6 +986,8 @@ Examples:
     parser.add_argument('--internal', action='store_true', help='Make comment internal/restricted to Administrators (for add-comment)')
     parser.add_argument('--visibility', help='Custom visibility restriction: "group:Name" or "role:Name" (for add-comment)')
     parser.add_argument('--mention', help='Comma-separated user names or account IDs to mention (for add-comment)')
+    parser.add_argument('--markdown', action='store_true', help='Parse comment body as markdown and convert to rich ADF format (for add-comment)')
+    parser.add_argument('--comment-id', help='Comment ID (for delete-comment)')
     parser.add_argument('--to', help='Target status/transition (for transition)')
 
     args = parser.parse_args()
@@ -1064,6 +1088,10 @@ Examples:
                 if not args.issue_key or not args.body:
                     raise Exception("--issue-key and --body required for add-comment")
                 result = cmd_jira_add_comment(client, args)
+            elif args.jira == 'delete-comment':
+                if not args.issue_key or not args.comment_id:
+                    raise Exception("--issue-key and --comment-id required for delete-comment")
+                result = cmd_jira_delete_comment(client, args)
             elif args.jira == 'transition':
                 if not args.issue_key or not args.to:
                     raise Exception("--issue-key and --to required for transition")

@@ -77,6 +77,18 @@ def convert_inline(text):
     # Inline code: `code`
     text = re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
 
+    # Images: ![alt](src) — MUST come before links to avoid partial match
+    def _image_replacement(match):
+        alt = match.group(1)
+        src = match.group(2)
+        if src.startswith(('http://', 'https://')):
+            # External URL image
+            return f'<ac:image ac:alt="{alt}"><ri:url ri:value="{src}" /></ac:image>'
+        else:
+            # Local file — treat as page attachment
+            return f'<ac:image ac:alt="{alt}" ac:width="800"><ri:attachment ri:filename="{src}" /></ac:image>'
+    text = re.sub(r'!\[([^\]]*)\]\(([^)]+)\)', _image_replacement, text)
+
     # Links: [text](url)
     text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
 

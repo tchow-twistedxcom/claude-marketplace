@@ -3,12 +3,36 @@
 Markdown to Atlassian Document Format (ADF) Converter
 
 Converts Markdown text to ADF JSON format for Jira Cloud v3 API.
-Handles: headings, paragraphs, bold, italic, code, links, lists, horizontal rules.
+Handles: headings, paragraphs, bold, italic, code, links, lists, horizontal rules, tables.
 
 ADF Spec: https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/
 """
 
 import re
+
+
+def is_table_row(line):
+    """Check if line is a markdown table row (| col1 | col2 |)."""
+    stripped = line.strip()
+    return stripped.startswith('|') and stripped.endswith('|') and len(stripped) > 2
+
+
+def is_table_separator(line):
+    """Check if line is a table separator (|---|---|)."""
+    stripped = line.strip()
+    if not (stripped.startswith('|') and stripped.endswith('|')):
+        return False
+    # Check if all cells contain only dashes, colons, and spaces
+    cells = stripped[1:-1].split('|')
+    return all(re.match(r'^[\s:]*-+[\s:]*$', cell) for cell in cells)
+
+
+def parse_table_row(line):
+    """Parse a table row into list of cell contents."""
+    stripped = line.strip()
+    # Remove leading and trailing pipes, split by |
+    cells = stripped[1:-1].split('|')
+    return [cell.strip() for cell in cells]
 
 
 def md_to_adf(markdown_text):
@@ -81,6 +105,35 @@ def md_to_adf(markdown_text):
             content.append(make_ordered_list(list_items))
             continue
 
+        # Markdown table (| col1 | col2 |)
+        if is_table_row(line):
+            table_rows = []
+            header_row = None
+            has_separator = False
+
+            # Collect all table rows
+            while i < len(lines) and (is_table_row(lines[i]) or is_table_separator(lines[i])):
+                current_line = lines[i]
+                if is_table_separator(current_line):
+                    has_separator = True
+                    i += 1
+                    continue
+
+                cells = parse_table_row(current_line)
+                if not has_separator and header_row is None:
+                    header_row = cells
+                else:
+                    table_rows.append(cells)
+                i += 1
+
+            # If no separator found, treat first row as header anyway
+            if header_row is None and table_rows:
+                header_row = table_rows.pop(0)
+
+            if header_row:
+                content.append(make_table(header_row, table_rows))
+            continue
+
         # Regular paragraph (may span multiple lines)
         paragraph_lines = [line]
         i += 1
@@ -105,7 +158,8 @@ def is_block_start(line):
         line.strip().startswith('```'),
         re.match(r'^\s*[-*+]\s+', line),
         re.match(r'^\s*\d+\.\s+', line),
-        re.match(r'^[-*_]{3,}\s*$', line)
+        re.match(r'^[-*_]{3,}\s*$', line),
+        is_table_row(line)
     ])
 
 
@@ -230,6 +284,52 @@ def make_ordered_list(items):
     }
 
 
+def make_table(header_cells, data_rows):
+    """
+    Create ADF table node from parsed markdown table.
+
+    Args:
+        header_cells: List of header cell strings
+        data_rows: List of lists, each containing cell strings for a row
+
+    Returns:
+        dict: ADF table node
+    """
+    rows = []
+
+    # Header row with tableHeader cells
+    if header_cells:
+        header_content = []
+        for cell in header_cells:
+            header_content.append({
+                'type': 'tableHeader',
+                'content': [{'type': 'paragraph', 'content': parse_inline(cell)}]
+            })
+        rows.append({
+            'type': 'tableRow',
+            'content': header_content
+        })
+
+    # Data rows with tableCell cells
+    for row_cells in data_rows:
+        row_content = []
+        for cell in row_cells:
+            row_content.append({
+                'type': 'tableCell',
+                'content': [{'type': 'paragraph', 'content': parse_inline(cell)}]
+            })
+        rows.append({
+            'type': 'tableRow',
+            'content': row_content
+        })
+
+    return {
+        'type': 'table',
+        'attrs': {'isNumberColumnEnabled': False, 'layout': 'default'},
+        'content': rows
+    }
+
+
 if __name__ == '__main__':
     # Test the converter
     import json
@@ -248,6 +348,11 @@ This is a **bold** and *italic* test with `inline code`.
 2. Second
 
 ---
+
+| ID | Name | Status |
+|---|---|---|
+| 1 | **Test** | Active |
+| 2 | Example | *Pending* |
 
 Check [this link](https://example.com) for more.
 

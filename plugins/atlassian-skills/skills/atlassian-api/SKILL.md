@@ -14,9 +14,11 @@ Execute Confluence and Jira operations via direct REST API calls with automatic 
 - Uploading attachments to Confluence pages
 - Searching Confluence content and navigating page hierarchies
 - Creating, updating, or transitioning Jira issues
+- **Adding or editing comments on Jira issues** (edit-in-place avoids duplicate notifications)
 - **Adding internal comments to Jira Service Desk tickets** (shows as "Internal note" with lock icon)
 - **@ mentioning users in Jira comments** (automatically resolves display names to account IDs)
 - **Adding comments with custom visibility** (role-based or group-based restrictions)
+- **Posting formatted comments with tables** (use `--markdown` flag for rich formatting)
 - Searching Jira with JQL queries
 - When the Atlassian MCP is unreliable or hanging
 - When response efficiency is critical (this skill uses ~50 tokens vs ~2000 for MCP)
@@ -99,10 +101,25 @@ python3 scripts/atlassian_api.py --confluence update-page --page-id 3174662145 -
 python3 scripts/atlassian_api.py --confluence update-page --page-id 3174662145 --body-file updated.md --input-format md --dry-run
 ```
 
+### Move Page
+```bash
+# Move page to a new parent
+python3 scripts/atlassian_api.py --confluence move-page --page-id 3174662145 --new-parent 1234567890
+
+# Move page to space root (no parent)
+python3 scripts/atlassian_api.py --confluence move-page --page-id 3174662145 --new-parent root
+```
+
 ### Archive Page
 ```bash
 # Archive a page (safer than delete - reversible via Confluence UI)
 python3 scripts/atlassian_api.py --confluence archive-page --page-id 3174662145
+```
+
+### Delete Page
+```bash
+# Permanently delete a page (WARNING: irreversible!)
+python3 scripts/atlassian_api.py --confluence delete-page --page-id 3174662145
 ```
 
 ### List Spaces
@@ -265,6 +282,29 @@ python3 scripts/atlassian_api.py --jira add-comment --issue-key TWXDEV-123 --bod
 
 **Note:** @ mentions require the user to be assignee or reporter of the issue. If the display name cannot be resolved to an account ID, the script will fall back to plain text.
 
+### Edit Comment
+```bash
+# Edit an existing comment (plain text)
+python3 scripts/atlassian_api.py --jira edit-comment --issue-key TWXDEV-123 --comment-id 12345 --body "Updated comment text"
+
+# Edit with markdown formatting (tables, bold, lists, etc.)
+python3 scripts/atlassian_api.py --jira edit-comment --issue-key TWXDEV-123 --comment-id 12345 --body "## Updated
+
+| Col1 | Col2 |
+|---|---|
+| A | B |
+
+**Bold** text here" --markdown
+
+# Edit with visibility change
+python3 scripts/atlassian_api.py --jira edit-comment --issue-key TWXDEV-123 --comment-id 12345 --body "Internal only" --internal
+```
+
+**Why use edit-comment instead of delete + add:**
+- Edit-in-place sends only **one notification** to watchers
+- Delete + add sends **two notifications** (one for delete, one for add)
+- Edit preserves the comment's position in the thread
+
 ### Transition Issue
 ```bash
 # First, list available transitions
@@ -320,6 +360,7 @@ python3 scripts/atlassian_api.py --list-sites
 --limit, -l      Max results (default: 20)
 --timeout, -t    Request timeout in seconds (default: 30)
 --verbose, -v    Show debug info
+--refresh-auth   Force refresh authentication token (useful if getting 401 errors)
 --dry-run        Preview changes without saving (update-page only)
 --input-format   Input format for body content: html (default) or md (auto-converted)
 ```
@@ -347,7 +388,11 @@ ID          | Title                              | Space  | Updated
 # Test authentication
 python3 scripts/auth.py
 
+# Force token refresh (useful if getting persistent 401 errors)
+python3 scripts/atlassian_api.py --refresh-auth --confluence list-spaces
+
 # If token expired, the skill auto-refreshes
+# If 401 error occurs, the skill automatically clears cache and retries once
 # If refresh token invalid, re-run OAuth flow (see README.md)
 ```
 

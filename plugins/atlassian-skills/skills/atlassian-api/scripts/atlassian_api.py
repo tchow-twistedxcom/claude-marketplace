@@ -55,14 +55,23 @@ class AtlassianClient:
     - Timeout management
     """
 
-    def __init__(self, site=None, timeout=DEFAULT_TIMEOUT, verbose=False):
+    def __init__(self, site=None, timeout=DEFAULT_TIMEOUT, verbose=False, force_refresh=False):
         self.auth = AtlassianAuth()
         self.site = site
         self.timeout = timeout
         self.verbose = verbose
+        self.force_refresh = force_refresh
+        self._auth_retry_attempted = False  # Track if we've retried auth
         self.cloud_id = self.auth.get_cloud_id(site)
         self.domain = self.auth.get_domain(site)
         self._space_key_cache = {}  # Cache space key -> id mappings
+
+        # Force refresh token if requested
+        if force_refresh:
+            self._log("Forcing token refresh...")
+            self.auth.clear_token_cache(site)
+            self.auth.get_token(site, force_refresh=True)
+            self._log("Token refreshed successfully")
 
     def _log(self, msg):
         """Log debug message if verbose."""
@@ -92,12 +101,27 @@ class AtlassianClient:
 
     def _request(self, method, url, data=None):
         """
-        Make authenticated HTTP request.
+        Make authenticated HTTP request with automatic retry on 401.
 
         Args:
             method: HTTP method (GET, POST, PUT, DELETE)
             url: Full URL
             data: Optional request body (dict)
+
+        Returns:
+            Parsed JSON response
+        """
+        return self._do_request(method, url, data, retry_auth=True)
+
+    def _do_request(self, method, url, data=None, retry_auth=True):
+        """
+        Internal request method with optional auth retry.
+
+        Args:
+            method: HTTP method
+            url: Full URL
+            data: Optional request body
+            retry_auth: If True, retry once on 401 with fresh token
 
         Returns:
             Parsed JSON response
@@ -122,6 +146,14 @@ class AtlassianClient:
                 return {}
         except HTTPError as e:
             error_body = e.read().decode('utf-8')
+
+            # Handle 401 with automatic retry
+            if e.code == 401 and retry_auth and not self._auth_retry_attempted:
+                self._log("Got 401, clearing token cache and retrying...")
+                self._auth_retry_attempted = True
+                self.auth.clear_token_cache(self.site)
+                return self._do_request(method, url, data, retry_auth=False)
+
             try:
                 error_json = json.loads(error_body)
                 error_msg = error_json.get('message', error_json.get('errorMessages', [str(e)])[0] if isinstance(error_json.get('errorMessages'), list) else str(e))
@@ -328,6 +360,54 @@ class AtlassianClient:
         url = self.confluence_url(f'/pages/{page_id}/children?limit={limit}')
         result = self._request('GET', url)
         return result.get('results', [])
+
+    def confluence_move_page(self, page_id, new_parent_id):
+        """
+        Move a Confluence page to a new parent.
+
+        Args:
+            page_id: Page ID to move
+            new_parent_id: New parent page ID (use 'root' or None for top-level)
+
+        Returns:
+            Updated page object
+        """
+        # Get current page info (need version for update)
+        current = self.confluence_get_page(page_id, include_body=True)
+        current_version = current.get('version', {}).get('number', 1)
+        current_title = current.get('title', 'Untitled')
+        current_body = current.get('body', {}).get('storage', {}).get('value', '')
+
+        # Build update data with new parent
+        data = {
+            'id': page_id,
+            'status': 'current',
+            'title': current_title,
+            'body': {
+                'representation': 'storage',
+                'value': current_body
+            },
+            'version': {
+                'number': current_version + 1,
+                'message': 'Moved via API'
+            }
+        }
+
+        # Set new parent (omit parentId to move to space root)
+        if new_parent_id and new_parent_id.lower() != 'root':
+            data['parentId'] = new_parent_id
+
+        url = self.confluence_url(f'/pages/{page_id}')
+        return self._request('PUT', url, data)
+
+    def confluence_delete_page(self, page_id):
+        """
+        Permanently delete a Confluence page.
+
+        WARNING: This is irreversible. Consider using archive-page instead.
+        """
+        url = self.confluence_url(f'/pages/{page_id}')
+        return self._request('DELETE', url)
 
     def confluence_archive_page(self, page_id):
         """Archive a Confluence page (safer than delete - reversible)."""
@@ -612,6 +692,72 @@ class AtlassianClient:
         url = self.jira_url(f'/issue/{issue_key}/comment/{comment_id}')
         return self._request('DELETE', url)
 
+    def jira_edit_comment(self, issue_key, comment_id, body, internal=False, visibility_value=None, use_markdown=False):
+        """
+        Edit an existing comment on a Jira issue.
+
+        Args:
+            issue_key: Issue key (e.g., "IT-20374")
+            comment_id: Comment ID to edit
+            body: New comment text (plain text or markdown if use_markdown=True)
+            internal: If True, restrict comment to internal users (default: False)
+            visibility_value: Custom visibility restriction value (e.g., "Internal note", "Developers")
+                             Format: "role:Administrators" or "group:Internal note"
+                             If not specified, internal=True defaults to "role:Administrators"
+            use_markdown: If True, parse body as markdown and convert to ADF (default: False)
+        """
+        # Build comment content
+        if use_markdown:
+            # Convert markdown to ADF
+            adf_doc = md_to_adf(body)
+            content = adf_doc.get('content', [])
+        else:
+            content = []
+            # Split by newlines and create paragraph for each
+            lines = body.split('\n')
+            for line in lines:
+                if line.strip():
+                    content.append({
+                        'type': 'paragraph',
+                        'content': [{'type': 'text', 'text': line}]
+                    })
+                else:
+                    content.append({
+                        'type': 'paragraph',
+                        'content': []
+                    })
+
+        data = {
+            'body': {
+                'type': 'doc',
+                'version': 1,
+                'content': content
+            }
+        }
+
+        # Add visibility restrictions if specified
+        if visibility_value:
+            # Parse visibility: "role:RoleName" or "group:GroupName"
+            if ':' in visibility_value:
+                vis_type, vis_value = visibility_value.split(':', 1)
+                vis_type = vis_type.lower()
+            else:
+                # Default to group if no prefix
+                vis_type = 'group'
+                vis_value = visibility_value
+
+            if vis_type == 'role':
+                data['visibility'] = {'type': 'role', 'value': vis_value}
+            else:
+                data['visibility'] = {'type': 'group', 'value': vis_value, 'identifier': 'name'}
+
+        elif internal:
+            # Default internal visibility to Administrators role
+            data['visibility'] = {'type': 'role', 'value': 'Administrators'}
+
+        url = self.jira_url(f'/issue/{issue_key}/comment/{comment_id}')
+        return self._request('PUT', url, data)
+
     def jira_get_transitions(self, issue_key):
         """Get available transitions for issue."""
         url = self.jira_url(f'/issue/{issue_key}/transitions')
@@ -741,6 +887,35 @@ def cmd_confluence_archive_page(client, args):
     })
 
 
+def cmd_confluence_move_page(client, args):
+    """Handle: --confluence move-page"""
+    result = client.confluence_move_page(args.page_id, args.new_parent)
+    parent_desc = f"under page {args.new_parent}" if args.new_parent and args.new_parent.lower() != 'root' else "to space root"
+    return format_success(f"Page moved {parent_desc}: {args.page_id}", {
+        'id': args.page_id,
+        'title': result.get('title'),
+        'version': result.get('version', {}).get('number'),
+        'newParent': args.new_parent
+    })
+
+
+def cmd_confluence_delete_page(client, args):
+    """Handle: --confluence delete-page"""
+    # Get page info before deletion for confirmation message
+    try:
+        page = client.confluence_get_page(args.page_id, include_body=False)
+        title = page.get('title', 'Unknown')
+    except:
+        title = 'Unknown'
+
+    client.confluence_delete_page(args.page_id)
+    return format_success(f"Page permanently deleted: {args.page_id}", {
+        'id': args.page_id,
+        'title': title,
+        'status': 'deleted'
+    })
+
+
 def cmd_confluence_upload_attachment(client, args):
     """Handle: --confluence upload-attachment"""
     result = client.confluence_upload_attachment(args.page_id, args.file, args.comment)
@@ -845,6 +1020,33 @@ def cmd_jira_delete_comment(client, args):
     return format_success(f"Comment {args.comment_id} deleted from {args.issue_key}")
 
 
+def cmd_jira_edit_comment(client, args):
+    """Handle: --jira edit-comment"""
+    # Determine if using markdown format
+    use_markdown = getattr(args, 'markdown', False)
+
+    result = client.jira_edit_comment(
+        args.issue_key,
+        args.comment_id,
+        args.body,
+        internal=args.internal,
+        visibility_value=args.visibility,
+        use_markdown=use_markdown
+    )
+
+    # Build visibility description
+    if args.visibility:
+        visibility = f" (restricted: {args.visibility})"
+    elif args.internal:
+        visibility = " (internal)"
+    else:
+        visibility = ""
+
+    return format_success(f"Comment {args.comment_id} updated on {args.issue_key}{visibility}", {
+        'id': result.get('id')
+    })
+
+
 def cmd_jira_transition(client, args):
     """Handle: --jira transition"""
     client.jira_transition_issue(args.issue_key, args.to)
@@ -944,11 +1146,14 @@ Examples:
                        help='Show debug info')
     parser.add_argument('--list-sites', action='store_true',
                        help='List available sites')
+    parser.add_argument('--refresh-auth', action='store_true',
+                       help='Force refresh authentication token (useful if getting 401 errors)')
 
     # Confluence subcommands
     confluence_group = parser.add_argument_group('Confluence')
     confluence_group.add_argument('--confluence', metavar='COMMAND',
-                                  choices=['search', 'get-page', 'create-page', 'update-page', 'archive-page',
+                                  choices=['search', 'get-page', 'create-page', 'update-page',
+                                           'move-page', 'archive-page', 'delete-page',
                                            'list-spaces', 'list-pages', 'get-children',
                                            'upload-attachment', 'list-attachments'],
                                   help='Confluence command')
@@ -960,6 +1165,7 @@ Examples:
     parser.add_argument('--title', help='Page title (for create-page)')
     parser.add_argument('--body-file', help='File with page body content')
     parser.add_argument('--parent', help='Parent page ID (for create-page)')
+    parser.add_argument('--new-parent', help='New parent page ID (for move-page). Use "root" to move to space root.')
     parser.add_argument('--message', help='Version message (for update-page)')
     parser.add_argument('--file', help='File path (for upload-attachment)')
     parser.add_argument('--comment', help='Attachment comment (for upload-attachment)')
@@ -1003,7 +1209,7 @@ Examples:
         return 1
 
     try:
-        client = AtlassianClient(args.site, args.timeout, args.verbose)
+        client = AtlassianClient(args.site, args.timeout, args.verbose, args.refresh_auth)
 
         # Route to appropriate command handler
         if args.confluence:
@@ -1044,10 +1250,18 @@ Examples:
                     })
                 else:
                     result = cmd_confluence_update_page(client, args)
+            elif args.confluence == 'move-page':
+                if not args.page_id or not args.new_parent:
+                    raise Exception("--page-id and --new-parent required for move-page")
+                result = cmd_confluence_move_page(client, args)
             elif args.confluence == 'archive-page':
                 if not args.page_id:
                     raise Exception("--page-id required for archive-page")
                 result = cmd_confluence_archive_page(client, args)
+            elif args.confluence == 'delete-page':
+                if not args.page_id:
+                    raise Exception("--page-id required for delete-page")
+                result = cmd_confluence_delete_page(client, args)
             elif args.confluence == 'list-spaces':
                 result = cmd_confluence_list_spaces(client, args)
             elif args.confluence == 'list-pages':
@@ -1092,6 +1306,10 @@ Examples:
                 if not args.issue_key or not args.comment_id:
                     raise Exception("--issue-key and --comment-id required for delete-comment")
                 result = cmd_jira_delete_comment(client, args)
+            elif args.jira == 'edit-comment':
+                if not args.issue_key or not args.comment_id or not args.body:
+                    raise Exception("--issue-key, --comment-id, and --body required for edit-comment")
+                result = cmd_jira_edit_comment(client, args)
             elif args.jira == 'transition':
                 if not args.issue_key or not args.to:
                     raise Exception("--issue-key and --to required for transition")

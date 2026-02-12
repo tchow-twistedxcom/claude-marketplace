@@ -181,22 +181,24 @@ class AtlassianAuth:
 
         return sites[site]
 
-    def get_token(self, site_alias=None):
+    def get_token(self, site_alias=None, force_refresh=False):
         """
         Get valid access token, refreshing if needed.
 
         Args:
             site_alias: Site alias or None for default
+            force_refresh: If True, ignore cache and force a new token request
 
         Returns:
             Valid access token string
         """
         site = self.resolve_site(site_alias)
 
-        # Check cache (both in-memory and persistent)
-        cached = self._token_cache.get(site)
-        if cached and time.time() < cached['expiry'] - TOKEN_REFRESH_BUFFER:
-            return cached['token']
+        # Check cache (unless force refresh requested)
+        if not force_refresh:
+            cached = self._token_cache.get(site)
+            if cached and time.time() < cached['expiry'] - TOKEN_REFRESH_BUFFER:
+                return cached['token']
 
         # Need to refresh - use retry mechanism
         token = self._refresh_token_with_retry(site)
@@ -205,6 +207,21 @@ class AtlassianAuth:
         self._save_token_cache()
 
         return token
+
+    def clear_token_cache(self, site_alias=None):
+        """
+        Clear cached token for a site (useful after 401 errors).
+
+        Args:
+            site_alias: Site alias or None to clear all
+        """
+        if site_alias:
+            site = self.resolve_site(site_alias)
+            if site in self._token_cache:
+                del self._token_cache[site]
+        else:
+            self._token_cache.clear()
+        self._save_token_cache()
 
     def _refresh_token_with_retry(self, site, retries=None, backoff=None):
         """

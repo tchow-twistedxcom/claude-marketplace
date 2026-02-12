@@ -1177,7 +1177,7 @@ Examples:
     jira_group = parser.add_argument_group('Jira')
     jira_group.add_argument('--jira', metavar='COMMAND',
                            choices=['search', 'get-issue', 'create-issue', 'update-issue', 'add-comment',
-                                    'delete-comment', 'transition', 'transitions', 'list-projects', 'list-issue-types'],
+                                    'edit-comment', 'delete-comment', 'transition', 'transitions', 'list-projects', 'list-issue-types'],
                            help='Jira command')
 
     # Jira arguments

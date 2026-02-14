@@ -109,6 +109,13 @@
       "description": "AdventureLog trip planning skill for creating rich, fully-detailed trips via the REST API. Covers collections, locations, transportation, lodging, notes, checklists, itinerary days, and scheduling",
       "version": "1.0.0",
       "keywords": ["adventurelog", "trip-planner", "travel", "itinerary", "vacation", "lodging"]
+    },
+    {
+      "name": "compound-engineering",
+      "source": "./plugins/compound-engineering",
+      "description": "Compound engineering workflow pipeline: brainstorm → plan → work → review → compound. 29 agents, 22 commands, 19 skills for multi-agent parallel code review, knowledge compounding, swarm orchestration, and autonomous workflows (lfg/slfg)",
+      "version": "2.33.1",
+      "keywords": ["workflow", "code-review", "agents", "swarm", "knowledge-management", "planning", "compound"]
     }
   ]
 }

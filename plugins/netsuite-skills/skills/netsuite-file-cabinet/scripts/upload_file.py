@@ -5,10 +5,12 @@ NetSuite File Upload
 Upload files to NetSuite File Cabinet via the NetSuite API Gateway.
 - Uses fileCreate procedure for new files (--folder-id)
 - Uses fileUpdate procedure for existing files (--file-id)
+- Uses --script-id to safely update a script's source file (recommended for scripts)
 
 Usage:
-  python3 upload_file.py --file ./script.js --folder-id 137935 --env prod
+  python3 upload_file.py --file ./script.js --script-id customscript_twx_my_script --env prod
   python3 upload_file.py --file ./script.js --file-id 52794157 --env sb2
+  python3 upload_file.py --file ./script.js --folder-id 137935 --env prod
   python3 upload_file.py --file ./script.js --name "custom.js" --folder-id 137935 --env sb2
 """
 
@@ -73,6 +75,129 @@ def get_file_type(filename: str) -> str:
     """Determine NetSuite file type from extension."""
     ext = os.path.splitext(filename)[1].lower()
     return FILE_TYPES.get(ext, 'PLAINTEXT')
+
+
+def run_query(
+    query: str,
+    account: str = DEFAULT_ACCOUNT,
+    environment: str = DEFAULT_ENVIRONMENT
+) -> Dict[str, Any]:
+    """Run a SuiteQL query via the gateway and return records."""
+    resolved_account = resolve_account(account)
+    resolved_env = resolve_environment(environment)
+
+    payload = {
+        'action': 'queryRun',
+        'procedure': 'queryRun',
+        'query': query,
+        'params': [],
+        'returnAllRows': False,
+        'netsuiteAccount': resolved_account,
+        'netsuiteEnvironment': resolved_env
+    }
+
+    try:
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(
+            GATEWAY_URL,
+            data=data,
+            headers={
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Origin': 'http://localhost:3000'
+            }
+        )
+
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+
+            if result.get('success'):
+                return {'success': True, 'records': result.get('data', {}).get('records', [])}
+            else:
+                return {'error': result.get('error', {}).get('message', 'Query failed')}
+
+    except Exception as e:
+        return {'error': f'Query failed: {str(e)}'}
+
+
+def resolve_script_file_id(
+    script_id: str,
+    account: str = DEFAULT_ACCOUNT,
+    environment: str = DEFAULT_ENVIRONMENT
+) -> Dict[str, Any]:
+    """
+    Look up a script's source file ID from the script record.
+
+    This is the SAFEST way to update script files - it queries the script
+    record to find the exact file ID that the script deployment references.
+
+    Args:
+        script_id: Script ID (e.g., 'customscript_twx_sl_secure_tran_pdf')
+        account: NetSuite account
+        environment: NetSuite environment
+
+    Returns:
+        Dictionary with file_id, script_name, folder or error
+    """
+    # Normalize: ensure it starts with customscript_ if not already
+    sid = script_id.strip()
+
+    query = (
+        f"SELECT s.id, s.name, s.scriptid, s.scriptfile "
+        f"FROM script s WHERE UPPER(s.scriptid) = UPPER('{sid}')"
+    )
+
+    result = run_query(query, account, environment)
+    if not result.get('success'):
+        return result
+
+    records = result.get('records', [])
+    if not records:
+        return {'error': f'Script not found: {sid}'}
+
+    script = records[0]
+    file_id = script.get('scriptfile')
+    if not file_id:
+        return {'error': f'Script {sid} has no scriptfile set'}
+
+    return {
+        'success': True,
+        'file_id': int(file_id),
+        'script_name': script.get('name'),
+        'script_id': script.get('scriptid')
+    }
+
+
+def check_duplicate_files(
+    filename: str,
+    target_folder_id: int,
+    account: str = DEFAULT_ACCOUNT,
+    environment: str = DEFAULT_ENVIRONMENT
+) -> Optional[str]:
+    """
+    Check if a file with the same name exists in OTHER folders.
+    Returns a warning string if duplicates found, None otherwise.
+    """
+    query = (
+        f"SELECT f.id, f.name, f.folder, BUILTIN.DF(f.folder) AS foldername "
+        f"FROM file f WHERE f.name = '{filename}' AND f.folder <> {target_folder_id}"
+    )
+
+    result = run_query(query, account, environment)
+    if not result.get('success'):
+        return None  # Don't block on query failure
+
+    records = result.get('records', [])
+    if records:
+        locations = [f"  - File {r['id']} in folder {r.get('foldername', r.get('folder'))}" for r in records]
+        return (
+            f"WARNING: '{filename}' already exists in other folder(s):\n"
+            + "\n".join(locations) + "\n"
+            f"  Uploading to folder {target_folder_id} will CREATE A DUPLICATE.\n"
+            f"  Use --file-id or --script-id instead to update the correct file."
+        )
+
+    return None
 
 
 def upload_file(
@@ -297,12 +422,16 @@ def update_file(
 def print_usage():
     print("""NetSuite File Upload
 
-Usage: python3 upload_file.py --file <path> --folder-id <id> [options]
+Usage: python3 upload_file.py --file <path> --script-id <id> [options]   (RECOMMENDED for scripts)
        python3 upload_file.py --file <path> --file-id <id> [options]
+       python3 upload_file.py --file <path> --folder-id <id> [options]
 
 Required (one of):
-  --folder-id <id>       NetSuite folder internal ID (creates/overwrites by name)
+  --script-id <id>       Script ID (e.g., customscript_twx_my_script) - SAFEST for scripts
+                          Automatically looks up the correct file ID from the script record
   --file-id <id>         NetSuite file internal ID (updates existing file by ID)
+  --folder-id <id>       NetSuite folder internal ID (creates/overwrites by name)
+                          WARNING: Can create duplicates if file exists in another folder!
 
 Required:
   --file <path>          Local file to upload
@@ -314,21 +443,19 @@ Options:
   --env <environment>    Environment (default: sandbox2)
 
 Examples:
-  # Upload new file to folder
-  python3 upload_file.py --file ./myScript.js --folder-id 137935 --env prod
+  # Update script file (RECOMMENDED - prevents duplicates)
+  python3 upload_file.py --file ./myScript.js --script-id customscript_twx_my_script --env prod
 
-  # Update existing file by ID (useful when you know the file ID)
+  # Update existing file by ID
   python3 upload_file.py --file ./myScript.js --file-id 52794157 --env sb2
 
-  # Upload with custom name
-  python3 upload_file.py --file ./local.js --name "remote.js" --folder-id 137935 --env sb2
+  # Upload new file to folder (use only for truly new files)
+  python3 upload_file.py --file ./myScript.js --folder-id 137935 --env prod
 
 Supported File Types:
   .js (JAVASCRIPT), .json (JSON), .xml (XMLDOC), .html (HTMLDOC),
   .css (STYLESHEET), .txt (PLAINTEXT), .csv (CSV), .pdf (PDF),
   .png/.jpg/.gif (images), .zip (ZIP)
-
-Note: --folder-id overwrites by filename, --file-id updates by internal ID.
 """)
 
 
@@ -340,6 +467,7 @@ def main():
     file_path = None
     folder_id = None
     file_id = None
+    script_id = None
     name = None
     description = None
     account = DEFAULT_ACCOUNT
@@ -356,6 +484,9 @@ def main():
             i += 2
         elif arg == '--file-id' and i + 1 < len(sys.argv):
             file_id = int(sys.argv[i + 1])
+            i += 2
+        elif arg == '--script-id' and i + 1 < len(sys.argv):
+            script_id = sys.argv[i + 1]
             i += 2
         elif arg == '--name' and i + 1 < len(sys.argv):
             name = sys.argv[i + 1]
@@ -378,18 +509,30 @@ def main():
         print_usage()
         sys.exit(1)
 
-    if not folder_id and not file_id:
-        print("ERROR: Either --folder-id or --file-id is required")
+    target_count = sum(1 for x in [folder_id, file_id, script_id] if x is not None)
+    if target_count == 0:
+        print("ERROR: One of --script-id, --file-id, or --folder-id is required")
         print_usage()
         sys.exit(1)
 
-    if folder_id and file_id:
-        print("ERROR: Cannot specify both --folder-id and --file-id")
+    if target_count > 1:
+        print("ERROR: Cannot specify more than one of --script-id, --file-id, --folder-id")
         print_usage()
         sys.exit(1)
 
     resolved_account = resolve_account(account)
     resolved_env = resolve_environment(environment)
+
+    # Resolve --script-id to --file-id
+    if script_id:
+        print(f"Looking up script '{script_id}' in {resolved_account}/{resolved_env}...")
+        script_result = resolve_script_file_id(script_id, account, environment)
+        if not script_result.get('success'):
+            print(f"ERROR: {script_result.get('error')}")
+            sys.exit(1)
+        file_id = script_result['file_id']
+        print(f"  Script: {script_result.get('script_name')} ({script_result.get('script_id')})")
+        print(f"  File ID: {file_id}")
 
     # Use appropriate function based on argument
     if file_id:
@@ -397,7 +540,16 @@ def main():
         result = update_file(file_path, file_id, name, description, account, environment)
         action = "updated"
     else:
-        print(f"Uploading to {resolved_account}/{resolved_env}...")
+        # --folder-id path: check for duplicates before creating
+        filename = name or os.path.basename(file_path)
+        warning = check_duplicate_files(filename, folder_id, account, environment)
+        if warning:
+            print(f"\n{warning}\n")
+            print("Aborting upload. Use --file-id or --script-id to update the correct file.")
+            print("To force upload to this folder anyway, use --file-id with the target file's ID.")
+            sys.exit(1)
+
+        print(f"Uploading to folder {folder_id} in {resolved_account}/{resolved_env}...")
         result = upload_file(file_path, folder_id, name, description, account, environment)
         action = "uploaded"
 

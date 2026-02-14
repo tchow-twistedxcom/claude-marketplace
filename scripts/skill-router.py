@@ -542,6 +542,112 @@ SKILLS = {
     },
 
     # ============================================================
+    # COMPOUND ENGINEERING WORKFLOWS
+    # ============================================================
+    "compound-brainstorm": {
+        "patterns": [
+            r"\b(let'?s\s*brainstorm)\b",
+            r"\b(brainstorm)\b.*\b(feature|idea|approach|requirement)\b",
+            r"\b(help\s*me\s*think\s*through)\b",
+            r"\b(what\s*should\s*we\s*build)\b",
+            r"\b(explore\s*approaches)\b",
+            r"\b(multiple\s*valid\s*interpretations)\b",
+        ],
+        "skill_name": "compound-engineering:workflows:brainstorm",
+        "description": "Compound brainstorming (explore WHAT to build before planning HOW)"
+    },
+    "compound-plan": {
+        "patterns": [
+            r"\b(plan)\b.*\b(feature|implementation|project|build)\b",
+            r"\b(create|write|make)\b.*\b(plan|implementation\s*plan)\b",
+            r"\b(implementation)\b.*\b(plan|strategy|roadmap)\b",
+            r"\b(break\s*down)\b.*\b(feature|task|project)\b",
+            r"\b(how\s*should\s*we\s*implement)\b",
+        ],
+        "skill_name": "compound-engineering:workflows:plan",
+        "description": "Compound planning (structured implementation plans with research)"
+    },
+    "compound-review": {
+        "patterns": [
+            r"\b(review)\b.*\b(code|pr|pull\s*request|branch|changes)\b",
+            r"\b(code\s*review)\b",
+            r"\b(multi[-\s]?agent)\b.*\b(review)\b",
+            r"\b(check)\b.*\b(security|performance|architecture)\b.*\b(code|pr)\b",
+            r"\b(review)\b.*\b(before\s*merge|before\s*pushing)\b",
+        ],
+        "skill_name": "compound-engineering:workflows:review",
+        "description": "Compound review (15+ parallel agents: security, performance, architecture, etc.)"
+    },
+    "compound-work": {
+        "patterns": [
+            r"\b(execute|implement)\b.*\b(plan|feature)\b.*\b(worktree|parallel|quality)\b",
+            r"\b(start\s*working)\b.*\b(plan)\b",
+            r"\b(build\s*the\s*plan)\b",
+            r"\b(work\s*on)\b.*\b(plan|implementation)\b.*\b(now|start)\b",
+        ],
+        "skill_name": "compound-engineering:workflows:work",
+        "description": "Compound work execution (implement plans with worktrees, quality gates)"
+    },
+    "compound-compound": {
+        "patterns": [
+            r"\b(that\s*worked|it'?s\s*fixed|problem\s*solved)\b",
+            r"\b(document)\b.*\b(solution|fix|what\s*we\s*learned)\b",
+            r"\b(compound)\b.*\b(knowledge|learning|solution)\b",
+            r"\b(capture)\b.*\b(solution|learning|insight)\b",
+            r"\b(save)\b.*\b(solution|learning)\b.*\b(future)\b",
+        ],
+        "skill_name": "compound-engineering:workflows:compound",
+        "description": "Compound knowledge capture (document solved problems for future reuse)"
+    },
+    "compound-swarm": {
+        "patterns": [
+            r"\b(swarm)\b.*\b(agent|mode|parallel)\b",
+            r"\b(multi[-\s]?agent)\b.*\b(orchestrat|parallel|team)\b",
+            r"\b(parallel)\b.*\b(agent|execution|task)\b",
+            r"\b(spawn|launch)\b.*\b(agent|team|swarm)\b",
+            r"\b(lfg|slfg)\b",
+        ],
+        "skill_name": "compound-engineering:workflows:work",
+        "description": "Compound swarm orchestration (parallel multi-agent execution)"
+    },
+    "compound-resolve-pr": {
+        "patterns": [
+            r"\b(resolve|fix|address)\b.*\b(pr|pull\s*request)\b.*\b(comment|feedback|review)\b",
+            r"\b(pr\s*comment|review\s*comment)\b.*\b(resolve|fix|address)\b",
+            r"\b(resolve)\b.*\b(todo|todos)\b.*\b(parallel)\b",
+        ],
+        "skill_name": "compound-engineering:resolve_todo_parallel",
+        "description": "Compound parallel resolution (fix PR comments and TODOs in parallel)"
+    },
+    "compound-deepen": {
+        "patterns": [
+            r"\b(deepen|enhance|enrich)\b.*\b(plan)\b",
+            r"\b(research)\b.*\b(plan|each\s*section)\b",
+            r"\b(plan)\b.*\b(more\s*detail|deeper|research)\b",
+        ],
+        "skill_name": "compound-engineering:deepen-plan",
+        "description": "Compound plan deepening (parallel research agents enhance each plan section)"
+    },
+    "compound-gemini-image": {
+        "patterns": [
+            r"\b(gemini)\b.*\b(image|generate|edit)\b",
+            r"\b(generate|create|make)\b.*\b(image)\b.*\b(gemini|google)\b",
+            r"\b(ai\s*image)\b.*\b(generat|edit|composi)\b",
+        ],
+        "skill_name": "compound-engineering:gemini-imagegen",
+        "description": "Gemini AI image generation (text-to-image, editing, multi-turn refinement)"
+    },
+    "compound-git-worktree": {
+        "patterns": [
+            r"\b(worktree|work[-\s]?tree)\b",
+            r"\b(parallel)\b.*\b(branch|development|feature)\b",
+            r"\b(isolated)\b.*\b(branch|development)\b",
+        ],
+        "skill_name": "compound-engineering:git-worktree",
+        "description": "Git worktree management (parallel isolated development branches)"
+    },
+
+    # ============================================================
     # PORTABLE CONFIGURATION
     # ============================================================
     "portable-setup": {

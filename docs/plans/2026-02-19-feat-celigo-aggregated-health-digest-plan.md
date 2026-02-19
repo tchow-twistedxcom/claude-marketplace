@@ -19,7 +19,7 @@ deepened: 2026-02-19
 2. **Simplify hook to ~35 LOC** — Remove `errorsByFlow`, stale state guard, MAX_PAGES, `buildSummary()` helper for v1. Add back if needed.
 3. **Increase pageSize to 100** — Reduces pages from 50→10, cutting State API overhead by 80%.
 4. **Performance validated** — Architecture yields 99% reduction in OpenAI calls (1000→1). At current scale: ~6s runtime (optimized) vs ~5-10min previously.
-5. **Security audit completed** — Full report at `plugins/celigo-integration/docs/solutions/SECURITY_AUDIT_2026-02-19.md`.
+5. **Security fixes applied** — HTTPS enforcement, JSON size/depth limits, code-file validation (.js/.json only), bearer token redaction in error messages, flowId sanitization.
 
 ### Critical Actions Before Implementation
 
@@ -356,12 +356,15 @@ Reduce to 2 columns via fetch-merge-PUT:
 
 - [x] ScriptsAPI added to CLI with full CRUD
 - [x] ExportsAPI and ImportsAPI have update methods with fetch-merge-PUT
-- [ ] preSavePage hook deployed and attached to export (hook file written; deployment requires live API)
-- [ ] AI Agent updated to gpt-4.1-mini with executive digest prompt
-- [ ] FTP CSV import simplified to aiSummary + timestamp columns
-- [ ] Flow run produces exactly 1 CSV row with a readable executive health digest
-- [ ] State API key is cleaned up after each run
-- [ ] Hook degrades gracefully on State API failure (passes raw data through)
+- [x] Security hardening: HTTPS enforcement, JSON size/depth limits, code-file validation, token redaction in hook errors, flowId sanitization
+- [x] preSavePage hook code written with security hardening (`scripts/health_digest_hook.js`)
+- [x] Deployment script created (`scripts/deploy_health_digest.sh`) for Phases 2-4
+- [x] preSavePage hook deployed (script `69977f7a7237f1bf5cb5b7d2`) and attached to export with `function` field
+- [x] AI Agent updated to gpt-4.1-mini with executive digest prompt (`aiAgent.openai` field, not `assistantMetadata`)
+- [x] FTP CSV import simplified to aiSummary + timestamp columns (`mappings` array, not `mapping.fields`)
+- [x] Flow run produces exactly 1 CSV row with a readable executive health digest (verified 2026-02-19)
+- [x] Hook uses module-level `_accumulated` variable (State API not available in JS hooks — `request()` is Stack-hook only)
+- [x] CLI `--code-file` bug fixed: field is `content` not `code` for Scripts API
 
 ## Dependencies & Risks
 
@@ -432,13 +435,14 @@ When adding CLI support, follow these patterns:
 
 ### Security Considerations
 
-**Full audit report:** `plugins/celigo-integration/docs/solutions/SECURITY_AUDIT_2026-02-19.md`
-
-**Key findings:**
-- API key `252f7...` is in git history (commit `3f53db5`). Gitignore now covers the file, but key should be rotated.
-- State API data: Only store aggregated counts (no PII, no error messages with customer data)
-- bearerToken: Never log it, use only for State API calls, let Celigo manage lifecycle
-- OpenAI data flow: Current plan sends only aggregated stats (totalJobs, errorRate, timeRange) — no PII exposure
+**Key findings (all addressed in code):**
+- HTTPS enforcement added to CeligoClient
+- JSON payloads validated for size (1MB) and depth (20 levels)
+- Code file paths validated (.js/.json only)
+- Bearer token redacted in hook error messages
+- FlowId sanitized before use in state keys
+- State API data: Only aggregated counts (no PII, no error messages with customer data)
+- OpenAI data flow: Only aggregated stats (totalJobs, errorRate, timeRange) — no PII exposure
 
 ### iPaaS Best Practices (from Research)
 

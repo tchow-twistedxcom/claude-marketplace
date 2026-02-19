@@ -37,6 +37,8 @@ CONFIG_FILE = CONFIG_DIR / "celigo_config.json"
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 2
+MAX_JSON_SIZE = 1024 * 1024  # 1MB limit for --data payloads
+MAX_JSON_DEPTH = 20
 
 
 # =============================================================================
@@ -84,6 +86,8 @@ class CeligoClient:
 
     def __init__(self, env_name: str = None):
         self.api_url, self.api_key = get_api_credentials(env_name)
+        if not self.api_url.startswith("https://"):
+            raise ValueError(f"API URL must use HTTPS, got: {self.api_url}")
         self.timeout = DEFAULT_TIMEOUT
 
     def _make_request(self, method: str, endpoint: str, data: dict = None,
@@ -858,6 +862,36 @@ def _merge_updates_for_put(current: dict, updates: dict, readonly_fields: frozen
     return merged
 
 
+def _safe_json_parse(json_string: str) -> dict:
+    """Parse JSON with size and depth limits."""
+    if len(json_string) > MAX_JSON_SIZE:
+        raise ValueError(f"JSON payload too large: {len(json_string)} bytes (max {MAX_JSON_SIZE})")
+
+    def _check_depth(obj: Any, depth: int = 0) -> None:
+        if depth > MAX_JSON_DEPTH:
+            raise ValueError(f"JSON nesting too deep (max {MAX_JSON_DEPTH})")
+        if isinstance(obj, dict):
+            for v in obj.values():
+                _check_depth(v, depth + 1)
+        elif isinstance(obj, list):
+            for item in obj:
+                _check_depth(item, depth + 1)
+
+    data = json.loads(json_string)
+    _check_depth(data)
+    return data
+
+
+def _validate_code_file(file_path: str) -> Path:
+    """Validate code file path: must exist, must be .js or .json."""
+    path = Path(file_path).resolve()
+    if not path.is_file():
+        raise ValueError(f"Not a file: {file_path}")
+    if path.suffix not in ('.js', '.json'):
+        raise ValueError(f"Invalid file type '{path.suffix}' — only .js and .json allowed")
+    return path
+
+
 def _resolve_json_input(args) -> dict:
     """Resolve JSON data from --data, --file, or individual convenience flags."""
     data = {}
@@ -875,8 +909,8 @@ def _resolve_json_input(args) -> dict:
 
     if hasattr(args, 'data') and args.data:
         try:
-            data.update(json.loads(args.data))
-        except json.JSONDecodeError as e:
+            data.update(_safe_json_parse(args.data))
+        except (json.JSONDecodeError, ValueError) as e:
             print(f"Error: Invalid JSON in --data: {e}", file=sys.stderr)
             sys.exit(1)
 
@@ -1099,8 +1133,13 @@ def cmd_scripts(args):
         if getattr(args, "function_type", None):
             data["function"] = args.function_type
         if getattr(args, "code_file", None):
-            with open(args.code_file, "r") as f:
-                data["code"] = f.read()
+            try:
+                safe_path = _validate_code_file(args.code_file)
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+            with open(safe_path, "r") as f:
+                data["content"] = f.read()
         result = api.create(data)
         print_result(result, args.format)
 
@@ -1112,8 +1151,13 @@ def cmd_scripts(args):
         if getattr(args, "name", None):
             updates["name"] = args.name
         if getattr(args, "code_file", None):
-            with open(args.code_file, "r") as f:
-                updates["code"] = f.read()
+            try:
+                safe_path = _validate_code_file(args.code_file)
+            except ValueError as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+            with open(safe_path, "r") as f:
+                updates["content"] = f.read()
         if not updates:
             print("Error: No update data provided. Use --data, --file, --name, or --code-file",
                   file=sys.stderr)

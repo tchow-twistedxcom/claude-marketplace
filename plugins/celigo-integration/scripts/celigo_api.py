@@ -428,6 +428,18 @@ class ExportsAPI:
         """Get export dependencies."""
         return self.client.get(f"/exports/{export_id}/dependencies")
 
+    def create(self, data: dict) -> dict:
+        """Create a new export."""
+        return self.client.post("/exports", data)
+
+    def update(self, export_id: str, data: dict) -> dict:
+        """Update an existing export."""
+        return self.client.put(f"/exports/{export_id}", data)
+
+    def delete(self, export_id: str) -> dict:
+        """Delete an export."""
+        return self.client.delete(f"/exports/{export_id}")
+
 
 # =============================================================================
 # Resource: Imports
@@ -455,6 +467,49 @@ class ImportsAPI:
     def dependencies(self, import_id: str) -> dict:
         """Get import dependencies."""
         return self.client.get(f"/imports/{import_id}/dependencies")
+
+    def create(self, data: dict) -> dict:
+        """Create a new import."""
+        return self.client.post("/imports", data)
+
+    def update(self, import_id: str, data: dict) -> dict:
+        """Update an existing import."""
+        return self.client.put(f"/imports/{import_id}", data)
+
+    def delete(self, import_id: str) -> dict:
+        """Delete an import."""
+        return self.client.delete(f"/imports/{import_id}")
+
+
+# =============================================================================
+# Resource: Scripts
+# =============================================================================
+
+class ScriptsAPI:
+    """Scripts resource operations."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        """List all scripts."""
+        return self.client.get("/scripts")
+
+    def get(self, script_id: str) -> dict:
+        """Get single script."""
+        return self.client.get(f"/scripts/{script_id}")
+
+    def create(self, data: dict) -> dict:
+        """Create a new script."""
+        return self.client.post("/scripts", data)
+
+    def update(self, script_id: str, data: dict) -> dict:
+        """Update an existing script."""
+        return self.client.put(f"/scripts/{script_id}", data)
+
+    def delete(self, script_id: str) -> dict:
+        """Delete a script."""
+        return self.client.delete(f"/scripts/{script_id}")
 
 
 # =============================================================================
@@ -787,6 +842,22 @@ def cmd_integrations(args):
         print_result(data, args.format, columns)
 
 
+# Read-only fields to strip before PUT requests (Celigo PUT is full-replace)
+FLOW_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt", "lastExecutedAt"])
+EXPORT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+IMPORT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+SCRIPT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+
+
+def _merge_updates_for_put(current: dict, updates: dict, readonly_fields: frozenset) -> dict:
+    """Merge updates into current state for Celigo PUT (full-replace) request."""
+    merged = current.copy()
+    for field in readonly_fields:
+        merged.pop(field, None)
+    merged.update(updates)
+    return merged
+
+
 def _resolve_json_input(args) -> dict:
     """Resolve JSON data from --data, --file, or individual convenience flags."""
     data = {}
@@ -880,16 +951,12 @@ def cmd_flows(args):
             print("Error: No update data provided. Use --name, --disabled, --data, or --file",
                   file=sys.stderr)
             sys.exit(1)
-        # Celigo PUT replaces the entire flow, so fetch current state and merge
         current = api.get(args.id)
         if current.get("error"):
             print_result(current, args.format)
             return
-        # Remove read-only fields before merge
-        for key in ("_id", "lastModified", "createdAt", "lastExecutedAt"):
-            current.pop(key, None)
-        current.update(updates)
-        result = api.update(args.id, current)
+        merged = _merge_updates_for_put(current, updates, FLOW_READONLY_FIELDS)
+        result = api.update(args.id, merged)
         print_result(result, args.format)
 
     elif args.action == "delete":
@@ -942,6 +1009,29 @@ def cmd_exports(args):
     elif args.action == "dependencies":
         print_result(api.dependencies(args.id), args.format)
 
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        result = api.create(data)
+        print_result(result, args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided. Use --data or --file",
+                  file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, EXPORT_READONLY_FIELDS)
+        result = api.update(args.id, merged)
+        print_result(result, args.format)
+
+    elif args.action == "delete":
+        result = api.delete(args.id)
+        print_result(result, args.format)
+
 
 def cmd_imports(args):
     """Handle imports subcommands."""
@@ -961,6 +1051,84 @@ def cmd_imports(args):
 
     elif args.action == "dependencies":
         print_result(api.dependencies(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        result = api.create(data)
+        print_result(result, args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided. Use --data or --file",
+                  file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, IMPORT_READONLY_FIELDS)
+        result = api.update(args.id, merged)
+        print_result(result, args.format)
+
+    elif args.action == "delete":
+        result = api.delete(args.id)
+        print_result(result, args.format)
+
+
+def cmd_scripts(args):
+    """Handle scripts subcommands."""
+    client = CeligoClient(args.env)
+    api = ScriptsAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "function"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        # Support convenience flags for common fields
+        if not data:
+            data = {}
+        if getattr(args, "name", None):
+            data["name"] = args.name
+        if getattr(args, "function_type", None):
+            data["function"] = args.function_type
+        if getattr(args, "code_file", None):
+            with open(args.code_file, "r") as f:
+                data["code"] = f.read()
+        result = api.create(data)
+        print_result(result, args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            updates = {}
+        # Support convenience flags
+        if getattr(args, "name", None):
+            updates["name"] = args.name
+        if getattr(args, "code_file", None):
+            with open(args.code_file, "r") as f:
+                updates["code"] = f.read()
+        if not updates:
+            print("Error: No update data provided. Use --data, --file, --name, or --code-file",
+                  file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, SCRIPT_READONLY_FIELDS)
+        result = api.update(args.id, merged)
+        print_result(result, args.format)
+
+    elif args.action == "delete":
+        result = api.delete(args.id)
+        print_result(result, args.format)
 
 
 def cmd_jobs(args):
@@ -1327,6 +1495,18 @@ Examples:
     exp_deps = exp_sub.add_parser("dependencies", help="Get dependencies")
     exp_deps.add_argument("id", help="Export ID")
 
+    exp_create = exp_sub.add_parser("create", help="Create a new export")
+    exp_create.add_argument("--data", help="Full export JSON (inline string)")
+    exp_create.add_argument("--file", help="Path to JSON file with export definition")
+
+    exp_update = exp_sub.add_parser("update", help="Update an export (fetch-merge-PUT)")
+    exp_update.add_argument("id", help="Export ID")
+    exp_update.add_argument("--data", help="Partial export JSON (inline string)")
+    exp_update.add_argument("--file", help="Path to JSON file with updates")
+
+    exp_delete = exp_sub.add_parser("delete", help="Delete an export")
+    exp_delete.add_argument("id", help="Export ID")
+
     # --- Imports ---
     imp_parser = subparsers.add_parser("imports", help="Import operations")
     imp_sub = imp_parser.add_subparsers(dest="action")
@@ -1343,6 +1523,47 @@ Examples:
 
     imp_deps = imp_sub.add_parser("dependencies", help="Get dependencies")
     imp_deps.add_argument("id", help="Import ID")
+
+    imp_create = imp_sub.add_parser("create", help="Create a new import")
+    imp_create.add_argument("--data", help="Full import JSON (inline string)")
+    imp_create.add_argument("--file", help="Path to JSON file with import definition")
+
+    imp_update = imp_sub.add_parser("update", help="Update an import (fetch-merge-PUT)")
+    imp_update.add_argument("id", help="Import ID")
+    imp_update.add_argument("--data", help="Partial import JSON (inline string)")
+    imp_update.add_argument("--file", help="Path to JSON file with updates")
+
+    imp_delete = imp_sub.add_parser("delete", help="Delete an import")
+    imp_delete.add_argument("id", help="Import ID")
+
+    # --- Scripts ---
+    scr_parser = subparsers.add_parser("scripts", help="Script operations")
+    scr_sub = scr_parser.add_subparsers(dest="action")
+
+    scr_list = scr_sub.add_parser("list", help="List scripts")
+
+    scr_get = scr_sub.add_parser("get", help="Get script")
+    scr_get.add_argument("id", help="Script ID")
+
+    scr_create = scr_sub.add_parser("create", help="Create a new script")
+    scr_create.add_argument("--name", help="Script name")
+    scr_create.add_argument("--function", dest="function_type",
+                            choices=["preSavePage", "preMap", "postMap",
+                                     "postSubmit", "postResponseMap", "postAggregate"],
+                            help="Hook function type")
+    scr_create.add_argument("--code-file", help="Path to JavaScript file with hook code")
+    scr_create.add_argument("--data", help="Full script JSON (inline string)")
+    scr_create.add_argument("--file", help="Path to JSON file with script definition")
+
+    scr_update = scr_sub.add_parser("update", help="Update a script (fetch-merge-PUT)")
+    scr_update.add_argument("id", help="Script ID")
+    scr_update.add_argument("--name", help="New script name")
+    scr_update.add_argument("--code-file", help="Path to JavaScript file with updated hook code")
+    scr_update.add_argument("--data", help="Partial script JSON (inline string)")
+    scr_update.add_argument("--file", help="Path to JSON file with updates")
+
+    scr_delete = scr_sub.add_parser("delete", help="Delete a script")
+    scr_delete.add_argument("id", help="Script ID")
 
     # --- Jobs ---
     job_parser = subparsers.add_parser("jobs", help="Job operations")
@@ -1500,6 +1721,7 @@ def main():
         "connections": cmd_connections,
         "exports": cmd_exports,
         "imports": cmd_imports,
+        "scripts": cmd_scripts,
         "jobs": cmd_jobs,
         "errors": cmd_errors,
         "caches": cmd_caches,

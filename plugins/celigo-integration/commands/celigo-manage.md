@@ -87,6 +87,44 @@ python3 scripts/celigo_api.py flows run <flow_id> \
   --end-date "2024-01-31T23:59:59.999Z"
 ```
 
+### Create Flow
+```bash
+# Create flow with convenience flags
+python3 scripts/celigo_api.py flows create \
+  --name "My New Flow" \
+  --integration <integration_id> \
+  --disabled true
+
+# Create flow from JSON file
+python3 scripts/celigo_api.py flows create --file flow_definition.json
+
+# Create flow with inline JSON
+python3 scripts/celigo_api.py flows create \
+  --data '{"name": "New Flow", "_integrationId": "int123", "disabled": true}'
+```
+
+### Update Flow
+```bash
+# Rename flow
+python3 scripts/celigo_api.py flows update <flow_id> --name "Updated Name"
+
+# Enable/disable flow
+python3 scripts/celigo_api.py flows update <flow_id> --disabled false
+python3 scripts/celigo_api.py flows update <flow_id> --disabled true
+
+# Update with inline JSON (complex changes)
+python3 scripts/celigo_api.py flows update <flow_id> \
+  --data '{"_runNextFlowIds": ["next_flow_id"]}'
+
+# Update from JSON file
+python3 scripts/celigo_api.py flows update <flow_id> --file flow_updates.json
+```
+
+### Delete Flow
+```bash
+python3 scripts/celigo_api.py flows delete <flow_id>
+```
+
 ### Flow Status
 ```bash
 # Get latest job for flow

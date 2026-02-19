@@ -348,6 +348,18 @@ class FlowsAPI:
         """Get flow audit log."""
         return self.client.get(f"/flows/{flow_id}/audit")
 
+    def create(self, data: dict) -> dict:
+        """Create a new flow."""
+        return self.client.post("/flows", data)
+
+    def update(self, flow_id: str, data: dict) -> dict:
+        """Update an existing flow."""
+        return self.client.put(f"/flows/{flow_id}", data)
+
+    def delete(self, flow_id: str) -> dict:
+        """Delete a flow."""
+        return self.client.delete(f"/flows/{flow_id}")
+
 
 # =============================================================================
 # Resource: Connections
@@ -775,6 +787,44 @@ def cmd_integrations(args):
         print_result(data, args.format, columns)
 
 
+def _resolve_json_input(args) -> dict:
+    """Resolve JSON data from --data, --file, or individual convenience flags."""
+    data = {}
+
+    if hasattr(args, 'file') and args.file:
+        try:
+            with open(args.file) as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            print(f"Error: File not found: {args.file}", file=sys.stderr)
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in file: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    if hasattr(args, 'data') and args.data:
+        try:
+            data.update(json.loads(args.data))
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in --data: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    if hasattr(args, 'name') and args.name is not None:
+        data["name"] = args.name
+    if hasattr(args, 'description') and args.description is not None:
+        data["description"] = args.description
+    if hasattr(args, 'integration') and args.integration is not None:
+        data["_integrationId"] = args.integration
+    if hasattr(args, 'disabled') and args.disabled is not None:
+        data["disabled"] = args.disabled
+    if hasattr(args, 'schedule') and args.schedule is not None:
+        data["schedule"] = args.schedule
+    if hasattr(args, 'timezone') and args.timezone is not None:
+        data["timezone"] = args.timezone
+
+    return data
+
+
 def cmd_flows(args):
     """Handle flows subcommands."""
     client = CeligoClient(args.env)
@@ -814,6 +864,37 @@ def cmd_flows(args):
 
     elif args.action == "audit":
         print_result(api.audit(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        if not data.get("name"):
+            print("Error: Flow name is required. Use --name or include 'name' in --data/--file",
+                  file=sys.stderr)
+            sys.exit(1)
+        result = api.create(data)
+        print_result(result, args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided. Use --name, --disabled, --data, or --file",
+                  file=sys.stderr)
+            sys.exit(1)
+        # Celigo PUT replaces the entire flow, so fetch current state and merge
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        # Remove read-only fields before merge
+        for key in ("_id", "lastModified", "createdAt", "lastExecutedAt"):
+            current.pop(key, None)
+        current.update(updates)
+        result = api.update(args.id, current)
+        print_result(result, args.format)
+
+    elif args.action == "delete":
+        result = api.delete(args.id)
+        print_result(result, args.format)
 
 
 def cmd_connections(args):
@@ -1180,6 +1261,31 @@ Examples:
 
     flow_audit = flow_sub.add_parser("audit", help="Get flow audit log")
     flow_audit.add_argument("id", help="Flow ID")
+
+    flow_create = flow_sub.add_parser("create", help="Create a new flow")
+    flow_create.add_argument("--name", help="Flow name (required unless in --data/--file)")
+    flow_create.add_argument("--description", help="Flow description")
+    flow_create.add_argument("--integration", help="Integration ID (_integrationId)")
+    flow_create.add_argument("--disabled", type=lambda x: x.lower() == 'true',
+                             help="Set disabled status (true/false)")
+    flow_create.add_argument("--schedule", help="Cron schedule expression")
+    flow_create.add_argument("--timezone", help="Timezone for schedule")
+    flow_create.add_argument("--data", help="Full flow JSON (inline string)")
+    flow_create.add_argument("--file", help="Path to JSON file with flow definition")
+
+    flow_update = flow_sub.add_parser("update", help="Update a flow")
+    flow_update.add_argument("id", help="Flow ID")
+    flow_update.add_argument("--name", help="New flow name")
+    flow_update.add_argument("--description", help="New description")
+    flow_update.add_argument("--disabled", type=lambda x: x.lower() == 'true',
+                             help="Set disabled status (true/false)")
+    flow_update.add_argument("--schedule", help="New cron schedule expression")
+    flow_update.add_argument("--timezone", help="Timezone for schedule")
+    flow_update.add_argument("--data", help="Partial flow JSON (inline string)")
+    flow_update.add_argument("--file", help="Path to JSON file with updates")
+
+    flow_delete = flow_sub.add_parser("delete", help="Delete a flow")
+    flow_delete.add_argument("id", help="Flow ID")
 
     # --- Connections ---
     conn_parser = subparsers.add_parser("connections", help="Connection operations")

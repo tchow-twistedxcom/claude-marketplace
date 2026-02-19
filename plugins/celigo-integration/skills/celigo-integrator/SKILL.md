@@ -153,7 +153,7 @@ python3 scripts/celigo_api.py caches data <cache_id> --starts-with "ABC"
 | Resource | Actions |
 |----------|---------|
 | integrations | list, get, flows, connections, exports, imports, users, template, dependencies, audit, errors |
-| flows | list, get, run, template, dependencies, descendants, jobs-latest, last-export-datetime, audit |
+| flows | list, get, create, update, delete, run, template, dependencies, descendants, jobs-latest, last-export-datetime, audit |
 | connections | list, get, test, debug-log, logs, dependencies |
 | exports | list, get, audit, dependencies |
 | imports | list, get, audit, dependencies |

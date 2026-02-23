@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # deploy_health_digest.sh — Deploy the Celigo Health Digest feature
 #
-# Executes Phases 2-4 of the plan:
+# Executes setup for:
 #   Phase 2: Create script + attach to export + update pageSize
 #   Phase 3: Update AI Agent import (model + prompt + mappings)
-#   Phase 4: Simplify FTP CSV import mappings
+#   Phase 4: Configure Slack import for digest posting
 #
 # Prerequisites:
 #   - celigo_config.json configured with valid API key
 #   - celigo_api.py working (test: python3 celigo_api.py integrations list)
+#   - Slack bot token with chat:write scope
+#   - Slack channel ID for digest posting
 #
 # Usage:
 #   bash deploy_health_digest.sh [--dry-run]
@@ -19,11 +21,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLI="python3 ${SCRIPT_DIR}/celigo_api.py"
 HOOK_FILE="${SCRIPT_DIR}/health_digest_hook.js"
 
-# Resource IDs (verified against live API 2026-02-19)
-EXPORT_ID="698b4a2e1abec9665997a07b"   # "Get all jobs with errors" — HTTPExport
-AI_IMPORT_ID="698b4eb6adf72c4591f9685f" # "AI Error Health Analyst" — aiAgent
-FTP_IMPORT_ID="699605c7783ea4efe70cc4ff" # "Write Error Summary to CSV" — FTPImport
-FLOW_ID="698b4a31ae386aee54914746"       # "AI Test" flow
+# Resource IDs (verified against live API 2026-02-23)
+EXPORT_ID="698b4a2e1abec9665997a07b"          # "Get all jobs with errors" — HTTPExport
+AI_IMPORT_ID="698b4eb6adf72c4591f9685f"       # "AI Error Health Analyst" — aiAgent
+SLACK_IMPORT_ID="699c7192dbb446adf74f7216"    # "Post Health Digest to Slack" — HTTP POST
+SLACK_CONNECTION_ID="699c7191783ea4efe724fe21" # "Slack - Health Digest Bot" — HTTP connection
+FLOW_ID="698b4a31ae386aee54914746"            # "AI Test" flow
+
+# Flow pipeline: Export → AI Agent (responseMapping: _text→aiSummary) → Slack (aiSummary→text)
 
 DRY_RUN=false
 if [[ "${1:-}" == "--dry-run" ]]; then
@@ -60,46 +65,60 @@ else
 fi
 
 echo ""
-echo "Step 2b: Attach script to export + increase pageSize to 100..."
-# Update export: attach hook AND change relativeURI pageSize from 10 to 100
-# (reduces State API calls by 90% — from ~100 pages to ~10)
+echo "Step 2b: Attach script to export + configure for full data fetch..."
+# No formType: "assistant" — export fetches all jobs without delta tracking.
+# pageSize=2000 ensures all jobs (API max 1001) arrive in single page.
 run_cmd "$CLI exports update ${EXPORT_ID} \
-  --data '{\"hooks\":{\"preSavePage\":{\"_scriptId\":\"${SCRIPT_ID}\"}},\"http\":{\"relativeURI\":\"/v1/jobs?pageSize=100\"}}'"
+  --data '{\"hooks\":{\"preSavePage\":{\"_scriptId\":\"${SCRIPT_ID}\",\"function\":\"preSavePage\"}},\"http\":{\"relativeURI\":\"/v1/jobs\",\"method\":\"GET\",\"requestMediaType\":\"json\",\"successMediaType\":\"json\",\"errorMediaType\":\"json\",\"isRest\":true,\"response\":{\"twoDArray\":{\"doNotNormalize\":false,\"hasHeader\":false}}},\"pageSize\":2000}'"
 
 echo ""
 echo "=== Phase 3: Update AI Agent Import ==="
 echo ""
 
-# NOTE: Verified field structure is aiAgent.openai (NOT assistantMetadata)
-echo "Step 3: Update model to gpt-4.1-mini + new executive digest prompt..."
-run_cmd "$CLI imports update ${AI_IMPORT_ID} \
-  --file /dev/stdin" <<'JSONEOF'
-{
-  "aiAgent": {
-    "openai": {
-      "model": "gpt-4.1-mini",
-      "instructions": "You are a Celigo integration health monitor. You receive a JSON summary of recent job execution data across all integrations.\n\nWrite a concise executive health digest (2-3 short paragraphs) covering:\n1. Overall health status (healthy/warning/critical) based on the error rate percentage\n2. Key issues: which flows have the most errors, and how many\n3. One recommended action\n\nFormat for Slack readability. Use plain text, no markdown headers or bullet lists.\nStart with a status indicator: \"HEALTHY\" if error rate <5%, \"WARNING\" if 5-15%, \"CRITICAL\" if >15%.\nInclude the time range and total job count.\nKeep it under 500 characters.",
-      "maxOutputTokens": 600
-    }
-  }
-}
-JSONEOF
+# NOTE: The AI Agent prompt contains:
+#   - Explicit field definitions (totalFlowRuns, totalErrors, etc.)
+#   - CST timezone conversion instruction
+#   - Static "CURRENT OPEN ERRORS" section (refresh via CLI before updating)
+#   - Flow ID→Name mapping (107+ flows)
+#   - maxOutputTokens: 1000, model: gpt-4.1-mini
+#
+# The prompt is managed via:
+#   $CLI imports update ${AI_IMPORT_ID} --file /tmp/ai_agent_update.json
+#
+# To generate a fresh prompt with current open errors and flow mappings,
+# use the celigo_api.py health-digest generate command and update manually.
+
+echo "Step 3: Update AI Agent import with prompt file..."
+echo "  NOTE: Prepare /tmp/ai_agent_update.json with the full prompt first."
+echo "  The prompt must include flow name mapping, CST instruction, and open errors."
+run_cmd "$CLI imports update ${AI_IMPORT_ID} --file /tmp/ai_agent_update.json"
 
 echo ""
-echo "=== Phase 4: Simplify FTP CSV Import ==="
+echo "=== Phase 4: Configure Slack Import ==="
 echo ""
 
-# NOTE: Verified field is 'mappings' (array), not 'mapping.fields'
-echo "Step 4: Update mappings to 2 columns (aiSummary + timestamp)..."
-run_cmd "$CLI imports update ${FTP_IMPORT_ID} \
-  --data '{\"mappings\":[{\"extract\":\"$.aiSummary\",\"generate\":\"aiSummary\",\"dataType\":\"string\"},{\"extract\":\"$.generatedAt\",\"generate\":\"timestamp\",\"dataType\":\"string\"}]}'"
+# Slack import uses sendPostMappedData (not body template) to avoid JSON escaping issues.
+# Mappings:
+#   hardCodedValue "thomas-test-notifications" → channel
+#   $.aiSummary → text
+echo "Step 4: Verify Slack import configuration..."
+echo "  Import: ${SLACK_IMPORT_ID}"
+echo "  Connection: ${SLACK_CONNECTION_ID}"
+echo "  Endpoint: POST /chat.postMessage"
+echo "  Channel: thomas-test-notifications"
+run_cmd "$CLI imports get ${SLACK_IMPORT_ID} -f json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(\"OK\" if d.get(\"name\") else \"MISSING\")'"
 
 echo ""
 echo "=== Deployment complete ==="
 echo ""
-echo "Next steps (Phase 5 — Test and Verify):"
+echo "Next steps (Test and Verify):"
 echo "  1. Run the flow:  $CLI flows run ${FLOW_ID}"
 echo "  2. Monitor job:   $CLI flows jobs-latest ${FLOW_ID}"
 echo "  3. Check errors:  $CLI errors list --flow ${FLOW_ID} --import ${AI_IMPORT_ID}"
-echo "  4. Verify FTP CSV has 1 row with aiSummary + timestamp"
+echo "  4. Verify Slack message in #thomas-test-notifications"
+echo ""
+echo "To update open errors in the AI prompt:"
+echo "  1. Fetch current errors:  $CLI errors integration-summary <integration_id>"
+echo "  2. Update prompt file:    Edit /tmp/ai_agent_update.json"
+echo "  3. Push to Celigo:        $CLI imports update ${AI_IMPORT_ID} --file /tmp/ai_agent_update.json"
 echo ""

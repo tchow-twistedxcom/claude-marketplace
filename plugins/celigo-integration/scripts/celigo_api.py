@@ -404,6 +404,10 @@ class ConnectionsAPI:
         """Get connection dependencies."""
         return self.client.get(f"/connections/{connection_id}/dependencies")
 
+    def create(self, data: dict) -> dict:
+        """Create a new connection."""
+        return self.client.post("/connections", data)
+
 
 # =============================================================================
 # Resource: Exports
@@ -1023,6 +1027,11 @@ def cmd_connections(args):
     elif args.action == "dependencies":
         print_result(api.dependencies(args.id), args.format)
 
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        result = api.create(data)
+        print_result(result, args.format)
+
 
 def cmd_exports(args):
     """Handle exports subcommands."""
@@ -1364,6 +1373,159 @@ def cmd_users(args):
         print_result(api.get(args.id), args.format)
 
 
+def cmd_health_digest(args):
+    """Generate a comprehensive health digest from all recent jobs."""
+    from datetime import timezone
+
+    client = CeligoClient(args.env)
+    now = datetime.now(timezone.utc)
+    days = args.days if hasattr(args, 'days') and args.days else 7
+
+    # Fetch all jobs (bypasses Celigo's delta tracking)
+    print(f"Fetching all jobs from the last {days} days...", file=sys.stderr)
+    all_jobs = client.get("/jobs?pageSize=1000")
+    if not isinstance(all_jobs, list):
+        print("Error: unexpected response from /v1/jobs", file=sys.stderr)
+        sys.exit(1)
+
+    # Filter to time window
+    cutoff = (now - timedelta(days=days)).isoformat()
+    jobs = [j for j in all_jobs if (j.get('endedAt') or j.get('createdAt', '')) >= cutoff]
+
+    # Accumulate stats (mirrors health_digest_hook.js v4 logic — flow-type jobs only)
+    stats = {
+        'totalFlowRuns': 0,
+        'totalErrors': 0,
+        'totalSuccesses': 0,
+        'totalOpenErrors': 0,
+        'totalResolved': 0,
+        'errorsByFlow': {},
+        'openErrorsByFlow': {},
+        'agingBuckets': {'under24h': 0, 'days1to3': 0, 'days3to7': 0, 'days7to14': 0, 'over14d': 0},
+        'earliest': None,
+        'latest': None,
+    }
+
+    for job in jobs:
+        # v4: skip export/import child jobs to avoid double-counting errors
+        if job.get('type') != 'flow':
+            continue
+        stats['totalFlowRuns'] += 1
+        stats['totalErrors'] += (job.get('numError') or 0)
+        stats['totalSuccesses'] += (job.get('numSuccess') or 0)
+        stats['totalOpenErrors'] += (job.get('numOpenError') or 0)
+        stats['totalResolved'] += (job.get('numResolved') or 0)
+
+        fid = job.get('_flowId') or 'unknown'
+
+        # Errors by flow
+        if fid not in stats['errorsByFlow']:
+            stats['errorsByFlow'][fid] = {'errors': 0, 'successes': 0}
+        stats['errorsByFlow'][fid]['errors'] += (job.get('numError') or 0)
+        stats['errorsByFlow'][fid]['successes'] += (job.get('numSuccess') or 0)
+
+        # Open errors by flow with aging
+        open_count = job.get('numOpenError') or 0
+        if open_count > 0:
+            if fid not in stats['openErrorsByFlow']:
+                stats['openErrorsByFlow'][fid] = {'open': 0, 'oldest': None, 'newest': None}
+            stats['openErrorsByFlow'][fid]['open'] += open_count
+
+            job_time = job.get('endedAt') or job.get('startedAt')
+            if job_time:
+                if not stats['openErrorsByFlow'][fid]['oldest'] or job_time < stats['openErrorsByFlow'][fid]['oldest']:
+                    stats['openErrorsByFlow'][fid]['oldest'] = job_time
+                if not stats['openErrorsByFlow'][fid]['newest'] or job_time > stats['openErrorsByFlow'][fid]['newest']:
+                    stats['openErrorsByFlow'][fid]['newest'] = job_time
+
+                # Age bucket
+                try:
+                    job_dt = datetime.fromisoformat(job_time.replace('Z', '+00:00'))
+                    age_hours = (now - job_dt).total_seconds() / 3600
+                    if age_hours < 24:
+                        stats['agingBuckets']['under24h'] += open_count
+                    elif age_hours < 72:
+                        stats['agingBuckets']['days1to3'] += open_count
+                    elif age_hours < 168:
+                        stats['agingBuckets']['days3to7'] += open_count
+                    elif age_hours < 336:
+                        stats['agingBuckets']['days7to14'] += open_count
+                    else:
+                        stats['agingBuckets']['over14d'] += open_count
+                except (ValueError, TypeError):
+                    pass
+
+        # Time range
+        ended = job.get('endedAt')
+        if ended:
+            if not stats['earliest'] or ended < stats['earliest']:
+                stats['earliest'] = ended
+            if not stats['latest'] or ended > stats['latest']:
+                stats['latest'] = ended
+
+    # Compute rates
+    total = stats['totalErrors'] + stats['totalSuccesses']
+    error_rate = f"{(stats['totalErrors'] / total * 100):.1f}%" if total > 0 else "0.0%"
+    resolution_rate = f"{(stats['totalResolved'] / stats['totalErrors'] * 100):.1f}%" if stats['totalErrors'] > 0 else "100.0%"
+
+    summary = {
+        'totalFlowRuns': stats['totalFlowRuns'],
+        'totalErrors': stats['totalErrors'],
+        'totalSuccesses': stats['totalSuccesses'],
+        'totalOpenErrors': stats['totalOpenErrors'],
+        'totalResolved': stats['totalResolved'],
+        'errorRate': error_rate,
+        'resolutionRate': resolution_rate,
+        'errorsByFlow': stats['errorsByFlow'],
+        'openErrorsByFlow': stats['openErrorsByFlow'],
+        'agingBuckets': stats['agingBuckets'],
+        'timeRange': f"{stats['earliest'] or 'N/A'} to {stats['latest'] or 'N/A'}",
+        'daysCovered': days,
+        'generatedAt': now.isoformat(),
+    }
+
+    if args.format == "json":
+        print(json.dumps(summary, indent=2))
+    else:
+        # Human-readable table output
+        print(f"Health Digest ({days}-day window)")
+        print(f"{'='*50}")
+        print(f"Time Range:       {summary['timeRange']}")
+        print(f"Total Flow Runs:  {summary['totalFlowRuns']}")
+        print(f"Total Errors:     {summary['totalErrors']}")
+        print(f"Total Successes:  {summary['totalSuccesses']}")
+        print(f"Error Rate:       {summary['errorRate']}")
+        print(f"Open Errors:      {summary['totalOpenErrors']}")
+        print(f"Resolved:         {summary['totalResolved']}")
+        print(f"Resolution Rate:  {summary['resolutionRate']}")
+        print()
+        print("Aging Buckets:")
+        for bucket, count in summary['agingBuckets'].items():
+            label = bucket.replace('under', '<').replace('days', '').replace('to', '-').replace('over', '>')
+            print(f"  {label:>10}: {count}")
+        print()
+        if summary['openErrorsByFlow']:
+            print("Open Errors by Flow:")
+            for fid, info in summary['openErrorsByFlow'].items():
+                print(f"  {fid}: {info['open']} open (oldest: {info.get('oldest', 'N/A')})")
+        else:
+            print("No open errors.")
+
+    # Trigger the Celigo flow (export now fetches full data, no delta tracking)
+    if hasattr(args, 'run') and args.run:
+        flow_id = getattr(args, 'flow_id', None) or "698b4a31ae386aee54914746"
+        flows_api = FlowsAPI(client)
+        print("Triggering Celigo flow...", file=sys.stderr)
+        run_result = flows_api.run(flow_id)
+        if isinstance(run_result, list) and run_result:
+            job_id = run_result[0].get("_jobId")
+        elif isinstance(run_result, dict):
+            job_id = run_result.get("_jobId")
+        else:
+            job_id = None
+        print(f"Flow triggered. Job: {job_id}", file=sys.stderr)
+
+
 # =============================================================================
 # CLI Parser Setup
 # =============================================================================
@@ -1521,6 +1683,10 @@ Examples:
 
     conn_deps = conn_sub.add_parser("dependencies", help="Get dependencies")
     conn_deps.add_argument("id", help="Connection ID")
+
+    conn_create = conn_sub.add_parser("create", help="Create a new connection")
+    conn_create.add_argument("--data", help="Full connection JSON (inline string)")
+    conn_create.add_argument("--file", help="Path to JSON file with connection definition")
 
     # --- Exports ---
     exp_parser = subparsers.add_parser("exports", help="Export operations")
@@ -1743,6 +1909,16 @@ Examples:
     user_get = user_sub.add_parser("get", help="Get user")
     user_get.add_argument("id", help="User share ID")
 
+    # --- Health Digest ---
+    hd_parser = subparsers.add_parser("health-digest", help="Generate health digest")
+    hd_sub = hd_parser.add_subparsers(dest="action")
+
+    hd_gen = hd_sub.add_parser("generate", help="Generate full health digest (bypasses delta tracking)")
+    hd_gen.add_argument("--days", type=int, default=7, help="Number of days to analyze (default: 7)")
+    hd_gen.add_argument("--run", action="store_true",
+                         help="Trigger the Celigo AI Agent flow after generating summary")
+    hd_gen.add_argument("--flow-id", help="Flow ID (default: AI Test flow)")
+
     return parser
 
 
@@ -1771,6 +1947,7 @@ def main():
         "caches": cmd_caches,
         "tags": cmd_tags,
         "users": cmd_users,
+        "health-digest": cmd_health_digest,
     }
 
     handler = handlers.get(args.resource)

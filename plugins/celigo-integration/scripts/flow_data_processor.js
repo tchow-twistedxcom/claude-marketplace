@@ -17,6 +17,7 @@
 // Module-level accumulators — persist across pages
 var _integrations = {}; // { integrationId: { flowNames: { flowId: name } } }
 var _standalones = [];  // [ { _id: flowId, name: flowName } ]
+var _flowStepIds = {};  // { flowId: [{ id: exportOrImportId, type: 'export'|'import' }] }
 
 function preSavePage(options) {
   var PAGE_SIZE = 1000;
@@ -37,6 +38,26 @@ function preSavePage(options) {
         _id: flow._id,
         name: flow.name || ''
       });
+    }
+
+    // Extract step IDs from flow structure (pageGenerators → exports, pageProcessors → imports)
+    var steps = [];
+    if (flow.pageGenerators) {
+      for (var pg = 0; pg < flow.pageGenerators.length; pg++) {
+        if (flow.pageGenerators[pg]._exportId) {
+          steps.push({ id: flow.pageGenerators[pg]._exportId, type: 'export' });
+        }
+      }
+    }
+    if (flow.pageProcessors) {
+      for (var pp = 0; pp < flow.pageProcessors.length; pp++) {
+        if (flow.pageProcessors[pp]._importId) {
+          steps.push({ id: flow.pageProcessors[pp]._importId, type: 'import' });
+        }
+      }
+    }
+    if (steps.length > 0) {
+      _flowStepIds[flow._id] = steps;
     }
   }
 
@@ -91,12 +112,14 @@ function preSavePage(options) {
     isTrigger: true,
     expectedIntegrations: integrationIds.length,
     expectedStandalones: _standalones.length,
-    flowMap: JSON.stringify(flowMap)
+    flowMap: JSON.stringify(flowMap),
+    flowStepIds: JSON.stringify(_flowStepIds)
   });
 
   // Reset accumulators
   _integrations = {};
   _standalones = [];
+  _flowStepIds = {};
 
   return {
     data: records,

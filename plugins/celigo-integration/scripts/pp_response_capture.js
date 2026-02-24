@@ -6,7 +6,7 @@
  * This hook fires AFTER the response mapping and injects the full raw API
  * response as a JSON string field on the record.
  *
- * Two functions for two PPs:
+ * Three functions for three PPs:
  *   - captureIntegrationErrors: PP0 (GET /v1/integrations/{id}/errors)
  *     Response: [{_flowId, numError, lastErrorAt}]
  *     Injects: integrationErrors (JSON string of the full array)
@@ -15,9 +15,16 @@
  *     Response: {flowErrors: [{_expOrImpId, numError, lastErrorAt}]}
  *     Injects: flowErrors (JSON string of the flowErrors inner array)
  *
+ *   - captureSlackResponse: PP4 (Slack chat.postMessage)
+ *     Validates Slack API response body for ok=false errors.
+ *     Celigo HTTPImport counts HTTP 200 as success even when Slack returns
+ *     {"ok": false, "error": "..."}. This hook throws on API errors.
+ *     Skipped records have {ignored: true} in responseData — those are safe.
+ *
  * Deployed via: celigo_api.py scripts update <SCRIPT_ID> --code-file pp_response_capture.js
  * Attached to: Flow A pageProcessors[0].hooks.postResponseMap (PP0)
  *              Flow A pageProcessors[1].hooks.postResponseMap (PP1)
+ *              Flow A pageProcessors[4].hooks.postResponseMap (PP4)
  */
 
 function captureIntegrationErrors(options) {
@@ -49,6 +56,42 @@ function captureIntegrationErrors(options) {
     }
 
     // Preserve original wrapper format
+    if (original && typeof original === 'object' && original.data !== undefined) {
+      result.push({ data: newRec });
+    } else {
+      result.push(newRec);
+    }
+  }
+
+  return result;
+}
+
+function captureSlackResponse(options) {
+  var data = options.data || options.postResponseMapData || [];
+  var respData = options.responseData || [];
+  var result = [];
+
+  for (var i = 0; i < data.length; i++) {
+    var original = data[i];
+    var newRec = {};
+
+    if (typeof original === 'object' && original !== null) {
+      var source = original.data || original;
+      var sourceKeys = Object.keys(source);
+      for (var k = 0; k < sourceKeys.length; k++) {
+        newRec[sourceKeys[k]] = source[sourceKeys[k]];
+      }
+    }
+
+    // Check Slack response for non-ignored records
+    if (respData[i] && !respData[i].ignored) {
+      var resp = respData[i];
+      var body = resp._json || resp.data || resp;
+      if (body && body.ok === false) {
+        throw new Error('Slack API error: ' + JSON.stringify(body).substring(0, 500));
+      }
+    }
+
     if (original && typeof original === 'object' && original.data !== undefined) {
       result.push({ data: newRec });
     } else {

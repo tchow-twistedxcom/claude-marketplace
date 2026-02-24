@@ -8,11 +8,15 @@
  * Input: Raw webhook data with `payload` field
  * Output: Normalized record with flowId, actionType, responseUrlPath, userName
  *
- * Button value format: flowId|actionType
+ * Button value format (v2): flowId|expOrImpId|actionType (3-part)
  *   - flowId: Celigo flow ID
+ *   - expOrImpId: Specific export/import step ID (may be empty for flow-level)
  *   - actionType: "resolve" or "retry"
  *
- * The button handler flow discovers expOrImpIds dynamically via:
+ * Legacy format (v1): flowId|actionType (2-part)
+ *   - Backward compatible: handler discovers expOrImpIds dynamically when empty
+ *
+ * The button handler uses expOrImpId directly when present, or discovers via:
  *   GET /flows/{flowId}/errors → { flowErrors: [{ _expOrImpId, numError }] }
  *
  * Deployed via: celigo_api.py scripts update <SCRIPT_ID> --code-file slack_webhook_parser.js
@@ -41,7 +45,9 @@ function preSavePage(options) {
     var action = payload.actions && payload.actions[0];
     if (!action) continue;
 
-    // Parse pipe-delimited value: flowId|actionType
+    // Parse pipe-delimited value:
+    //   v2 (3-part): flowId|expOrImpId|actionType
+    //   v1 (2-part): flowId|actionType (legacy, backward compatible)
     var parts = (action.value || '').split('|');
     if (parts.length < 2) continue;
 
@@ -49,13 +55,27 @@ function preSavePage(options) {
     // Strip base URL — Slack hooks connection has base URI https://hooks.slack.com
     var responseUrlPath = responseUrl.replace('https://hooks.slack.com', '');
 
-    result.push({
-      flowId: parts[0],
-      actionType: parts[1],     // "resolve" or "retry"
-      responseUrlPath: responseUrlPath,
-      userName: (payload.user && payload.user.name) || 'unknown',
-      actionId: action.action_id || ''
-    });
+    if (parts.length >= 3) {
+      // v2: flowId|expOrImpId|actionType
+      result.push({
+        flowId: parts[0],
+        expOrImpId: parts[1],    // Specific step ID (may be empty string for flow-level)
+        actionType: parts[2],    // "resolve" or "retry"
+        responseUrlPath: responseUrlPath,
+        userName: (payload.user && payload.user.name) || 'unknown',
+        actionId: action.action_id || ''
+      });
+    } else {
+      // v1 legacy: flowId|actionType
+      result.push({
+        flowId: parts[0],
+        expOrImpId: '',          // Empty — handler discovers dynamically
+        actionType: parts[1],    // "resolve" or "retry"
+        responseUrlPath: responseUrlPath,
+        userName: (payload.user && payload.user.name) || 'unknown',
+        actionId: action.action_id || ''
+      });
+    }
   }
 
   return {

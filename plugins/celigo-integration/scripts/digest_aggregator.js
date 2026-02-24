@@ -58,7 +58,12 @@ function preMap(options) {
       triggerRec.liveErrorsTotal = _liveErrors.reduce(function(sum, e) {
         return sum + e.numError;
       }, 0);
-      triggerRec.liveErrorsFlowCount = _liveErrors.length;
+      // Count unique flows (standalone may have multiple step-level entries per flow)
+      var uniqueFlows = {};
+      for (var uf = 0; uf < _liveErrors.length; uf++) {
+        uniqueFlows[_liveErrors[uf].flowId] = true;
+      }
+      triggerRec.liveErrorsFlowCount = Object.keys(uniqueFlows).length;
 
       // Count unique integrations
       var intNames = {};
@@ -78,25 +83,20 @@ function preMap(options) {
       // ── Standalone flow record ──
       // flowErrors from PP1 postResponseMap hook (GET /v1/flows/{id}/errors)
       // JSON string of [{_expOrImpId, numError, lastErrorAt}]
+      // Preserve per-step data for step-level buttons at PP4
       var standaloneErrors = toArray(rec.flowErrors);
 
-      var total = 0;
-      var lastError = '';
       for (var se = 0; se < standaloneErrors.length; se++) {
-        total += (standaloneErrors[se].numError || 0);
-        if (standaloneErrors[se].lastErrorAt && standaloneErrors[se].lastErrorAt > lastError) {
-          lastError = standaloneErrors[se].lastErrorAt;
+        if ((standaloneErrors[se].numError || 0) > 0) {
+          _liveErrors.push({
+            integrationName: 'Standalone',
+            flowId: rec._id || '',
+            flowName: rec.name || '',
+            expOrImpId: standaloneErrors[se]._expOrImpId || '',
+            numError: standaloneErrors[se].numError,
+            lastErrorAt: standaloneErrors[se].lastErrorAt || ''
+          });
         }
-      }
-
-      if (total > 0) {
-        _liveErrors.push({
-          integrationName: 'Standalone',
-          flowId: rec._id || '',
-          flowName: rec.name || '',
-          numError: total,
-          lastErrorAt: lastError
-        });
       }
       result.push({}); // skip AI processing
 
@@ -116,6 +116,7 @@ function preMap(options) {
             integrationName: integrationName,
             flowId: errors[ie]._flowId,
             flowName: flowNameMap[errors[ie]._flowId] || errors[ie]._flowId,
+            expOrImpId: '',  // Flow-level only for integration flows
             numError: errors[ie].numError,
             lastErrorAt: errors[ie].lastErrorAt || ''
           });

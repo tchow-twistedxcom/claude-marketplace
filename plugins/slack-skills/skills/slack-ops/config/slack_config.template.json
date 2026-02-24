@@ -1,17 +1,25 @@
 {
-  "slack_bot_token": "xoxb-YOUR-BOT-TOKEN-HERE",
-  "slack_team_id": "T-YOUR-TEAM-ID-HERE",
   "notes": {
-    "bot_token": "Found at https://api.slack.com/apps → Your App → OAuth & Permissions → Bot User OAuth Token",
-    "team_id": "Found at https://api.slack.com/apps → Your App → Basic Information → App Credentials, or in Slack URL: https://app.slack.com/client/TXXXXXXXX",
-    "required_scopes": [
-      "channels:history",
-      "channels:read",
-      "groups:history",
-      "groups:read",
+    "authentication": "OAuth 2.0 — authenticates automatically via browser on first use. Run /mcp in Claude Code to trigger the flow.",
+    "server": "Hosted at mcp.slack.com/mcp (no local installation needed)",
+    "client_id": "1601185624273.8899143856786 (official Slack-published client ID for Claude Code)",
+    "callback_port": 3118,
+    "scopes_granted_during_oauth": [
+      "search:read.public",
+      "search:read.private",
+      "search:read.mpim",
+      "search:read.im",
+      "search:read.files",
+      "search:read.users",
       "chat:write",
-      "reactions:write",
-      "users:read"
+      "channels:history",
+      "groups:history",
+      "mpim:history",
+      "im:history",
+      "canvases:read",
+      "canvases:write",
+      "users:read",
+      "users:read.email"
     ]
   }
 }

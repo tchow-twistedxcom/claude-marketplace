@@ -120,8 +120,8 @@
     {
       "name": "slack-skills",
       "source": "./plugins/slack-skills",
-      "description": "Slack workspace integration via official MCP server. Read/write messages, manage channels, threads, reactions, and user profiles",
-      "version": "1.0.0",
+      "description": "Official Slack MCP integration. Search messages/files/channels, send messages and drafts, create canvases, and manage user profiles. 5 commands, 3 skills.",
+      "version": "2.0.0",
       "keywords": ["slack", "messaging", "notifications", "mcp", "channels", "threads"]
     }
   ]

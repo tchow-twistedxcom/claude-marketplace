@@ -1,7 +1,7 @@
 {
   "name": "slack-skills",
-  "version": "1.0.0",
-  "description": "Slack workspace integration via official MCP server. Read/write messages, manage channels, reactions, threads, and user profiles.",
+  "version": "2.0.0",
+  "description": "Official Slack MCP integration. Search messages/files/channels, send messages and drafts, create canvases, and manage user profiles.",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -12,13 +12,23 @@
   "keywords": [
     "slack",
     "messaging",
-    "notifications",
+    "search",
+    "canvases",
     "mcp",
     "channels",
     "threads"
   ],
   "mcpServers": "./.mcp.json",
+  "commands": [
+    "./commands/summarize-channel",
+    "./commands/find-discussions",
+    "./commands/draft-announcement",
+    "./commands/standup",
+    "./commands/channel-digest"
+  ],
   "skills": [
-    "./skills/slack-ops"
+    "./skills/slack-ops",
+    "./skills/slack-messaging",
+    "./skills/slack-search"
   ]
 }

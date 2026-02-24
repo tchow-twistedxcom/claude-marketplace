@@ -1,17 +1,21 @@
 /*
  * Digest Aggregator — Celigo preMap hook for AI Agent import
  *
- * Accumulates live error data from integration and standalone flow records
- * (enriched by upstream page processors), then merges everything into the
- * summary record for AI processing.
+ * Single-export architecture: all records come from one export (GET /v1/flows),
+ * processed through shared PPs, and arrive at this preMap in batch order.
  *
- * Record types (identified by marker fields):
- *   - Integration records (Export 1): have integrationErrors + integrationFlows
- *   - Standalone flow records (Export 3): have isStandaloneFlow + flowErrors
- *   - Summary record (Export 2): has isSummary — triggers merge + AI processing
+ * Record types (from flow_data_processor.js preSavePage):
+ *   - Integration records: _id = integrationId, isIntegration = true
+ *     Enriched by PPs: integrationErrors (JSON string from postResponseMap hook),
+ *                       integrationName (from response mapping)
+ *     flowNameMap provided by preSavePage (JSON string of {flowId: name})
+ *   - Standalone records: _id = flowId, isStandaloneFlow = true
+ *     Enriched by PPs: flowErrors (JSON string from postResponseMap hook)
+ *   - Trigger record: isTrigger = true (ALWAYS LAST)
+ *     Merges accumulated _liveErrors and sends to AI
  *
  * Module-level _liveErrors accumulates across all records in the same job.
- * Only the summary record (last) gets sent to the AI Agent.
+ * Only the trigger record gets sent to the AI Agent.
  *
  * Deployed via: celigo_api.py scripts update <SCRIPT_ID> --code-file digest_aggregator.js
  * Attached to: AI Agent import preMap hook
@@ -20,41 +24,61 @@
 // Module-level accumulator — persists across record processing within one job
 var _liveErrors = [];
 
+// Response data arrives as JSON strings (from postResponseMap hooks) or native arrays.
+function toArray(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'object') return [val];
+  if (typeof val === 'string') {
+    try { var p = JSON.parse(val); return Array.isArray(p) ? p : (p ? [p] : []); } catch (e) { return []; }
+  }
+  return [];
+}
+
+function toObject(val) {
+  if (!val) return {};
+  if (typeof val === 'object' && !Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try { return JSON.parse(val); } catch (e) { return {}; }
+  }
+  return {};
+}
+
 function preMap(options) {
   var result = [];
 
   for (var i = 0; i < options.data.length; i++) {
     var rec = options.data[i];
 
-    if (rec.isSummary) {
-      // ── Summary record from Export 2 (jobs) ──
-      // This is the LAST record. Merge accumulated errors and send to AI.
-      rec.liveErrors = JSON.stringify(_liveErrors);
-      rec.liveErrorsTotal = _liveErrors.reduce(function(sum, e) {
+    if (rec.isTrigger) {
+      // ── Trigger record (LAST in batch) ──
+      // Merge accumulated errors and send to AI
+      var triggerRec = {};
+      triggerRec.liveErrors = JSON.stringify(_liveErrors);
+      triggerRec.liveErrorsTotal = _liveErrors.reduce(function(sum, e) {
         return sum + e.numError;
       }, 0);
-      rec.liveErrorsFlowCount = _liveErrors.length;
+      triggerRec.liveErrorsFlowCount = _liveErrors.length;
 
       // Count unique integrations
       var intNames = {};
       for (var li = 0; li < _liveErrors.length; li++) {
         intNames[_liveErrors[li].integrationName] = true;
       }
-      rec.liveErrorsIntegrationCount = Object.keys(intNames).length;
+      triggerRec.liveErrorsIntegrationCount = Object.keys(intNames).length;
+
+      // Summary stats from trigger record (set by preSavePage)
+      triggerRec.expectedIntegrations = rec.expectedIntegrations || 0;
+      triggerRec.expectedStandalones = rec.expectedStandalones || 0;
 
       _liveErrors = []; // reset for next run
-      result.push({ data: rec });
+      result.push({ data: triggerRec });
 
     } else if (rec.isStandaloneFlow) {
-      // ── Standalone flow record from Export 3 ──
-      // flowErrors comes from PP0.5 response mapping (GET /v1/flows/{id}/errors)
-      var standaloneErrors = [];
-      try {
-        var parsed = JSON.parse(rec.flowErrors || '{}');
-        standaloneErrors = parsed.flowErrors || parsed || [];
-      } catch (e) {
-        standaloneErrors = [];
-      }
+      // ── Standalone flow record ──
+      // flowErrors from PP1 postResponseMap hook (GET /v1/flows/{id}/errors)
+      // JSON string of [{_expOrImpId, numError, lastErrorAt}]
+      var standaloneErrors = toArray(rec.flowErrors);
 
       var total = 0;
       var lastError = '';
@@ -68,45 +92,40 @@ function preMap(options) {
       if (total > 0) {
         _liveErrors.push({
           integrationName: 'Standalone',
-          flowId: rec._id || rec.flowId || '',
-          flowName: rec.name || rec.flowName || '',
+          flowId: rec._id || '',
+          flowName: rec.name || '',
           numError: total,
           lastErrorAt: lastError
         });
       }
       result.push({}); // skip AI processing
 
-    } else {
-      // ── Integration record from Export 1 ──
-      // integrationErrors comes from PP0 response mapping
-      // integrationFlows comes from PP1 response mapping
-      var errors = [];
-      try { errors = JSON.parse(rec.integrationErrors || '[]'); } catch (e) {}
-      var flows = [];
-      try { flows = JSON.parse(rec.integrationFlows || '[]'); } catch (e) {}
+    } else if (rec.isIntegration) {
+      // ── Integration record ──
+      // integrationErrors from PP0 postResponseMap hook (GET /v1/integrations/{id}/errors)
+      // JSON string of [{_flowId, numError, lastErrorAt}]
+      // integrationName from PP2 response mapping (GET /v1/integrations/{id})
+      // flowNameMap from preSavePage: JSON string of {flowId: flowName}
+      var errors = toArray(rec.integrationErrors);
+      var flowNameMap = toObject(rec.flowNameMap);
+      var integrationName = rec.integrationName || rec._id || 'Unknown';
 
-      // Build flowId → name lookup from integration flows
-      var nameMap = {};
-      for (var f = 0; f < flows.length; f++) {
-        if (flows[f]._id) {
-          nameMap[flows[f]._id] = flows[f].name;
-        }
-      }
-
-      // Add flows with errors to accumulator
-      var integrationName = rec.name || 'Unknown';
       for (var ie = 0; ie < errors.length; ie++) {
         if (errors[ie].numError > 0) {
           _liveErrors.push({
             integrationName: integrationName,
             flowId: errors[ie]._flowId,
-            flowName: nameMap[errors[ie]._flowId] || errors[ie]._flowId,
+            flowName: flowNameMap[errors[ie]._flowId] || errors[ie]._flowId,
             numError: errors[ie].numError,
             lastErrorAt: errors[ie].lastErrorAt || ''
           });
         }
       }
       result.push({}); // skip AI processing
+
+    } else {
+      // Unknown record type — skip
+      result.push({});
     }
   }
 

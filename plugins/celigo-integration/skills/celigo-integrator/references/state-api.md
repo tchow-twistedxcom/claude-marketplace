@@ -6,9 +6,13 @@ The State API provides persistent key-value storage for maintaining state betwee
 
 | Operation | Method | Endpoint |
 |-----------|--------|----------|
+| List all keys | GET | `/state` |
 | Get state | GET | `/state/{key}` |
 | Set state | PUT | `/state/{key}` |
 | Delete state | DELETE | `/state/{key}` |
+| List import-scoped keys | GET | `/imports/{id}/state` |
+| Get import-scoped value | GET | `/imports/{id}/state/{key}` |
+| Set import-scoped value | PUT | `/imports/{id}/state/{key}` |
 
 ## State Object
 

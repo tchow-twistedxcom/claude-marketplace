@@ -1,7 +1,7 @@
 {
   "name": "celigo-integration",
-  "version": "2.1.0",
-  "description": "Celigo iPaaS integration via Python CLI - 66 operations for integrations, flows, connections, jobs, errors, lookup caches, tags, and users",
+  "version": "3.0.0",
+  "description": "Celigo iPaaS integration via Python CLI - ~160 operations across 20 resource types with full REST API coverage including PATCH, clone, invoke, state, recycle bin, EDI, connectors, and processors",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"

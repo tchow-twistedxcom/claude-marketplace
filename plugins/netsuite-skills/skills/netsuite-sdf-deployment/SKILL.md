@@ -233,6 +233,21 @@ The tool now **automatically detects and refreshes stale credentials**:
 - ✅ AuthId points to wrong credentials
 - ✅ Moving between development machines
 
+**After Sandbox Refresh — Use Production Key for All Environments:**
+
+After a sandbox refresh from production, environment-specific private keys (e.g., `suitecloud_key_twx_sdf_sb2.pem`) become **stale** — the key no longer matches the certificate ID. The sandbox inherits the production certificate, so:
+
+- All environments share the same cert ID (e.g., `FJLhl7AtfNIFgz6RBtJ0OHsbRHBJAiWFRGDKymtuUAM`)
+- **Use `suitecloud_key_twx_sdf_prod.pem` for all environments** (sb1, sb2, prod) in your `twx-sdf.config.json`
+- Error symptom: `"The private key does not match the certificate ID"` during SDF deploy
+
+```json
+// twx-sdf.config.json — all environments should use prod key after refresh
+"sb2": {
+    "privateKeyPath": "../keys/suitecloud_key_twx_sdf_prod.pem"
+}
+```
+
 **Manual Refresh (if needed):**
 ```bash
 # 1. Backup and remove credentials

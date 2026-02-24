@@ -1,8 +1,8 @@
 ---
 name: celigo-integrator
-description: "Execute Celigo operations via Python CLI. Use when managing integrations, flows, jobs, and errors programmatically."
+description: "Execute Celigo operations via Python CLI. Full REST API coverage: ~160 operations across 20 resource types."
 license: MIT
-version: 2.0.0
+version: 3.0.0
 ---
 
 # Celigo Integrator CLI Skill
@@ -152,16 +152,26 @@ python3 scripts/celigo_api.py caches data <cache_id> --starts-with "ABC"
 
 | Resource | Actions |
 |----------|---------|
-| integrations | list, get, flows, connections, exports, imports, users, template, dependencies, audit, errors |
-| flows | list, get, create, update, delete, run, template, dependencies, descendants, jobs-latest, last-export-datetime, audit |
-| connections | list, get, test, debug-log, logs, dependencies |
-| exports | list, get, audit, dependencies |
-| imports | list, get, audit, dependencies |
+| integrations | list, get, create, update, delete, flows, connections, exports, imports, users, template, download-template, dependencies, audit, errors, register-connections |
+| flows | list, get, create, update, delete, run, clone, patch, replace-connection, template, dependencies, descendants, jobs-latest, last-export-datetime, audit |
+| connections | list, get, create, update, delete, patch, test, debug-log, logs, dependencies, audit, oauth2, ping-virtual, virtual-export, virtual-import |
+| exports | list, get, create, update, delete, clone, invoke, patch, replace-connection, audit, dependencies |
+| imports | list, get, create, update, delete, clone, invoke, patch, replace-connection, audit, dependencies |
+| scripts | list, get, create, update, delete, logs |
 | jobs | list, get, cancel |
-| errors | list, resolved, retry-data, resolve, retry, assign, tags, integration-summary, integration-assign |
-| caches | list, get, data |
+| errors | list, resolved, retry-data, resolve, retry, assign, tags, delete-resolved, update-retry-data, view-request, integration-summary, integration-assign |
+| caches | list, get, delete, data, data-update, data-delete, data-purge |
 | tags | list, get, create, update, delete |
-| users | list, get |
+| users | list, get, update, delete, disable, invite, invite-multiple, reinvite, sso-update |
+| state | list, get, set, delete, list-scoped, get-scoped, set-scoped |
+| filedefinitions | list, get, create, update, delete |
+| recyclebin | list, get, restore, delete |
+| audit | list |
+| iclients | list, get, create, update, patch, delete, dependencies |
+| connectors | list, get, create, update, delete, install-base, publish-update, list-licenses, create-license, get-license, update-license, delete-license |
+| processors | parse-xml, parse-csv, generate-csv, generate-structured, parse-structured |
+| templates | list, update |
+| edi | list, get, create, update, patch, delete, update-transactions, query-transactions, fa-details |
 
 ### Output Formats
 
@@ -235,6 +245,63 @@ python3 scripts/celigo_api.py connections debug-log <connection_id>
 python3 scripts/celigo_api.py connections dependencies <connection_id>
 ```
 
+### Workflow 4: State Management
+
+```bash
+# List all state keys
+python3 scripts/celigo_api.py state list
+
+# Get/set state values
+python3 scripts/celigo_api.py state get "sync_cursor" --format json
+python3 scripts/celigo_api.py state set "sync_cursor" --data '{"lastId": "12345"}'
+
+# Import-scoped state
+python3 scripts/celigo_api.py state get-scoped --import <import_id> "counter"
+python3 scripts/celigo_api.py state set-scoped --import <import_id> "counter" --data '{"count": 100}'
+```
+
+### Workflow 5: Clone and PATCH
+
+```bash
+# Clone a flow
+python3 scripts/celigo_api.py flows clone <flow_id>
+
+# Partial update with JSON Patch (RFC 6902)
+python3 scripts/celigo_api.py flows patch <flow_id> \
+  --data '[{"op": "replace", "path": "/name", "value": "Updated Name"}]'
+
+# Replace connection in a flow
+python3 scripts/celigo_api.py flows replace-connection <flow_id> \
+  --data '{"oldConnectionId": "old_id", "newConnectionId": "new_id"}'
+```
+
+### Workflow 6: Lookup Cache Data Management
+
+```bash
+# Upsert cache data
+python3 scripts/celigo_api.py caches data-update <cache_id> \
+  --data '{"data": [{"key": "SKU-001", "value": {"productId": "123"}}]}'
+
+# Delete specific keys
+python3 scripts/celigo_api.py caches data-delete <cache_id> --keys SKU-001,SKU-002
+
+# Purge all data
+python3 scripts/celigo_api.py caches data-purge <cache_id>
+```
+
+### Workflow 7: User Management
+
+```bash
+# Invite a user
+python3 scripts/celigo_api.py users invite --email user@example.com --role manage
+
+# Disable a user
+python3 scripts/celigo_api.py users disable <share_id>
+
+# Reinvite
+python3 scripts/celigo_api.py users reinvite --email user@example.com
+```
+
 ## Configuration
 
 The CLI uses configuration from:
@@ -258,6 +325,7 @@ For detailed API documentation, see `references/` directory:
 - api-overview.md, authentication.md, integrations.md, flows.md
 - connections.md, exports.md, imports.md, jobs.md
 - errors.md, lookup-caches.md, tags.md, users.md
+- state-api.md, file-definitions.md, templates.md
 
 ## Error Sources
 

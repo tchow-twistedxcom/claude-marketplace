@@ -313,6 +313,250 @@ python3 scripts/celigo_api.py users list
 python3 scripts/celigo_api.py users get <user_id>
 ```
 
+## Integration CRUD
+
+```bash
+# Create integration
+python3 scripts/celigo_api.py integrations create --name "My Integration" --data '{"sandbox": false}'
+
+# Update integration
+python3 scripts/celigo_api.py integrations update <id> --name "New Name"
+
+# Delete integration
+python3 scripts/celigo_api.py integrations delete <id>
+
+# Register connections to integration
+python3 scripts/celigo_api.py integrations register-connections <id> --data '{"_connectionIds": ["conn1"]}'
+```
+
+## Clone Operations
+
+```bash
+# Clone a flow
+python3 scripts/celigo_api.py flows clone <flow_id>
+
+# Clone an export
+python3 scripts/celigo_api.py exports clone <export_id>
+
+# Clone an import
+python3 scripts/celigo_api.py imports clone <import_id>
+```
+
+## PATCH Operations (Partial Updates)
+
+```bash
+# Partial update with JSON Patch (RFC 6902)
+python3 scripts/celigo_api.py flows patch <flow_id> \
+  --data '[{"op": "replace", "path": "/name", "value": "New Name"}]'
+
+python3 scripts/celigo_api.py exports patch <export_id> \
+  --data '[{"op": "replace", "path": "/disabled", "value": true}]'
+
+python3 scripts/celigo_api.py connections patch <connection_id> \
+  --data '[{"op": "replace", "path": "/name", "value": "Updated"}]'
+```
+
+## Replace Connection
+
+```bash
+# Replace connection in flow/export/import
+python3 scripts/celigo_api.py flows replace-connection <flow_id> \
+  --data '{"oldConnectionId": "old_id", "newConnectionId": "new_id"}'
+```
+
+## Invoke (Standalone Execution)
+
+```bash
+# Invoke an export standalone
+python3 scripts/celigo_api.py exports invoke <export_id>
+
+# Invoke an import standalone
+python3 scripts/celigo_api.py imports invoke <import_id>
+```
+
+## Connection Advanced Operations
+
+```bash
+# Update connection
+python3 scripts/celigo_api.py connections update <id> --data '{"name": "Updated"}'
+
+# Delete connection
+python3 scripts/celigo_api.py connections delete <id>
+
+# Get audit log
+python3 scripts/celigo_api.py connections audit <id>
+
+# Get OAuth2 info
+python3 scripts/celigo_api.py connections oauth2 <id>
+
+# Virtual export (test without saving)
+python3 scripts/celigo_api.py connections virtual-export <id> --data '{"export": {...}}'
+
+# Virtual import
+python3 scripts/celigo_api.py connections virtual-import <id> --data '{"import": {...}}'
+```
+
+## State Management
+
+```bash
+# List all state keys
+python3 scripts/celigo_api.py state list
+
+# Get/set state
+python3 scripts/celigo_api.py state get "sync_cursor"
+python3 scripts/celigo_api.py state set "sync_cursor" --data '{"lastId": "12345"}'
+python3 scripts/celigo_api.py state delete "old_key"
+
+# Import-scoped state
+python3 scripts/celigo_api.py state list-scoped --import <import_id>
+python3 scripts/celigo_api.py state get-scoped --import <import_id> "counter"
+python3 scripts/celigo_api.py state set-scoped --import <import_id> "counter" --data '{"count": 100}'
+```
+
+## Lookup Cache Data Operations
+
+```bash
+# Upsert data (POST /data)
+python3 scripts/celigo_api.py caches data-update <cache_id> \
+  --data '{"data": [{"key": "SKU-001", "value": {"productId": "123"}}]}'
+
+# Delete specific keys
+python3 scripts/celigo_api.py caches data-delete <cache_id> --keys key1,key2
+
+# Purge all data
+python3 scripts/celigo_api.py caches data-purge <cache_id>
+
+# Delete cache
+python3 scripts/celigo_api.py caches delete <cache_id>
+```
+
+## User Management (Full)
+
+```bash
+# Invite user (POST /invite)
+python3 scripts/celigo_api.py users invite --email user@example.com --role manage
+
+# Bulk invite
+python3 scripts/celigo_api.py users invite-multiple --data '{"emails": ["a@b.com", "c@d.com"], "accessLevel": "monitor"}'
+
+# Reinvite
+python3 scripts/celigo_api.py users reinvite --email user@example.com
+
+# Update permissions
+python3 scripts/celigo_api.py users update <share_id> --role administrator
+
+# Disable user
+python3 scripts/celigo_api.py users disable <share_id>
+
+# Remove user
+python3 scripts/celigo_api.py users delete <share_id>
+```
+
+## Script Logs
+
+```bash
+# Get execution logs
+python3 scripts/celigo_api.py scripts logs <script_id>
+```
+
+## File Definitions
+
+```bash
+python3 scripts/celigo_api.py filedefinitions list
+python3 scripts/celigo_api.py filedefinitions get <id>
+python3 scripts/celigo_api.py filedefinitions create --file definition.json
+python3 scripts/celigo_api.py filedefinitions update <id> --data '{"name": "Updated"}'
+python3 scripts/celigo_api.py filedefinitions delete <id>
+```
+
+## Recycle Bin
+
+```bash
+# List recycled resources
+python3 scripts/celigo_api.py recyclebin list
+python3 scripts/celigo_api.py recyclebin list --resource-type flows
+
+# Restore or permanently delete
+python3 scripts/celigo_api.py recyclebin restore flows <id>
+python3 scripts/celigo_api.py recyclebin delete flows <id>
+```
+
+## Account Audit Log
+
+```bash
+python3 scripts/celigo_api.py audit list
+python3 scripts/celigo_api.py audit list --resource-type flows --since "2024-01-01T00:00:00Z"
+```
+
+## iClients (OAuth2 Apps)
+
+```bash
+python3 scripts/celigo_api.py iclients list
+python3 scripts/celigo_api.py iclients get <id>
+python3 scripts/celigo_api.py iclients create --file client.json
+python3 scripts/celigo_api.py iclients delete <id>
+python3 scripts/celigo_api.py iclients dependencies <id>
+```
+
+## Connectors & Licenses
+
+```bash
+# Connector CRUD
+python3 scripts/celigo_api.py connectors list
+python3 scripts/celigo_api.py connectors get <id>
+python3 scripts/celigo_api.py connectors install-base <id>
+python3 scripts/celigo_api.py connectors publish-update <id> --file update.json
+
+# License management
+python3 scripts/celigo_api.py connectors list-licenses <id>
+python3 scripts/celigo_api.py connectors create-license <id> --file license.json
+python3 scripts/celigo_api.py connectors delete-license <connector_id> <license_id>
+```
+
+## Data Processors
+
+```bash
+python3 scripts/celigo_api.py processors parse-xml --file xml_config.json
+python3 scripts/celigo_api.py processors parse-csv --file csv_config.json
+python3 scripts/celigo_api.py processors generate-csv --data '{"data": [...], "options": {...}}'
+```
+
+## Templates
+
+```bash
+python3 scripts/celigo_api.py templates list
+python3 scripts/celigo_api.py templates update <id> --file template.json
+```
+
+## EDI/B2B
+
+```bash
+# EDI profile management
+python3 scripts/celigo_api.py edi list
+python3 scripts/celigo_api.py edi get <id>
+python3 scripts/celigo_api.py edi create --file profile.json
+
+# Transaction operations
+python3 scripts/celigo_api.py edi query-transactions --data '{"filter": {...}}'
+python3 scripts/celigo_api.py edi fa-details <transaction_id>
+```
+
+## Advanced Error Operations
+
+```bash
+# Delete resolved errors
+python3 scripts/celigo_api.py errors delete-resolved --flow <flow_id> --import <import_id>
+
+# Update retry data before retrying
+python3 scripts/celigo_api.py errors update-retry-data \
+  --flow <flow_id> --import <import_id> --key <retry_key> \
+  --data '{"email": "fixed@example.com"}'
+
+# View request/response details
+python3 scripts/celigo_api.py errors view-request \
+  --flow <flow_id> --import <import_id> --key <request_key>
+```
+
 ## Common Workflows
 
 ### Daily Health Check

@@ -8,9 +8,13 @@ Users (also called "account shares" or "ashares") represent people with access t
 |-----------|--------|----------|
 | List all | GET | `/ashares` |
 | Get one | GET | `/ashares/{id}` |
-| Invite user | POST | `/ashares` |
+| Invite user | POST | `/invite` |
+| Bulk invite | POST | `/invite/multiple` |
+| Reinvite user | POST | `/reinvite` |
 | Update permissions | PUT | `/ashares/{id}` |
+| Disable user | PUT | `/ashares/{id}/disable` |
 | Remove user | DELETE | `/ashares/{id}` |
+| Update SSO client | PATCH | `/ssoclients/{id}` |
 
 ## User Object
 
@@ -109,7 +113,7 @@ curl -X GET "https://api.integrator.io/v1/ashares/{share_id}" \
 ### Invite User
 
 ```bash
-curl -X POST "https://api.integrator.io/v1/ashares" \
+curl -X POST "https://api.integrator.io/v1/invite" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -266,7 +270,7 @@ def bulk_invite(emails, access_level="monitor", integration_ids=None):
                 for iid in integration_ids
             ]
 
-        result = api_post("/ashares", payload)
+        result = api_post("/invite", payload)
         results.append({"email": email, "status": result.status_code})
 
     return results

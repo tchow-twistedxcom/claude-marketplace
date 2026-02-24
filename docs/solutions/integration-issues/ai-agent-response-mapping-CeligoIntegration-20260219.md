@@ -122,3 +122,4 @@ python3 scripts/celigo_api.py flows update 698b4a31ae386aee54914746 --data '{
 ## Related Issues
 
 - See also: [celigo-put-full-replace-CeligoIntegration-20260219.md](./celigo-put-full-replace-CeligoIntegration-20260219.md) — discovered during the same session; the fetch-merge-PUT pattern was needed to safely update the flow's pageProcessors without destroying other fields
+- See also: [response-mapping-array-drop-CeligoIntegration-20260223.md](./response-mapping-array-drop-CeligoIntegration-20260223.md) — response mappings silently drop arrays/objects; use postResponseMap hooks instead

@@ -150,8 +150,11 @@ class CeligoClient:
     def put(self, endpoint: str, data: dict = None) -> dict:
         return self._make_request("PUT", endpoint, data=data)
 
-    def delete(self, endpoint: str) -> dict:
-        return self._make_request("DELETE", endpoint)
+    def patch(self, endpoint: str, data: dict = None) -> dict:
+        return self._make_request("PATCH", endpoint, data=data)
+
+    def delete(self, endpoint: str, data: dict = None, params: dict = None) -> dict:
+        return self._make_request("DELETE", endpoint, data=data, params=params)
 
 
 # =============================================================================
@@ -291,6 +294,26 @@ class IntegrationsAPI:
             params["source"] = source
         return self.client.get(f"/integrations/{integration_id}/errors", params)
 
+    def create(self, data: dict) -> dict:
+        """Create a new integration."""
+        return self.client.post("/integrations", data)
+
+    def update(self, integration_id: str, data: dict) -> dict:
+        """Update an existing integration (full-replace PUT)."""
+        return self.client.put(f"/integrations/{integration_id}", data)
+
+    def delete(self, integration_id: str) -> dict:
+        """Delete an integration."""
+        return self.client.delete(f"/integrations/{integration_id}")
+
+    def register_connections(self, integration_id: str, data: dict) -> dict:
+        """Register connections to an integration."""
+        return self.client.put(f"/integrations/{integration_id}/connections/register", data)
+
+    def download_template(self, integration_id: str) -> dict:
+        """Download integration as installable template."""
+        return self.client.post(f"/integrations/{integration_id}/template")
+
 
 # =============================================================================
 # Resource: Flows
@@ -364,6 +387,18 @@ class FlowsAPI:
         """Delete a flow."""
         return self.client.delete(f"/flows/{flow_id}")
 
+    def clone(self, flow_id: str) -> dict:
+        """Clone a flow."""
+        return self.client.post(f"/flows/{flow_id}/clone")
+
+    def patch(self, flow_id: str, data: list) -> dict:
+        """Partial update flow (JSON Patch RFC 6902)."""
+        return self.client.patch(f"/flows/{flow_id}", data)
+
+    def replace_connection(self, flow_id: str, data: dict) -> dict:
+        """Replace connection in a flow."""
+        return self.client.put(f"/flows/{flow_id}/replaceConnection", data)
+
 
 # =============================================================================
 # Resource: Connections
@@ -408,6 +443,46 @@ class ConnectionsAPI:
         """Create a new connection."""
         return self.client.post("/connections", data)
 
+    def update(self, connection_id: str, data: dict) -> dict:
+        """Update an existing connection (full-replace PUT)."""
+        return self.client.put(f"/connections/{connection_id}", data)
+
+    def patch(self, connection_id: str, data: list) -> dict:
+        """Partial update connection (JSON Patch RFC 6902)."""
+        return self.client.patch(f"/connections/{connection_id}", data)
+
+    def delete(self, connection_id: str) -> dict:
+        """Delete a connection."""
+        return self.client.delete(f"/connections/{connection_id}")
+
+    def audit(self, connection_id: str) -> list:
+        """Get connection audit log."""
+        return self.client.get(f"/connections/{connection_id}/audit")
+
+    def oauth2(self, connection_id: str) -> dict:
+        """Get OAuth2 token info for connection."""
+        return self.client.get(f"/connections/{connection_id}/oauth2")
+
+    def ping_virtual(self, data: dict) -> dict:
+        """Test a virtual (unsaved) connection."""
+        return self.client.post("/connections/ping", data)
+
+    def virtual_export(self, connection_id: str, data: dict) -> dict:
+        """Run a virtual export against a connection."""
+        return self.client.post(f"/connections/{connection_id}/export", data)
+
+    def virtual_export_pages(self, connection_id: str, data: dict) -> dict:
+        """Run a paged virtual export against a connection."""
+        return self.client.post(f"/connections/{connection_id}/export/pages", data)
+
+    def virtual_import(self, connection_id: str, data: dict) -> dict:
+        """Run a virtual import against a connection."""
+        return self.client.post(f"/connections/{connection_id}/import", data)
+
+    def virtual_import_map(self, connection_id: str, data: dict) -> dict:
+        """Get virtual import mapping for a connection."""
+        return self.client.post(f"/connections/{connection_id}/import/map", data)
+
 
 # =============================================================================
 # Resource: Exports
@@ -447,6 +522,22 @@ class ExportsAPI:
     def delete(self, export_id: str) -> dict:
         """Delete an export."""
         return self.client.delete(f"/exports/{export_id}")
+
+    def clone(self, export_id: str) -> dict:
+        """Clone an export."""
+        return self.client.post(f"/exports/{export_id}/clone")
+
+    def invoke(self, export_id: str, data: dict = None) -> dict:
+        """Invoke an export (run standalone)."""
+        return self.client.post(f"/exports/{export_id}/invoke", data)
+
+    def patch(self, export_id: str, data: list) -> dict:
+        """Partial update export (JSON Patch RFC 6902)."""
+        return self.client.patch(f"/exports/{export_id}", data)
+
+    def replace_connection(self, export_id: str, data: dict) -> dict:
+        """Replace connection in an export."""
+        return self.client.put(f"/exports/{export_id}/replaceConnection", data)
 
 
 # =============================================================================
@@ -488,6 +579,22 @@ class ImportsAPI:
         """Delete an import."""
         return self.client.delete(f"/imports/{import_id}")
 
+    def clone(self, import_id: str) -> dict:
+        """Clone an import."""
+        return self.client.post(f"/imports/{import_id}/clone")
+
+    def invoke(self, import_id: str, data: dict = None) -> dict:
+        """Invoke an import (run standalone)."""
+        return self.client.post(f"/imports/{import_id}/invoke", data)
+
+    def patch(self, import_id: str, data: list) -> dict:
+        """Partial update import (JSON Patch RFC 6902)."""
+        return self.client.patch(f"/imports/{import_id}", data)
+
+    def replace_connection(self, import_id: str, data: dict) -> dict:
+        """Replace connection in an import."""
+        return self.client.put(f"/imports/{import_id}/replaceConnection", data)
+
 
 # =============================================================================
 # Resource: Scripts
@@ -518,6 +625,10 @@ class ScriptsAPI:
     def delete(self, script_id: str) -> dict:
         """Delete a script."""
         return self.client.delete(f"/scripts/{script_id}")
+
+    def logs(self, script_id: str) -> list:
+        """Get script execution logs."""
+        return self.client.get(f"/scripts/{script_id}/logs")
 
 
 # =============================================================================
@@ -614,9 +725,9 @@ class ErrorsAPI:
         return self.client.get(f"/flows/{flow_id}/exports/{export_id}/errors/{retry_key}")
 
     def resolve_export(self, flow_id: str, export_id: str, error_ids: list) -> dict:
-        """Resolve export errors."""
-        return self.client.post(f"/flows/{flow_id}/exports/{export_id}/errors/resolve",
-                                {"errorIds": error_ids})
+        """Resolve export errors (PUT /resolved, not POST)."""
+        return self.client.put(f"/flows/{flow_id}/{export_id}/resolved",
+                               {"errorIds": error_ids})
 
     def retry_export(self, flow_id: str, export_id: str, retry_keys: list) -> dict:
         """Retry export errors."""
@@ -667,9 +778,9 @@ class ErrorsAPI:
         return self.client.get(f"/flows/{flow_id}/imports/{import_id}/errors/{retry_key}")
 
     def resolve_import(self, flow_id: str, import_id: str, error_ids: list) -> dict:
-        """Resolve import errors."""
-        return self.client.post(f"/flows/{flow_id}/imports/{import_id}/errors/resolve",
-                                {"errorIds": error_ids})
+        """Resolve import errors (PUT /resolved, not POST)."""
+        return self.client.put(f"/flows/{flow_id}/{import_id}/resolved",
+                               {"errorIds": error_ids})
 
     def retry_import(self, flow_id: str, import_id: str, retry_keys: list) -> dict:
         """Retry import errors."""
@@ -707,6 +818,24 @@ class ErrorsAPI:
         return self.client.post(f"/integrations/{integration_id}/errors/assign",
                                 {"errorIds": error_ids, "email": email})
 
+    def delete_resolved_export(self, flow_id: str, export_id: str) -> dict:
+        """Delete resolved export errors."""
+        return self.client.delete(f"/flows/{flow_id}/{export_id}/resolved")
+
+    def delete_resolved_import(self, flow_id: str, import_id: str) -> dict:
+        """Delete resolved import errors."""
+        return self.client.delete(f"/flows/{flow_id}/{import_id}/resolved")
+
+    def update_retry_data(self, flow_id: str, exp_or_imp_id: str,
+                          retry_key: str, data: dict) -> dict:
+        """Update retry data for an error before retrying."""
+        return self.client.put(f"/flows/{flow_id}/{exp_or_imp_id}/{retry_key}/data", data)
+
+    def view_request(self, flow_id: str, page_processor_id: str,
+                     request_key: str) -> dict:
+        """View request/response details for an error."""
+        return self.client.get(f"/flows/{flow_id}/{page_processor_id}/requests/{request_key}")
+
 
 # =============================================================================
 # Resource: Lookup Caches
@@ -726,19 +855,35 @@ class LookupCachesAPI:
         """Get lookup cache metadata."""
         return self.client.get(f"/lookupcaches/{cache_id}")
 
+    def delete(self, cache_id: str) -> dict:
+        """Delete a lookup cache."""
+        return self.client.delete(f"/lookupcaches/{cache_id}")
+
     def data(self, cache_id: str, keys: list = None, starts_with: str = None,
              page_size: int = None, start_after_key: str = None) -> dict:
-        """Get lookup cache data."""
-        params = {}
+        """Get lookup cache data (POST /getData — NOT GET)."""
+        body = {}
         if keys:
-            params["keys"] = ",".join(keys)
+            body["keys"] = keys
         if starts_with:
-            params["starts_with"] = starts_with
+            body["starts_with"] = starts_with
         if page_size:
-            params["pageSize"] = page_size
+            body["pageSize"] = page_size
         if start_after_key:
-            params["start_after_key"] = start_after_key
-        return self.client.get(f"/lookupcaches/{cache_id}/data", params)
+            body["start_after_key"] = start_after_key
+        return self.client.post(f"/lookupcaches/{cache_id}/getData", body if body else None)
+
+    def data_update(self, cache_id: str, data: dict) -> dict:
+        """Upsert lookup cache data (POST /data)."""
+        return self.client.post(f"/lookupcaches/{cache_id}/data", data)
+
+    def data_delete(self, cache_id: str, keys: list) -> dict:
+        """Delete specific keys from lookup cache data."""
+        return self.client.delete(f"/lookupcaches/{cache_id}/data", data={"keys": keys})
+
+    def data_purge(self, cache_id: str) -> dict:
+        """Delete all data from lookup cache."""
+        return self.client.delete(f"/lookupcaches/{cache_id}/data/purge")
 
 
 # =============================================================================
@@ -790,6 +935,353 @@ class UsersAPI:
     def get(self, user_id: str) -> dict:
         """Get single user/share."""
         return self.client.get(f"/ashares/{user_id}")
+
+    def update(self, user_id: str, data: dict) -> dict:
+        """Update user permissions (full-replace PUT)."""
+        return self.client.put(f"/ashares/{user_id}", data)
+
+    def delete(self, user_id: str) -> dict:
+        """Remove a user."""
+        return self.client.delete(f"/ashares/{user_id}")
+
+    def disable(self, user_id: str) -> dict:
+        """Disable a user."""
+        return self.client.put(f"/ashares/{user_id}/disable")
+
+    def invite(self, data: dict) -> dict:
+        """Invite a user (POST /invite, not POST /ashares)."""
+        return self.client.post("/invite", data)
+
+    def invite_multiple(self, data: dict) -> dict:
+        """Invite multiple users at once."""
+        return self.client.post("/invite/multiple", data)
+
+    def reinvite(self, data: dict) -> dict:
+        """Reinvite a user."""
+        return self.client.post("/reinvite", data)
+
+    def sso_update(self, client_id: str, data: dict) -> dict:
+        """Update SSO client settings."""
+        return self.client.patch(f"/ssoclients/{client_id}", data)
+
+
+# =============================================================================
+# Resource: State API
+# =============================================================================
+
+class StateAPI:
+    """State API for persistent key-value storage."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        """List all state keys."""
+        return self.client.get("/state")
+
+    def get(self, key: str) -> dict:
+        """Get state value by key."""
+        return self.client.get(f"/state/{quote(key, safe='')}")
+
+    def set(self, key: str, data: dict) -> dict:
+        """Set state value for key."""
+        return self.client.put(f"/state/{quote(key, safe='')}", data)
+
+    def delete(self, key: str) -> dict:
+        """Delete a state key."""
+        return self.client.delete(f"/state/{quote(key, safe='')}")
+
+    def list_scoped(self, import_id: str) -> list:
+        """List import-scoped state keys."""
+        return self.client.get(f"/imports/{import_id}/state")
+
+    def get_scoped(self, import_id: str, key: str) -> dict:
+        """Get import-scoped state value."""
+        return self.client.get(f"/imports/{import_id}/state/{quote(key, safe='')}")
+
+    def set_scoped(self, import_id: str, key: str, data: dict) -> dict:
+        """Set import-scoped state value."""
+        return self.client.put(f"/imports/{import_id}/state/{quote(key, safe='')}", data)
+
+
+# =============================================================================
+# Resource: File Definitions
+# =============================================================================
+
+class FileDefinitionsAPI:
+    """File definitions resource operations (standard CRUD)."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        """List all file definitions."""
+        return self.client.get("/filedefinitions")
+
+    def get(self, fd_id: str) -> dict:
+        """Get a file definition."""
+        return self.client.get(f"/filedefinitions/{fd_id}")
+
+    def create(self, data: dict) -> dict:
+        """Create a file definition."""
+        return self.client.post("/filedefinitions", data)
+
+    def update(self, fd_id: str, data: dict) -> dict:
+        """Update a file definition (full-replace PUT)."""
+        return self.client.put(f"/filedefinitions/{fd_id}", data)
+
+    def delete(self, fd_id: str) -> dict:
+        """Delete a file definition."""
+        return self.client.delete(f"/filedefinitions/{fd_id}")
+
+
+# =============================================================================
+# Resource: Recycle Bin
+# =============================================================================
+
+class RecycleBinAPI:
+    """Recycle bin operations (recycleBinTTL endpoints)."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self, resource_type: str = None) -> list:
+        """List recycled resources, optionally filtered by type."""
+        if resource_type:
+            return self.client.get(f"/recycleBinTTL/{resource_type}")
+        return self.client.get("/recycleBinTTL")
+
+    def get(self, resource_type: str, resource_id: str) -> dict:
+        """Get a specific recycled resource."""
+        return self.client.get(f"/recycleBinTTL/{resource_type}/{resource_id}")
+
+    def restore(self, resource_type: str, resource_id: str) -> dict:
+        """Restore a recycled resource."""
+        return self.client.post(f"/recycleBinTTL/{resource_type}/{resource_id}")
+
+    def delete(self, resource_type: str, resource_id: str) -> dict:
+        """Permanently delete a recycled resource."""
+        return self.client.delete(f"/recycleBinTTL/{resource_type}/{resource_id}")
+
+
+# =============================================================================
+# Resource: Audit
+# =============================================================================
+
+class AuditAPI:
+    """Account-wide audit log."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self, resource_type: str = None, user: str = None,
+             since: str = None, until: str = None) -> list:
+        """List account-wide audit entries."""
+        params = {}
+        if resource_type:
+            params["resourceType"] = resource_type
+        if user:
+            params["byUser"] = user
+        if since:
+            params["startDate"] = since
+        if until:
+            params["endDate"] = until
+        return self.client.get("/audit", params)
+
+
+# =============================================================================
+# Resource: iClients
+# =============================================================================
+
+class IClientsAPI:
+    """iClients (OAuth2 app) resource operations."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        """List all iClients."""
+        return self.client.get("/iclients")
+
+    def get(self, iclient_id: str) -> dict:
+        """Get an iClient."""
+        return self.client.get(f"/iclients/{iclient_id}")
+
+    def create(self, data: dict) -> dict:
+        """Create an iClient."""
+        return self.client.post("/iclients", data)
+
+    def update(self, iclient_id: str, data: dict) -> dict:
+        """Update an iClient (full-replace PUT)."""
+        return self.client.put(f"/iclients/{iclient_id}", data)
+
+    def patch(self, iclient_id: str, data: list) -> dict:
+        """Partial update iClient (JSON Patch RFC 6902)."""
+        return self.client.patch(f"/iclients/{iclient_id}", data)
+
+    def delete(self, iclient_id: str) -> dict:
+        """Delete an iClient."""
+        return self.client.delete(f"/iclients/{iclient_id}")
+
+    def dependencies(self, iclient_id: str) -> dict:
+        """Get iClient dependencies."""
+        return self.client.get(f"/iclients/{iclient_id}/dependencies")
+
+
+# =============================================================================
+# Resource: Connectors & Licenses
+# =============================================================================
+
+class ConnectorsAPI:
+    """Connectors and licenses resource operations."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        """List all connectors."""
+        return self.client.get("/connectors")
+
+    def get(self, connector_id: str) -> dict:
+        """Get a connector."""
+        return self.client.get(f"/connectors/{connector_id}")
+
+    def create(self, data: dict) -> dict:
+        """Create a connector."""
+        return self.client.post("/connectors", data)
+
+    def update(self, connector_id: str, data: dict) -> dict:
+        """Update a connector (full-replace PUT)."""
+        return self.client.put(f"/connectors/{connector_id}", data)
+
+    def delete(self, connector_id: str) -> dict:
+        """Delete a connector."""
+        return self.client.delete(f"/connectors/{connector_id}")
+
+    def install_base(self, connector_id: str) -> list:
+        """Get connector install base."""
+        return self.client.get(f"/connectors/{connector_id}/installBase")
+
+    def publish_update(self, connector_id: str, data: dict) -> dict:
+        """Publish a connector update."""
+        return self.client.put(f"/connectors/{connector_id}/update", data)
+
+    def list_licenses(self, connector_id: str) -> list:
+        """List licenses for a connector."""
+        return self.client.get(f"/connectors/{connector_id}/licenses")
+
+    def create_license(self, connector_id: str, data: dict) -> dict:
+        """Create a license for a connector."""
+        return self.client.post(f"/connectors/{connector_id}/licenses", data)
+
+    def get_license(self, connector_id: str, license_id: str) -> dict:
+        """Get a specific license."""
+        return self.client.get(f"/connectors/{connector_id}/licenses/{license_id}")
+
+    def update_license(self, connector_id: str, license_id: str, data: dict) -> dict:
+        """Update a license."""
+        return self.client.put(f"/connectors/{connector_id}/licenses/{license_id}", data)
+
+    def delete_license(self, connector_id: str, license_id: str) -> dict:
+        """Delete a license."""
+        return self.client.delete(f"/connectors/{connector_id}/licenses/{license_id}")
+
+
+# =============================================================================
+# Resource: Processors (Parser & Generator)
+# =============================================================================
+
+class ProcessorsAPI:
+    """Data processors for parsing and generating structured files."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def parse_xml(self, data: dict) -> dict:
+        """Parse XML data."""
+        return self.client.post("/processors/xmlParser", data)
+
+    def parse_csv(self, data: dict) -> dict:
+        """Parse CSV data."""
+        return self.client.post("/processors/csvParser", data)
+
+    def generate_csv(self, data: dict) -> dict:
+        """Generate CSV data."""
+        return self.client.post("/processors/csvDataGenerator", data)
+
+    def generate_structured(self, data: dict) -> dict:
+        """Generate structured file data."""
+        return self.client.post("/processors/structuredFileGenerator", data)
+
+    def parse_structured(self, data: dict) -> dict:
+        """Parse structured file data."""
+        return self.client.post("/processors/structuredFileParser", data)
+
+
+# =============================================================================
+# Resource: Templates
+# =============================================================================
+
+class TemplatesAPI:
+    """Template resource operations."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        """List all templates."""
+        return self.client.get("/template")
+
+    def update(self, template_id: str, data: dict) -> dict:
+        """Update a template."""
+        return self.client.put(f"/template/{template_id}", data)
+
+
+# =============================================================================
+# Resource: EDI/B2B
+# =============================================================================
+
+class EDIAPI:
+    """EDI/B2B profile and transaction operations."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        """List all EDI profiles."""
+        return self.client.get("/ediprofiles")
+
+    def get(self, profile_id: str) -> dict:
+        """Get an EDI profile."""
+        return self.client.get(f"/ediprofiles/{profile_id}")
+
+    def create(self, data: dict) -> dict:
+        """Create an EDI profile."""
+        return self.client.post("/ediprofiles", data)
+
+    def update(self, profile_id: str, data: dict) -> dict:
+        """Update an EDI profile (full-replace PUT)."""
+        return self.client.put(f"/ediprofiles/{profile_id}", data)
+
+    def patch(self, profile_id: str, data: list) -> dict:
+        """Partial update EDI profile (JSON Patch RFC 6902)."""
+        return self.client.patch(f"/ediprofiles/{profile_id}", data)
+
+    def delete(self, profile_id: str) -> dict:
+        """Delete an EDI profile."""
+        return self.client.delete(f"/ediprofiles/{profile_id}")
+
+    def update_transactions(self, data: dict) -> dict:
+        """Update EDI transactions."""
+        return self.client.patch("/ediTransactions", data)
+
+    def query_transactions(self, data: dict) -> dict:
+        """Query EDI transactions."""
+        return self.client.post("/ediTransactions/query", data)
+
+    def get_fa_details(self, transaction_id: str) -> dict:
+        """Get functional acknowledgment details for a transaction."""
+        return self.client.get(f"/ediTransactions/{transaction_id}/faDetails")
 
 
 # =============================================================================
@@ -849,12 +1341,49 @@ def cmd_integrations(args):
         columns = ["_flowId", "numError"]
         print_result(data, args.format, columns)
 
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        if not data.get("name"):
+            print("Error: Integration name is required.", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, INTEGRATION_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "register-connections":
+        data = _resolve_json_input(args)
+        print_result(api.register_connections(args.id, data), args.format)
+
+    elif args.action == "download-template":
+        print_result(api.download_template(args.id), args.format)
+
 
 # Read-only fields to strip before PUT requests (Celigo PUT is full-replace)
 FLOW_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt", "lastExecutedAt"])
 EXPORT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
 IMPORT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
 SCRIPT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+CONNECTION_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+INTEGRATION_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+LOOKUPCACHE_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+USER_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+FILEDEFINITION_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+ICLIENT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+CONNECTOR_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+EDIPROFILE_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
 
 
 def _merge_updates_for_put(current: dict, updates: dict, readonly_fields: frozenset) -> dict:
@@ -930,6 +1459,12 @@ def _resolve_json_input(args) -> dict:
         data["schedule"] = args.schedule
     if hasattr(args, 'timezone') and args.timezone is not None:
         data["timezone"] = args.timezone
+    if hasattr(args, 'email') and args.email is not None:
+        data["email"] = args.email
+    if hasattr(args, 'role') and args.role is not None:
+        data["accessLevel"] = args.role
+    if hasattr(args, 'key') and args.key is not None:
+        data["key"] = args.key
 
     return data
 
@@ -1001,6 +1536,21 @@ def cmd_flows(args):
         result = api.delete(args.id)
         print_result(result, args.format)
 
+    elif args.action == "clone":
+        print_result(api.clone(args.id), args.format)
+
+    elif args.action == "patch":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No patch data provided. Use --data with JSON Patch array.", file=sys.stderr)
+            sys.exit(1)
+        patch_ops = data if isinstance(data, list) else [data]
+        print_result(api.patch(args.id, patch_ops), args.format)
+
+    elif args.action == "replace-connection":
+        data = _resolve_json_input(args)
+        print_result(api.replace_connection(args.id, data), args.format)
+
 
 def cmd_connections(args):
     """Handle connections subcommands."""
@@ -1031,6 +1581,47 @@ def cmd_connections(args):
         data = _resolve_json_input(args)
         result = api.create(data)
         print_result(result, args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, CONNECTION_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "patch":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No patch data provided.", file=sys.stderr)
+            sys.exit(1)
+        patch_ops = data if isinstance(data, list) else [data]
+        print_result(api.patch(args.id, patch_ops), args.format)
+
+    elif args.action == "audit":
+        print_result(api.audit(args.id), args.format)
+
+    elif args.action == "oauth2":
+        print_result(api.oauth2(args.id), args.format)
+
+    elif args.action == "ping-virtual":
+        data = _resolve_json_input(args)
+        print_result(api.ping_virtual(data), args.format)
+
+    elif args.action == "virtual-export":
+        data = _resolve_json_input(args)
+        print_result(api.virtual_export(args.id, data), args.format)
+
+    elif args.action == "virtual-import":
+        data = _resolve_json_input(args)
+        print_result(api.virtual_import(args.id, data), args.format)
 
 
 def cmd_exports(args):
@@ -1075,6 +1666,25 @@ def cmd_exports(args):
         result = api.delete(args.id)
         print_result(result, args.format)
 
+    elif args.action == "clone":
+        print_result(api.clone(args.id), args.format)
+
+    elif args.action == "invoke":
+        data = _resolve_json_input(args) if hasattr(args, 'data') else None
+        print_result(api.invoke(args.id, data), args.format)
+
+    elif args.action == "patch":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No patch data provided.", file=sys.stderr)
+            sys.exit(1)
+        patch_ops = data if isinstance(data, list) else [data]
+        print_result(api.patch(args.id, patch_ops), args.format)
+
+    elif args.action == "replace-connection":
+        data = _resolve_json_input(args)
+        print_result(api.replace_connection(args.id, data), args.format)
+
 
 def cmd_imports(args):
     """Handle imports subcommands."""
@@ -1117,6 +1727,25 @@ def cmd_imports(args):
     elif args.action == "delete":
         result = api.delete(args.id)
         print_result(result, args.format)
+
+    elif args.action == "clone":
+        print_result(api.clone(args.id), args.format)
+
+    elif args.action == "invoke":
+        data = _resolve_json_input(args) if hasattr(args, 'data') else None
+        print_result(api.invoke(args.id, data), args.format)
+
+    elif args.action == "patch":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No patch data provided.", file=sys.stderr)
+            sys.exit(1)
+        patch_ops = data if isinstance(data, list) else [data]
+        print_result(api.patch(args.id, patch_ops), args.format)
+
+    elif args.action == "replace-connection":
+        data = _resolve_json_input(args)
+        print_result(api.replace_connection(args.id, data), args.format)
 
 
 def cmd_scripts(args):
@@ -1182,6 +1811,9 @@ def cmd_scripts(args):
     elif args.action == "delete":
         result = api.delete(args.id)
         print_result(result, args.format)
+
+    elif args.action == "logs":
+        print_result(api.logs(args.id), args.format)
 
 
 def cmd_jobs(args):
@@ -1316,6 +1948,33 @@ def cmd_errors(args):
         data = api.assign_integration(args.integration, error_ids, args.email)
         print_result(data, args.format)
 
+    elif args.action == "delete-resolved":
+        if is_export:
+            data = api.delete_resolved_export(args.flow, args.export)
+        elif is_import:
+            data = api.delete_resolved_import(args.flow, args.import_id)
+        else:
+            print("Error: Specify --export or --import", file=sys.stderr)
+            sys.exit(1)
+        print_result(data, args.format)
+
+    elif args.action == "update-retry-data":
+        exp_or_imp = args.export or args.import_id
+        if not exp_or_imp:
+            print("Error: Specify --export or --import", file=sys.stderr)
+            sys.exit(1)
+        update_data = _resolve_json_input(args)
+        data = api.update_retry_data(args.flow, exp_or_imp, args.key, update_data)
+        print_result(data, args.format)
+
+    elif args.action == "view-request":
+        pp_id = args.export or args.import_id
+        if not pp_id:
+            print("Error: Specify --export or --import (page processor ID)", file=sys.stderr)
+            sys.exit(1)
+        data = api.view_request(args.flow, pp_id, args.key)
+        print_result(data, args.format)
+
 
 def cmd_caches(args):
     """Handle lookup caches subcommands."""
@@ -1335,6 +1994,24 @@ def cmd_caches(args):
         data = api.data(args.id, keys=keys, starts_with=args.starts_with,
                         page_size=args.page_size, start_after_key=args.start_after)
         print_result(data, args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "data-update":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No data provided. Use --data or --file with {\"data\": [{\"key\": ..., \"value\": ...}]}",
+                  file=sys.stderr)
+            sys.exit(1)
+        print_result(api.data_update(args.id, data), args.format)
+
+    elif args.action == "data-delete":
+        keys = args.keys.split(",")
+        print_result(api.data_delete(args.id, keys), args.format)
+
+    elif args.action == "data-purge":
+        print_result(api.data_purge(args.id), args.format)
 
 
 def cmd_tags(args):
@@ -1371,6 +2048,345 @@ def cmd_users(args):
 
     elif args.action == "get":
         print_result(api.get(args.id), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, USER_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "disable":
+        print_result(api.disable(args.id), args.format)
+
+    elif args.action == "invite":
+        data = _resolve_json_input(args)
+        if not data.get("email"):
+            print("Error: --email is required for invite.", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.invite(data), args.format)
+
+    elif args.action == "invite-multiple":
+        data = _resolve_json_input(args)
+        print_result(api.invite_multiple(data), args.format)
+
+    elif args.action == "reinvite":
+        data = _resolve_json_input(args)
+        if not data.get("email"):
+            print("Error: --email is required for reinvite.", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.reinvite(data), args.format)
+
+    elif args.action == "sso-update":
+        data = _resolve_json_input(args)
+        print_result(api.sso_update(args.id, data), args.format)
+
+
+def cmd_state(args):
+    """Handle state API subcommands."""
+    client = CeligoClient(args.env)
+    api = StateAPI(client)
+
+    if args.action == "list":
+        print_result(api.list(), args.format)
+
+    elif args.action == "get":
+        print_result(api.get(args.key), args.format)
+
+    elif args.action == "set":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No data provided. Use --data or --file", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.set(args.key, data), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.key), args.format)
+
+    elif args.action == "list-scoped":
+        print_result(api.list_scoped(args.import_id), args.format)
+
+    elif args.action == "get-scoped":
+        print_result(api.get_scoped(args.import_id, args.key), args.format)
+
+    elif args.action == "set-scoped":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No data provided. Use --data or --file", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.set_scoped(args.import_id, args.key, data), args.format)
+
+
+def cmd_filedefinitions(args):
+    """Handle file definitions subcommands."""
+    client = CeligoClient(args.env)
+    api = FileDefinitionsAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, FILEDEFINITION_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+
+def cmd_recyclebin(args):
+    """Handle recycle bin subcommands."""
+    client = CeligoClient(args.env)
+    api = RecycleBinAPI(client)
+
+    if args.action == "list":
+        resource_type = getattr(args, 'resource_type', None)
+        data = api.list(resource_type)
+        columns = ["_id", "name", "type", "deletedAt"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.resource_type, args.id), args.format)
+
+    elif args.action == "restore":
+        print_result(api.restore(args.resource_type, args.id), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.resource_type, args.id), args.format)
+
+
+def cmd_audit(args):
+    """Handle account audit log subcommands."""
+    client = CeligoClient(args.env)
+    api = AuditAPI(client)
+
+    if args.action == "list":
+        data = api.list(
+            resource_type=getattr(args, 'resource_type', None),
+            user=getattr(args, 'user', None),
+            since=getattr(args, 'since', None),
+            until=getattr(args, 'until', None)
+        )
+        print_result(data, args.format)
+
+
+def cmd_iclients(args):
+    """Handle iClients subcommands."""
+    client = CeligoClient(args.env)
+    api = IClientsAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, ICLIENT_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "patch":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No patch data provided.", file=sys.stderr)
+            sys.exit(1)
+        patch_ops = data if isinstance(data, list) else [data]
+        print_result(api.patch(args.id, patch_ops), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "dependencies":
+        print_result(api.dependencies(args.id), args.format)
+
+
+def cmd_connectors(args):
+    """Handle connectors and licenses subcommands."""
+    client = CeligoClient(args.env)
+    api = ConnectorsAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, CONNECTOR_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "install-base":
+        print_result(api.install_base(args.id), args.format)
+
+    elif args.action == "publish-update":
+        data = _resolve_json_input(args)
+        print_result(api.publish_update(args.id, data), args.format)
+
+    elif args.action == "list-licenses":
+        data = api.list_licenses(args.id)
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "create-license":
+        data = _resolve_json_input(args)
+        print_result(api.create_license(args.id, data), args.format)
+
+    elif args.action == "get-license":
+        print_result(api.get_license(args.id, args.license_id), args.format)
+
+    elif args.action == "update-license":
+        data = _resolve_json_input(args)
+        print_result(api.update_license(args.id, args.license_id, data), args.format)
+
+    elif args.action == "delete-license":
+        print_result(api.delete_license(args.id, args.license_id), args.format)
+
+
+def cmd_processors(args):
+    """Handle processor subcommands."""
+    client = CeligoClient(args.env)
+    api = ProcessorsAPI(client)
+
+    data = _resolve_json_input(args)
+    if not data:
+        print("Error: No data provided. Use --data or --file", file=sys.stderr)
+        sys.exit(1)
+
+    if args.action == "parse-xml":
+        print_result(api.parse_xml(data), args.format)
+    elif args.action == "parse-csv":
+        print_result(api.parse_csv(data), args.format)
+    elif args.action == "generate-csv":
+        print_result(api.generate_csv(data), args.format)
+    elif args.action == "generate-structured":
+        print_result(api.generate_structured(data), args.format)
+    elif args.action == "parse-structured":
+        print_result(api.parse_structured(data), args.format)
+
+
+def cmd_templates(args):
+    """Handle template subcommands."""
+    client = CeligoClient(args.env)
+    api = TemplatesAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "update":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.update(args.id, data), args.format)
+
+
+def cmd_edi(args):
+    """Handle EDI/B2B subcommands."""
+    client = CeligoClient(args.env)
+    api = EDIAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, EDIPROFILE_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "patch":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No patch data provided.", file=sys.stderr)
+            sys.exit(1)
+        patch_ops = data if isinstance(data, list) else [data]
+        print_result(api.patch(args.id, patch_ops), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "update-transactions":
+        data = _resolve_json_input(args)
+        print_result(api.update_transactions(data), args.format)
+
+    elif args.action == "query-transactions":
+        data = _resolve_json_input(args)
+        print_result(api.query_transactions(data), args.format)
+
+    elif args.action == "fa-details":
+        print_result(api.get_fa_details(args.id), args.format)
 
 
 def cmd_health_digest(args):
@@ -1598,6 +2614,30 @@ Examples:
     int_errors.add_argument("--until", help="Occurred before (ISO 8601)")
     int_errors.add_argument("--source", help="Error source filter")
 
+    int_create = int_sub.add_parser("create", help="Create an integration")
+    int_create.add_argument("--name", help="Integration name")
+    int_create.add_argument("--description", help="Description")
+    int_create.add_argument("--data", help="Full JSON (inline)")
+    int_create.add_argument("--file", help="Path to JSON file")
+
+    int_update = int_sub.add_parser("update", help="Update an integration")
+    int_update.add_argument("id", help="Integration ID")
+    int_update.add_argument("--name", help="New name")
+    int_update.add_argument("--description", help="New description")
+    int_update.add_argument("--data", help="Partial JSON (inline)")
+    int_update.add_argument("--file", help="Path to JSON file")
+
+    int_delete = int_sub.add_parser("delete", help="Delete an integration")
+    int_delete.add_argument("id", help="Integration ID")
+
+    int_regconn = int_sub.add_parser("register-connections", help="Register connections")
+    int_regconn.add_argument("id", help="Integration ID")
+    int_regconn.add_argument("--data", help="Connection registration JSON")
+    int_regconn.add_argument("--file", help="Path to JSON file")
+
+    int_dltpl = int_sub.add_parser("download-template", help="Download as installable template")
+    int_dltpl.add_argument("id", help="Integration ID")
+
     # --- Flows ---
     flow_parser = subparsers.add_parser("flows", help="Flow operations")
     flow_sub = flow_parser.add_subparsers(dest="action")
@@ -1661,6 +2701,19 @@ Examples:
     flow_delete = flow_sub.add_parser("delete", help="Delete a flow")
     flow_delete.add_argument("id", help="Flow ID")
 
+    flow_clone = flow_sub.add_parser("clone", help="Clone a flow")
+    flow_clone.add_argument("id", help="Flow ID")
+
+    flow_patch = flow_sub.add_parser("patch", help="Partial update (JSON Patch)")
+    flow_patch.add_argument("id", help="Flow ID")
+    flow_patch.add_argument("--data", help='JSON Patch array: [{"op":"replace","path":"/name","value":"new"}]')
+    flow_patch.add_argument("--file", help="Path to JSON Patch file")
+
+    flow_replconn = flow_sub.add_parser("replace-connection", help="Replace connection in flow")
+    flow_replconn.add_argument("id", help="Flow ID")
+    flow_replconn.add_argument("--data", help="Connection replacement JSON")
+    flow_replconn.add_argument("--file", help="Path to JSON file")
+
     # --- Connections ---
     conn_parser = subparsers.add_parser("connections", help="Connection operations")
     conn_sub = conn_parser.add_subparsers(dest="action")
@@ -1687,6 +2740,39 @@ Examples:
     conn_create = conn_sub.add_parser("create", help="Create a new connection")
     conn_create.add_argument("--data", help="Full connection JSON (inline string)")
     conn_create.add_argument("--file", help="Path to JSON file with connection definition")
+
+    conn_update = conn_sub.add_parser("update", help="Update connection (fetch-merge-PUT)")
+    conn_update.add_argument("id", help="Connection ID")
+    conn_update.add_argument("--data", help="Partial JSON (inline)")
+    conn_update.add_argument("--file", help="Path to JSON file")
+
+    conn_delete = conn_sub.add_parser("delete", help="Delete a connection")
+    conn_delete.add_argument("id", help="Connection ID")
+
+    conn_patch = conn_sub.add_parser("patch", help="Partial update (JSON Patch)")
+    conn_patch.add_argument("id", help="Connection ID")
+    conn_patch.add_argument("--data", help="JSON Patch array")
+    conn_patch.add_argument("--file", help="Path to JSON Patch file")
+
+    conn_audit = conn_sub.add_parser("audit", help="Get audit log")
+    conn_audit.add_argument("id", help="Connection ID")
+
+    conn_oauth2 = conn_sub.add_parser("oauth2", help="Get OAuth2 token info")
+    conn_oauth2.add_argument("id", help="Connection ID")
+
+    conn_pingv = conn_sub.add_parser("ping-virtual", help="Test virtual (unsaved) connection")
+    conn_pingv.add_argument("--data", help="Connection definition JSON")
+    conn_pingv.add_argument("--file", help="Path to JSON file")
+
+    conn_vexp = conn_sub.add_parser("virtual-export", help="Run virtual export")
+    conn_vexp.add_argument("id", help="Connection ID")
+    conn_vexp.add_argument("--data", help="Export definition JSON")
+    conn_vexp.add_argument("--file", help="Path to JSON file")
+
+    conn_vimp = conn_sub.add_parser("virtual-import", help="Run virtual import")
+    conn_vimp.add_argument("id", help="Connection ID")
+    conn_vimp.add_argument("--data", help="Import definition JSON")
+    conn_vimp.add_argument("--file", help="Path to JSON file")
 
     # --- Exports ---
     exp_parser = subparsers.add_parser("exports", help="Export operations")
@@ -1717,6 +2803,24 @@ Examples:
     exp_delete = exp_sub.add_parser("delete", help="Delete an export")
     exp_delete.add_argument("id", help="Export ID")
 
+    exp_clone = exp_sub.add_parser("clone", help="Clone an export")
+    exp_clone.add_argument("id", help="Export ID")
+
+    exp_invoke = exp_sub.add_parser("invoke", help="Invoke export (run standalone)")
+    exp_invoke.add_argument("id", help="Export ID")
+    exp_invoke.add_argument("--data", help="Invoke parameters JSON")
+    exp_invoke.add_argument("--file", help="Path to JSON file")
+
+    exp_patch = exp_sub.add_parser("patch", help="Partial update (JSON Patch)")
+    exp_patch.add_argument("id", help="Export ID")
+    exp_patch.add_argument("--data", help="JSON Patch array")
+    exp_patch.add_argument("--file", help="Path to JSON Patch file")
+
+    exp_replconn = exp_sub.add_parser("replace-connection", help="Replace connection")
+    exp_replconn.add_argument("id", help="Export ID")
+    exp_replconn.add_argument("--data", help="Connection replacement JSON")
+    exp_replconn.add_argument("--file", help="Path to JSON file")
+
     # --- Imports ---
     imp_parser = subparsers.add_parser("imports", help="Import operations")
     imp_sub = imp_parser.add_subparsers(dest="action")
@@ -1746,6 +2850,24 @@ Examples:
     imp_delete = imp_sub.add_parser("delete", help="Delete an import")
     imp_delete.add_argument("id", help="Import ID")
 
+    imp_clone = imp_sub.add_parser("clone", help="Clone an import")
+    imp_clone.add_argument("id", help="Import ID")
+
+    imp_invoke = imp_sub.add_parser("invoke", help="Invoke import (run standalone)")
+    imp_invoke.add_argument("id", help="Import ID")
+    imp_invoke.add_argument("--data", help="Invoke parameters JSON")
+    imp_invoke.add_argument("--file", help="Path to JSON file")
+
+    imp_patch = imp_sub.add_parser("patch", help="Partial update (JSON Patch)")
+    imp_patch.add_argument("id", help="Import ID")
+    imp_patch.add_argument("--data", help="JSON Patch array")
+    imp_patch.add_argument("--file", help="Path to JSON Patch file")
+
+    imp_replconn = imp_sub.add_parser("replace-connection", help="Replace connection")
+    imp_replconn.add_argument("id", help="Import ID")
+    imp_replconn.add_argument("--data", help="Connection replacement JSON")
+    imp_replconn.add_argument("--file", help="Path to JSON file")
+
     # --- Scripts ---
     scr_parser = subparsers.add_parser("scripts", help="Script operations")
     scr_sub = scr_parser.add_subparsers(dest="action")
@@ -1774,6 +2896,9 @@ Examples:
 
     scr_delete = scr_sub.add_parser("delete", help="Delete a script")
     scr_delete.add_argument("id", help="Script ID")
+
+    scr_logs = scr_sub.add_parser("logs", help="Get script execution logs")
+    scr_logs.add_argument("id", help="Script ID")
 
     # --- Jobs ---
     job_parser = subparsers.add_parser("jobs", help="Job operations")
@@ -1864,6 +2989,25 @@ Examples:
     err_int_assign.add_argument("--ids", required=True, help="Comma-separated error IDs")
     err_int_assign.add_argument("--email", required=True, help="User email")
 
+    err_del_resolved = err_sub.add_parser("delete-resolved", help="Delete resolved errors")
+    err_del_resolved.add_argument("--flow", required=True, help="Flow ID")
+    err_del_resolved.add_argument("--export", help="Export ID")
+    err_del_resolved.add_argument("--import", dest="import_id", help="Import ID")
+
+    err_upd_retry = err_sub.add_parser("update-retry-data", help="Update retry data before retrying")
+    err_upd_retry.add_argument("--flow", required=True, help="Flow ID")
+    err_upd_retry.add_argument("--export", help="Export ID")
+    err_upd_retry.add_argument("--import", dest="import_id", help="Import ID")
+    err_upd_retry.add_argument("--key", required=True, help="Retry data key")
+    err_upd_retry.add_argument("--data", help="Updated record JSON")
+    err_upd_retry.add_argument("--file", help="Path to JSON file")
+
+    err_view_req = err_sub.add_parser("view-request", help="View request/response for error")
+    err_view_req.add_argument("--flow", required=True, help="Flow ID")
+    err_view_req.add_argument("--export", help="Export/page-processor ID")
+    err_view_req.add_argument("--import", dest="import_id", help="Import/page-processor ID")
+    err_view_req.add_argument("--key", required=True, help="Request key")
+
     # --- Lookup Caches ---
     cache_parser = subparsers.add_parser("caches", help="Lookup cache operations")
     cache_sub = cache_parser.add_subparsers(dest="action")
@@ -1879,6 +3023,21 @@ Examples:
     cache_data.add_argument("--starts-with", help="Key prefix filter")
     cache_data.add_argument("--page-size", type=int, help="Items per page")
     cache_data.add_argument("--start-after", help="Pagination cursor (key)")
+
+    cache_delete = cache_sub.add_parser("delete", help="Delete a cache")
+    cache_delete.add_argument("id", help="Cache ID")
+
+    cache_data_upd = cache_sub.add_parser("data-update", help="Upsert cache data")
+    cache_data_upd.add_argument("id", help="Cache ID")
+    cache_data_upd.add_argument("--data", help='JSON: {"data": [{"key": "...", "value": {...}}]}')
+    cache_data_upd.add_argument("--file", help="Path to JSON file")
+
+    cache_data_del = cache_sub.add_parser("data-delete", help="Delete specific cache keys")
+    cache_data_del.add_argument("id", help="Cache ID")
+    cache_data_del.add_argument("--keys", required=True, help="Comma-separated keys to delete")
+
+    cache_data_purge = cache_sub.add_parser("data-purge", help="Delete all cache data")
+    cache_data_purge.add_argument("id", help="Cache ID")
 
     # --- Tags ---
     tag_parser = subparsers.add_parser("tags", help="Tag operations")
@@ -1909,6 +3068,38 @@ Examples:
     user_get = user_sub.add_parser("get", help="Get user")
     user_get.add_argument("id", help="User share ID")
 
+    user_update = user_sub.add_parser("update", help="Update user permissions")
+    user_update.add_argument("id", help="User share ID")
+    user_update.add_argument("--role", help="Access level (monitor/manage/administrator)")
+    user_update.add_argument("--data", help="Full update JSON")
+    user_update.add_argument("--file", help="Path to JSON file")
+
+    user_delete = user_sub.add_parser("delete", help="Remove user")
+    user_delete.add_argument("id", help="User share ID")
+
+    user_disable = user_sub.add_parser("disable", help="Disable user access")
+    user_disable.add_argument("id", help="User share ID")
+
+    user_invite = user_sub.add_parser("invite", help="Invite a user (POST /invite)")
+    user_invite.add_argument("--email", required=True, help="User email")
+    user_invite.add_argument("--role", help="Access level (monitor/manage/administrator)")
+    user_invite.add_argument("--data", help="Full invite JSON")
+    user_invite.add_argument("--file", help="Path to JSON file")
+
+    user_invite_multi = user_sub.add_parser("invite-multiple", help="Invite multiple users")
+    user_invite_multi.add_argument("--data", help="Bulk invite JSON")
+    user_invite_multi.add_argument("--file", help="Path to JSON file")
+
+    user_reinvite = user_sub.add_parser("reinvite", help="Reinvite a user")
+    user_reinvite.add_argument("--email", required=True, help="User email")
+    user_reinvite.add_argument("--data", help="Reinvite JSON")
+    user_reinvite.add_argument("--file", help="Path to JSON file")
+
+    user_sso = user_sub.add_parser("sso-update", help="Update SSO client (PATCH)")
+    user_sso.add_argument("id", help="SSO client ID")
+    user_sso.add_argument("--data", help="SSO update JSON")
+    user_sso.add_argument("--file", help="Path to JSON file")
+
     # --- Health Digest ---
     hd_parser = subparsers.add_parser("health-digest", help="Generate health digest")
     hd_sub = hd_parser.add_subparsers(dest="action")
@@ -1918,6 +3109,238 @@ Examples:
     hd_gen.add_argument("--run", action="store_true",
                          help="Trigger the Celigo AI Agent flow after generating summary")
     hd_gen.add_argument("--flow-id", help="Flow ID (default: AI Test flow)")
+
+    # --- State ---
+    state_parser = subparsers.add_parser("state", help="State API operations")
+    state_sub = state_parser.add_subparsers(dest="action")
+
+    state_sub.add_parser("list", help="List all state keys")
+
+    state_get = state_sub.add_parser("get", help="Get state value")
+    state_get.add_argument("key", help="State key")
+
+    state_set = state_sub.add_parser("set", help="Set state value")
+    state_set.add_argument("key", help="State key")
+    state_set.add_argument("--data", help="Value JSON (inline)")
+    state_set.add_argument("--file", help="Path to JSON file")
+
+    state_del = state_sub.add_parser("delete", help="Delete state key")
+    state_del.add_argument("key", help="State key")
+
+    state_list_scoped = state_sub.add_parser("list-scoped", help="List import-scoped state keys")
+    state_list_scoped.add_argument("--import", dest="import_id", required=True, help="Import ID")
+
+    state_get_scoped = state_sub.add_parser("get-scoped", help="Get import-scoped state")
+    state_get_scoped.add_argument("--import", dest="import_id", required=True, help="Import ID")
+    state_get_scoped.add_argument("key", help="State key")
+
+    state_set_scoped = state_sub.add_parser("set-scoped", help="Set import-scoped state")
+    state_set_scoped.add_argument("--import", dest="import_id", required=True, help="Import ID")
+    state_set_scoped.add_argument("key", help="State key")
+    state_set_scoped.add_argument("--data", help="Value JSON (inline)")
+    state_set_scoped.add_argument("--file", help="Path to JSON file")
+
+    # --- File Definitions ---
+    fd_parser = subparsers.add_parser("filedefinitions", help="File definition operations")
+    fd_sub = fd_parser.add_subparsers(dest="action")
+
+    fd_sub.add_parser("list", help="List file definitions")
+
+    fd_get = fd_sub.add_parser("get", help="Get file definition")
+    fd_get.add_argument("id", help="File definition ID")
+
+    fd_create = fd_sub.add_parser("create", help="Create file definition")
+    fd_create.add_argument("--data", help="Full JSON (inline)")
+    fd_create.add_argument("--file", help="Path to JSON file")
+
+    fd_update = fd_sub.add_parser("update", help="Update file definition")
+    fd_update.add_argument("id", help="File definition ID")
+    fd_update.add_argument("--data", help="Partial JSON (inline)")
+    fd_update.add_argument("--file", help="Path to JSON file")
+
+    fd_delete = fd_sub.add_parser("delete", help="Delete file definition")
+    fd_delete.add_argument("id", help="File definition ID")
+
+    # --- Recycle Bin ---
+    rb_parser = subparsers.add_parser("recyclebin", help="Recycle bin operations")
+    rb_sub = rb_parser.add_subparsers(dest="action")
+
+    rb_list = rb_sub.add_parser("list", help="List recycled resources")
+    rb_list.add_argument("--resource-type", help="Filter by type (flows/exports/imports/connections/scripts)")
+
+    rb_get = rb_sub.add_parser("get", help="Get recycled resource")
+    rb_get.add_argument("resource_type", help="Resource type")
+    rb_get.add_argument("id", help="Resource ID")
+
+    rb_restore = rb_sub.add_parser("restore", help="Restore recycled resource")
+    rb_restore.add_argument("resource_type", help="Resource type")
+    rb_restore.add_argument("id", help="Resource ID")
+
+    rb_delete = rb_sub.add_parser("delete", help="Permanently delete recycled resource")
+    rb_delete.add_argument("resource_type", help="Resource type")
+    rb_delete.add_argument("id", help="Resource ID")
+
+    # --- Audit ---
+    audit_parser = subparsers.add_parser("audit", help="Account audit log")
+    audit_sub = audit_parser.add_subparsers(dest="action")
+
+    audit_list = audit_sub.add_parser("list", help="List audit entries")
+    audit_list.add_argument("--resource-type", help="Filter by resource type")
+    audit_list.add_argument("--user", help="Filter by user")
+    audit_list.add_argument("--since", help="Start date (ISO 8601)")
+    audit_list.add_argument("--until", help="End date (ISO 8601)")
+
+    # --- iClients ---
+    ic_parser = subparsers.add_parser("iclients", help="iClient (OAuth2 app) operations")
+    ic_sub = ic_parser.add_subparsers(dest="action")
+
+    ic_sub.add_parser("list", help="List iClients")
+
+    ic_get = ic_sub.add_parser("get", help="Get iClient")
+    ic_get.add_argument("id", help="iClient ID")
+
+    ic_create = ic_sub.add_parser("create", help="Create iClient")
+    ic_create.add_argument("--data", help="Full JSON (inline)")
+    ic_create.add_argument("--file", help="Path to JSON file")
+
+    ic_update = ic_sub.add_parser("update", help="Update iClient")
+    ic_update.add_argument("id", help="iClient ID")
+    ic_update.add_argument("--data", help="Partial JSON (inline)")
+    ic_update.add_argument("--file", help="Path to JSON file")
+
+    ic_patch = ic_sub.add_parser("patch", help="Partial update (JSON Patch)")
+    ic_patch.add_argument("id", help="iClient ID")
+    ic_patch.add_argument("--data", help="JSON Patch array")
+    ic_patch.add_argument("--file", help="Path to JSON Patch file")
+
+    ic_delete = ic_sub.add_parser("delete", help="Delete iClient")
+    ic_delete.add_argument("id", help="iClient ID")
+
+    ic_deps = ic_sub.add_parser("dependencies", help="Get iClient dependencies")
+    ic_deps.add_argument("id", help="iClient ID")
+
+    # --- Connectors & Licenses ---
+    cnr_parser = subparsers.add_parser("connectors", help="Connector and license operations")
+    cnr_sub = cnr_parser.add_subparsers(dest="action")
+
+    cnr_sub.add_parser("list", help="List connectors")
+
+    cnr_get = cnr_sub.add_parser("get", help="Get connector")
+    cnr_get.add_argument("id", help="Connector ID")
+
+    cnr_create = cnr_sub.add_parser("create", help="Create connector")
+    cnr_create.add_argument("--data", help="Full JSON (inline)")
+    cnr_create.add_argument("--file", help="Path to JSON file")
+
+    cnr_update = cnr_sub.add_parser("update", help="Update connector")
+    cnr_update.add_argument("id", help="Connector ID")
+    cnr_update.add_argument("--data", help="Partial JSON (inline)")
+    cnr_update.add_argument("--file", help="Path to JSON file")
+
+    cnr_delete = cnr_sub.add_parser("delete", help="Delete connector")
+    cnr_delete.add_argument("id", help="Connector ID")
+
+    cnr_ib = cnr_sub.add_parser("install-base", help="Get install base")
+    cnr_ib.add_argument("id", help="Connector ID")
+
+    cnr_pub = cnr_sub.add_parser("publish-update", help="Publish connector update")
+    cnr_pub.add_argument("id", help="Connector ID")
+    cnr_pub.add_argument("--data", help="Update JSON")
+    cnr_pub.add_argument("--file", help="Path to JSON file")
+
+    cnr_ll = cnr_sub.add_parser("list-licenses", help="List licenses")
+    cnr_ll.add_argument("id", help="Connector ID")
+
+    cnr_cl = cnr_sub.add_parser("create-license", help="Create license")
+    cnr_cl.add_argument("id", help="Connector ID")
+    cnr_cl.add_argument("--data", help="License JSON")
+    cnr_cl.add_argument("--file", help="Path to JSON file")
+
+    cnr_gl = cnr_sub.add_parser("get-license", help="Get license")
+    cnr_gl.add_argument("id", help="Connector ID")
+    cnr_gl.add_argument("license_id", help="License ID")
+
+    cnr_ul = cnr_sub.add_parser("update-license", help="Update license")
+    cnr_ul.add_argument("id", help="Connector ID")
+    cnr_ul.add_argument("license_id", help="License ID")
+    cnr_ul.add_argument("--data", help="License update JSON")
+    cnr_ul.add_argument("--file", help="Path to JSON file")
+
+    cnr_dl = cnr_sub.add_parser("delete-license", help="Delete license")
+    cnr_dl.add_argument("id", help="Connector ID")
+    cnr_dl.add_argument("license_id", help="License ID")
+
+    # --- Processors ---
+    proc_parser = subparsers.add_parser("processors", help="Data processor operations")
+    proc_sub = proc_parser.add_subparsers(dest="action")
+
+    proc_px = proc_sub.add_parser("parse-xml", help="Parse XML data")
+    proc_px.add_argument("--data", help="XML parser config JSON")
+    proc_px.add_argument("--file", help="Path to JSON file")
+
+    proc_pc = proc_sub.add_parser("parse-csv", help="Parse CSV data")
+    proc_pc.add_argument("--data", help="CSV parser config JSON")
+    proc_pc.add_argument("--file", help="Path to JSON file")
+
+    proc_gc = proc_sub.add_parser("generate-csv", help="Generate CSV data")
+    proc_gc.add_argument("--data", help="CSV generator config JSON")
+    proc_gc.add_argument("--file", help="Path to JSON file")
+
+    proc_gs = proc_sub.add_parser("generate-structured", help="Generate structured file")
+    proc_gs.add_argument("--data", help="Structured file config JSON")
+    proc_gs.add_argument("--file", help="Path to JSON file")
+
+    proc_ps = proc_sub.add_parser("parse-structured", help="Parse structured file")
+    proc_ps.add_argument("--data", help="Structured file config JSON")
+    proc_ps.add_argument("--file", help="Path to JSON file")
+
+    # --- Templates ---
+    tpl_parser = subparsers.add_parser("templates", help="Template operations")
+    tpl_sub = tpl_parser.add_subparsers(dest="action")
+
+    tpl_sub.add_parser("list", help="List all templates")
+
+    tpl_update = tpl_sub.add_parser("update", help="Update a template")
+    tpl_update.add_argument("id", help="Template ID")
+    tpl_update.add_argument("--data", help="Template update JSON")
+    tpl_update.add_argument("--file", help="Path to JSON file")
+
+    # --- EDI/B2B ---
+    edi_parser = subparsers.add_parser("edi", help="EDI/B2B operations")
+    edi_sub = edi_parser.add_subparsers(dest="action")
+
+    edi_sub.add_parser("list", help="List EDI profiles")
+
+    edi_get = edi_sub.add_parser("get", help="Get EDI profile")
+    edi_get.add_argument("id", help="EDI profile ID")
+
+    edi_create = edi_sub.add_parser("create", help="Create EDI profile")
+    edi_create.add_argument("--data", help="Full JSON (inline)")
+    edi_create.add_argument("--file", help="Path to JSON file")
+
+    edi_update = edi_sub.add_parser("update", help="Update EDI profile")
+    edi_update.add_argument("id", help="EDI profile ID")
+    edi_update.add_argument("--data", help="Partial JSON (inline)")
+    edi_update.add_argument("--file", help="Path to JSON file")
+
+    edi_patch = edi_sub.add_parser("patch", help="Partial update (JSON Patch)")
+    edi_patch.add_argument("id", help="EDI profile ID")
+    edi_patch.add_argument("--data", help="JSON Patch array")
+    edi_patch.add_argument("--file", help="Path to JSON Patch file")
+
+    edi_delete = edi_sub.add_parser("delete", help="Delete EDI profile")
+    edi_delete.add_argument("id", help="EDI profile ID")
+
+    edi_utxn = edi_sub.add_parser("update-transactions", help="Update EDI transactions")
+    edi_utxn.add_argument("--data", help="Transaction update JSON")
+    edi_utxn.add_argument("--file", help="Path to JSON file")
+
+    edi_qtxn = edi_sub.add_parser("query-transactions", help="Query EDI transactions")
+    edi_qtxn.add_argument("--data", help="Query JSON")
+    edi_qtxn.add_argument("--file", help="Path to JSON file")
+
+    edi_fa = edi_sub.add_parser("fa-details", help="Get FA details for transaction")
+    edi_fa.add_argument("id", help="Transaction ID")
 
     return parser
 
@@ -1947,6 +3370,15 @@ def main():
         "caches": cmd_caches,
         "tags": cmd_tags,
         "users": cmd_users,
+        "state": cmd_state,
+        "filedefinitions": cmd_filedefinitions,
+        "recyclebin": cmd_recyclebin,
+        "audit": cmd_audit,
+        "iclients": cmd_iclients,
+        "connectors": cmd_connectors,
+        "processors": cmd_processors,
+        "templates": cmd_templates,
+        "edi": cmd_edi,
         "health-digest": cmd_health_digest,
     }
 

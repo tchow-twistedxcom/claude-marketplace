@@ -503,6 +503,33 @@ python3 scripts/query_netsuite.py '<query>' --format json
 python3 scripts/query_netsuite.py '<query>' --format csv > results.csv
 ```
 
+## Critical: `runSuiteQLPaged` Silent Failure Modes
+
+**`runSuiteQLPaged` has multiple known silent failure modes where it returns 0 records with no error.** These affect SuiteScript code using `query.runSuiteQLPaged()`, not queries run via this skill's `query_netsuite.py` (which uses the RESTlet's `runSuiteQL`).
+
+If you are writing or reviewing SuiteScript that uses `runSuiteQLPaged`, be aware of these:
+
+| Failure Mode | Symptom | Workaround |
+|-------------|---------|------------|
+| **LEFT JOINs inside UNION ALL** | Returns 0 pages/records silently | Use scalar subqueries instead of LEFT JOINs |
+| **GROUP BY + SUM queries** | Returns 0 pages/records even with INNER JOINs | Use `runSuiteQL` with manual pagination |
+| **Transaction.status filter** | Silently drops WHERE clause, returns ALL rows | Use `TransactionLine.isclosed = 'F'` instead |
+| **ROWNUM subquery wrappers** | Same as Transaction.status — filter silently dropped | Use item_id-based manual pagination |
+
+**Recommended alternative:** Use `runSuiteQL` with item_id-based manual pagination:
+```javascript
+// ORDER BY item_id + FETCH FIRST 5000 + WHERE item_id > lastItemId
+// OFFSET/FETCH pagination does NOT work (runSuiteQL applies 5000-row cap BEFORE OFFSET)
+```
+
+**Transaction.status quirk:**
+- `SELECT` returns short codes: `'B'`, `'H'`, `'G'`
+- `WHERE` filtering requires full format: `'PurchOrd:B'`, `'PurchOrd:H'`
+- Single-letter codes (`= 'B'`) return 0 results for POs
+- Even full format is unreliable in `runSuiteQLPaged` context
+
+**When testing queries via this skill:** If the query works fine via `query_netsuite.py` but returns 0 records when used with `runSuiteQLPaged` in SuiteScript, suspect one of the above failure modes.
+
 ## Best Practices
 
 1. **Start Simple:** Test with ROWNUM <= 10 before running full queries

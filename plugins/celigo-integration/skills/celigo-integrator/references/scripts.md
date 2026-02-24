@@ -11,6 +11,7 @@ Scripts contain custom JavaScript code used for data transformation, filtering, 
 | Create | POST | `/scripts` |
 | Update | PUT | `/scripts/{id}` |
 | Delete | DELETE | `/scripts/{id}` |
+| Execution logs | GET | `/scripts/{id}/logs` |
 
 ## Script Object
 

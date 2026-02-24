@@ -79,6 +79,10 @@ ENV/
 **/ninjaone_config.json
 **/azure_config.json
 
+# MCP server configs with credentials (NOT templates)
+.mcp.json
+plugins/slack-skills/.mcp.json
+
 # Token caches (all skills use .<skill>_tokens.json pattern)
 **/*_tokens.json
 **/.azure_tokens.json

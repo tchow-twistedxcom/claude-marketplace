@@ -226,11 +226,12 @@ filters.push(search.createFilter({
 | Mixing `createFilter()` with array `'AND'` strings | Causes "Wrong parameter type: filters is expected as Array" |
 | `format.Type.DATETIME` formatting | Produces incompatible format for search filters |
 
-### Script ID is Uppercase
+### Script ID is Lowercase
 
-NetSuite stores script IDs in uppercase. The endpoint auto-converts to uppercase:
+NetSuite stores script IDs in **lowercase** (e.g., `customscript_tx_mr_calculate_ats`). The `executionLogsGet` function does NOT uppercase the script ID before querying. Log levels (DEBUG, AUDIT, ERROR) ARE uppercase — that conversion is correct.
+
 ```bash
-# Both work (case-insensitive)
+# Both work (case-insensitive input, converted internally)
 --script customscript_suiteapi
 --script CUSTOMSCRIPT_SUITEAPI
 ```

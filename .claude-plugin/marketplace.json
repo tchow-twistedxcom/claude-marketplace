@@ -22,8 +22,8 @@
     {
       "name": "celigo-integration",
       "source": "./plugins/celigo-integration",
-      "description": "Celigo iPaaS integration via Python CLI and skills for managing integrations, flows, connections, jobs, and errors",
-      "version": "2.1.0",
+      "description": "Celigo iPaaS integration via Python CLI - ~160 operations across 20 resource types with full REST API coverage",
+      "version": "3.0.0",
       "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "iPaaS"]
     },
     {
@@ -116,6 +116,13 @@
       "description": "Compound engineering workflow pipeline: brainstorm → plan → work → review → compound. 29 agents, 22 commands, 19 skills for multi-agent parallel code review, knowledge compounding, swarm orchestration, and autonomous workflows (lfg/slfg)",
       "version": "2.33.1",
       "keywords": ["workflow", "code-review", "agents", "swarm", "knowledge-management", "planning", "compound"]
+    },
+    {
+      "name": "slack-skills",
+      "source": "./plugins/slack-skills",
+      "description": "Slack workspace integration via official MCP server. Read/write messages, manage channels, threads, reactions, and user profiles",
+      "version": "1.0.0",
+      "keywords": ["slack", "messaging", "notifications", "mcp", "channels", "threads"]
     }
   ]
 }

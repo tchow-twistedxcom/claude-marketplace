@@ -4,33 +4,27 @@ Errors represent failed records from flow executions. The API supports listing, 
 
 ## Endpoints
 
-### Export Errors
+### Flow Step Errors (exports and imports use same path pattern)
 | Operation | Method | Endpoint |
 |-----------|--------|----------|
-| List errors | GET | `/flows/{flowId}/exports/{exportId}/errors` |
-| List resolved | GET | `/flows/{flowId}/exports/{exportId}/resolved` |
-| Get retry data | GET | `/flows/{flowId}/exports/{exportId}/errors/{retryDataKey}` |
-| Resolve errors | POST | `/flows/{flowId}/exports/{exportId}/errors/resolve` |
-| Retry errors | POST | `/flows/{flowId}/exports/{exportId}/errors/retry` |
-| Assign errors | POST | `/flows/{flowId}/exports/{exportId}/errors/assign` |
-| Tag errors | POST | `/flows/{flowId}/exports/{exportId}/errors/tags` |
-
-### Import Errors
-| Operation | Method | Endpoint |
-|-----------|--------|----------|
-| List errors | GET | `/flows/{flowId}/imports/{importId}/errors` |
-| List resolved | GET | `/flows/{flowId}/imports/{importId}/resolved` |
-| Get retry data | GET | `/flows/{flowId}/imports/{importId}/errors/{retryDataKey}` |
-| Resolve errors | POST | `/flows/{flowId}/imports/{importId}/errors/resolve` |
-| Retry errors | POST | `/flows/{flowId}/imports/{importId}/errors/retry` |
-| Assign errors | POST | `/flows/{flowId}/imports/{importId}/errors/assign` |
-| Tag errors | POST | `/flows/{flowId}/imports/{importId}/errors/tags` |
+| List errors | GET | `/flows/{flowId}/{expOrImpId}/errors` |
+| List resolved | GET | `/flows/{flowId}/{expOrImpId}/resolved` |
+| Get retry data | GET | `/flows/{flowId}/{expOrImpId}/errors/{retryDataKey}` |
+| Resolve errors | PUT | `/flows/{flowId}/{expOrImpId}/resolved` |
+| Delete resolved | DELETE | `/flows/{flowId}/{expOrImpId}/resolved` |
+| Retry errors | POST | `/flows/{flowId}/{expOrImpId}/retry` |
+| Update retry data | PUT | `/flows/{flowId}/{expOrImpId}/{retryKey}/data` |
+| Assign errors | POST | `/flows/{flowId}/{expOrImpId}/errors/assign` |
+| Tag errors | POST | `/flows/{flowId}/{expOrImpId}/errors/tags` |
+| View request/response | GET | `/flows/{flowId}/{ppId}/requests/{requestKey}` |
 
 ### Integration Errors
 | Operation | Method | Endpoint |
 |-----------|--------|----------|
 | Error summary | GET | `/integrations/{id}/errors` |
 | Assign errors | POST | `/integrations/{id}/errors/assign` |
+
+**Note:** The `{expOrImpId}` path segment accepts either an export ID or import ID directly -- do not include `/exports/` or `/imports/` prefix segments.
 
 ## Error Object
 
@@ -86,10 +80,10 @@ Errors represent failed records from flow executions. The API supports listing, 
 
 ## Operations
 
-### List Export Errors
+### List Errors
 
 ```bash
-curl -X GET "https://api.integrator.io/v1/flows/{flowId}/exports/{exportId}/errors" \
+curl -X GET "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/errors" \
   -H "Authorization: Bearer $API_KEY"
 ```
 
@@ -100,19 +94,12 @@ curl -X GET "https://api.integrator.io/v1/flows/{flowId}/exports/{exportId}/erro
 ?source=mapping                              # By source
 ```
 
-### List Import Errors
-
-```bash
-curl -X GET "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/errors" \
-  -H "Authorization: Bearer $API_KEY"
-```
-
 ### Get Retry Data
 
 Retrieve the actual record data for an error:
 
 ```bash
-curl -X GET "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/errors/{retryDataKey}" \
+curl -X GET "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/errors/{retryDataKey}" \
   -H "Authorization: Bearer $API_KEY"
 ```
 
@@ -127,10 +114,10 @@ curl -X GET "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/erro
 
 ### Resolve Errors
 
-Mark errors as resolved (removes from active list):
+Mark errors as resolved (moves to resolved list):
 
 ```bash
-curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/errors/resolve" \
+curl -X PUT "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/resolved" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -138,12 +125,14 @@ curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/err
   }'
 ```
 
+**Note:** The method is `PUT` and the path ends with `/resolved` (not `/errors/resolve`).
+
 ### Retry Errors
 
 Reprocess failed records:
 
 ```bash
-curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/errors/retry" \
+curl -X POST "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/retry" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -158,7 +147,7 @@ curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/err
 Assign errors to a user for review:
 
 ```bash
-curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/errors/assign" \
+curl -X POST "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/errors/assign" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -172,7 +161,7 @@ curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/err
 Apply tags to errors:
 
 ```bash
-curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/errors/tags" \
+curl -X POST "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/errors/tags" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -189,7 +178,14 @@ curl -X POST "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/err
 ### List Resolved Errors
 
 ```bash
-curl -X GET "https://api.integrator.io/v1/flows/{flowId}/imports/{importId}/resolved" \
+curl -X GET "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/resolved" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+### Delete Resolved Errors
+
+```bash
+curl -X DELETE "https://api.integrator.io/v1/flows/{flowId}/{expOrImpId}/resolved" \
   -H "Authorization: Bearer $API_KEY"
 ```
 
@@ -230,7 +226,7 @@ def check_for_errors(integration_id):
 
 ```python
 def investigate_errors(flow_id, import_id):
-    errors = api_get(f"/flows/{flow_id}/imports/{import_id}/errors").json()
+    errors = api_get(f"/flows/{flow_id}/{import_id}/errors").json()
 
     for error in errors.get('errors', []):
         print(f"Error: {error['message']}")
@@ -239,7 +235,7 @@ def investigate_errors(flow_id, import_id):
         # Get failed record data
         if error.get('retryDataKey'):
             data = api_get(
-                f"/flows/{flow_id}/imports/{import_id}/errors/{error['retryDataKey']}"
+                f"/flows/{flow_id}/{import_id}/errors/{error['retryDataKey']}"
             ).json()
             print(f"Data: {data}")
 ```
@@ -248,7 +244,7 @@ def investigate_errors(flow_id, import_id):
 
 ```python
 def retry_all_errors(flow_id, import_id):
-    errors = api_get(f"/flows/{flow_id}/imports/{import_id}/errors").json()
+    errors = api_get(f"/flows/{flow_id}/{import_id}/errors").json()
 
     retry_keys = [
         e['retryDataKey']
@@ -258,7 +254,7 @@ def retry_all_errors(flow_id, import_id):
 
     if retry_keys:
         api_post(
-            f"/flows/{flow_id}/imports/{import_id}/errors/retry",
+            f"/flows/{flow_id}/{import_id}/retry",
             {"retryDataKeys": retry_keys}
         )
 ```
@@ -267,8 +263,8 @@ def retry_all_errors(flow_id, import_id):
 
 ```python
 def resolve_errors(flow_id, import_id, error_ids):
-    api_post(
-        f"/flows/{flow_id}/imports/{import_id}/errors/resolve",
+    api_put(
+        f"/flows/{flow_id}/{import_id}/resolved",
         {"errorIds": error_ids}
     )
 ```

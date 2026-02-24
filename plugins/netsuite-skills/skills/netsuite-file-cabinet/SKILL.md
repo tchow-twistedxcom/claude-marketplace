@@ -82,6 +82,24 @@ File types are auto-detected from extension:
 - Binary files (PDF, images, ZIP) use base64 encoding
 - Returns file ID on success
 
+### Critical: File Cabinet Uploads Do NOT Trigger Script Recompilation
+
+**Uploading a SuiteScript file via `upload_file.py` (fileCreate) overwrites file content in the File Cabinet, but the NetSuite runtime continues using the cached/compiled version of the script.** Your code changes will NOT take effect until you force recompilation.
+
+**To activate script changes after upload, you MUST do one of:**
+1. **Deploy via SDF** (recommended): `npx twx-deploy deploy sb2` — forces full recompilation
+2. **Save the script record in the NetSuite UI** — open the script record and click Save
+
+**What does NOT trigger recompilation:**
+- File Cabinet upload alone (`fileCreate` API)
+- `record.submitFields()` on the script or deployment record via API
+- Saving the deployment record (only saves deployment metadata, not script compilation)
+
+**How to verify your code is running:**
+- Add a unique log message or response field in your new code
+- Check if the response/log includes it after deployment
+- If not, the old cached version is still running
+
 ## File Search
 
 ### Find Files

@@ -8,12 +8,10 @@ Lookup caches store key-value reference data for use in integrations. Common use
 |-----------|--------|----------|
 | List all | GET | `/lookupcaches` |
 | Get metadata | GET | `/lookupcaches/{id}` |
-| Create | POST | `/lookupcaches` |
-| Update | PUT | `/lookupcaches/{id}` |
 | Delete | DELETE | `/lookupcaches/{id}` |
-| Get data | GET | `/lookupcaches/{id}/data` |
-| Update data | PUT | `/lookupcaches/{id}/data` |
-| Delete data | DELETE | `/lookupcaches/{id}/data` |
+| Get data | POST | `/lookupcaches/{id}/getData` |
+| Upsert data | POST | `/lookupcaches/{id}/data` |
+| Delete all data | DELETE | `/lookupcaches/{id}/data/purge` |
 
 ## Lookup Cache Object
 
@@ -69,30 +67,6 @@ curl -X GET "https://api.integrator.io/v1/lookupcaches/{cache_id}" \
   -H "Authorization: Bearer $API_KEY"
 ```
 
-### Create Cache
-
-```bash
-curl -X POST "https://api.integrator.io/v1/lookupcaches" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Customer ID Mapping",
-    "description": "Maps external customer IDs to internal IDs"
-  }'
-```
-
-### Update Cache Metadata
-
-```bash
-curl -X PUT "https://api.integrator.io/v1/lookupcaches/{cache_id}" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Updated Name",
-    "description": "Updated description"
-  }'
-```
-
 ### Delete Cache
 
 ```bash
@@ -105,23 +79,22 @@ curl -X DELETE "https://api.integrator.io/v1/lookupcaches/{cache_id}" \
 ### Get Cache Data
 
 ```bash
-curl -X GET "https://api.integrator.io/v1/lookupcaches/{cache_id}/data" \
-  -H "Authorization: Bearer $API_KEY"
+curl -X POST "https://api.integrator.io/v1/lookupcaches/{cache_id}/getData" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "keys": ["SKU-001", "SKU-002", "SKU-003"]
+  }'
 ```
 
-**Query Parameters:**
+**Request Body Parameters:**
 
-```
-# Get specific keys
-?keys=SKU-001,SKU-002,SKU-003
-
-# Filter by prefix
-?starts_with=SKU-
-
-# Pagination
-?page_size=100
-?start_after_key=SKU-099
-```
+| Field | Type | Description |
+|-------|------|-------------|
+| `keys` | array | Specific keys to retrieve |
+| `starts_with` | string | Filter by key prefix |
+| `page_size` | number | Max entries per page (default 1000) |
+| `start_after_key` | string | Pagination cursor |
 
 **Response:**
 ```json
@@ -130,17 +103,17 @@ curl -X GET "https://api.integrator.io/v1/lookupcaches/{cache_id}/data" \
     {"key": "SKU-001", "value": {"productId": "123"}},
     {"key": "SKU-002", "value": {"productId": "456"}}
   ],
-  "nextPageURL": "/lookupcaches/cache123/data?start_after_key=SKU-002",
+  "nextPageURL": "/lookupcaches/cache123/getData?start_after_key=SKU-002",
   "success": true
 }
 ```
 
-### Update Cache Data
+### Upsert Cache Data
 
 Add or update entries:
 
 ```bash
-curl -X PUT "https://api.integrator.io/v1/lookupcaches/{cache_id}/data" \
+curl -X POST "https://api.integrator.io/v1/lookupcaches/{cache_id}/data" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -151,28 +124,13 @@ curl -X PUT "https://api.integrator.io/v1/lookupcaches/{cache_id}/data" \
   }'
 ```
 
-### Delete Cache Data
+### Delete All Cache Data
 
-Delete specific keys:
-
-```bash
-curl -X DELETE "https://api.integrator.io/v1/lookupcaches/{cache_id}/data" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "keys": ["SKU-001", "SKU-002"]
-  }'
-```
-
-Delete all data:
+Purge all data from a cache:
 
 ```bash
-curl -X DELETE "https://api.integrator.io/v1/lookupcaches/{cache_id}/data" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "deleteAll": true
-  }'
+curl -X DELETE "https://api.integrator.io/v1/lookupcaches/{cache_id}/data/purge" \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 ## Pagination
@@ -187,11 +145,11 @@ def get_all_cache_data(cache_id):
     start_after_key = None
 
     while True:
-        params = "page_size=100"
+        body = {"page_size": 100}
         if start_after_key:
-            params += f"&start_after_key={start_after_key}"
+            body["start_after_key"] = start_after_key
 
-        response = api_get(f"/lookupcaches/{cache_id}/data?{params}")
+        response = api_post(f"/lookupcaches/{cache_id}/getData", body)
         result = response.json()
 
         data = result.get('data', [])
@@ -210,14 +168,8 @@ def get_all_cache_data(cache_id):
 ### Product Mapping
 
 ```python
-# Create product mapping cache
-cache = api_post("/lookupcaches", {
-    "name": "Product SKU to ID",
-    "description": "Maps external SKUs to internal product IDs"
-}).json()
-
-# Add mappings
-api_put(f"/lookupcaches/{cache['_id']}/data", {
+# Add mappings to existing cache
+api_post(f"/lookupcaches/{cache_id}/data", {
     "data": [
         {"key": "EXT-SKU-001", "value": {"internalId": "PROD-123"}},
         {"key": "EXT-SKU-002", "value": {"internalId": "PROD-456"}}
@@ -229,7 +181,7 @@ api_put(f"/lookupcaches/{cache['_id']}/data", {
 
 ```python
 # Store customer IDs from multiple systems
-api_put(f"/lookupcaches/{cache_id}/data", {
+api_post(f"/lookupcaches/{cache_id}/data", {
     "data": [
         {
             "key": "CUST-001",
@@ -247,7 +199,7 @@ api_put(f"/lookupcaches/{cache_id}/data", {
 
 ```python
 # Store environment-specific config
-api_put(f"/lookupcaches/{cache_id}/data", {
+api_post(f"/lookupcaches/{cache_id}/data", {
     "data": [
         {"key": "api_endpoint", "value": {"url": "https://api.example.com"}},
         {"key": "batch_size", "value": {"size": 100}},
@@ -266,7 +218,7 @@ def bulk_load_cache(cache_id, data_dict):
 
     for i in range(0, len(items), batch_size):
         batch = items[i:i + batch_size]
-        api_put(f"/lookupcaches/{cache_id}/data", {"data": batch})
+        api_post(f"/lookupcaches/{cache_id}/data", {"data": batch})
         print(f"Loaded {min(i + batch_size, len(items))} of {len(items)}")
 ```
 

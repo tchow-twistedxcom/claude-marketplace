@@ -439,6 +439,124 @@ Key metrics to monitor:
 - [ ] Retry logic functions
 - [ ] Notifications sent on errors
 
+## Page Processor Pipeline Patterns
+
+### Pipeline Field Persistence Rules
+
+Understanding which data persists through the Page Processor (PP) pipeline is critical for multi-PP flows.
+
+**Three persistence layers:**
+
+```
+┌─────────────────────────────────────────────────┐
+│ Layer 1: Export-stage fields (preSavePage)       │
+│   ✅ PERSISTS through ALL PPs                    │
+│   Set once, available everywhere downstream      │
+├─────────────────────────────────────────────────┤
+│ Layer 2: postResponseMap / responseMapping       │
+│   ✅ PERSISTS — ADDS fields to pipeline record   │
+│   Each PP can enrich the record for downstream   │
+├─────────────────────────────────────────────────┤
+│ Layer 3: preMap hook output                      │
+│   ❌ DOES NOT PERSIST — consumed by current PP   │
+│   Only the current import sees this data         │
+└─────────────────────────────────────────────────┘
+```
+
+**Key rules:**
+- **Export preSavePage output** → foundational record, persists through all PPs
+- **postResponseMap additions** → persist on pipeline record for downstream PPs
+- **responseMapping additions** → persist on pipeline record for downstream PPs
+- **preMap output** → consumed ONLY by the current PP's import, NOT on pipeline
+- **Module-level vars** → persist across records in same job, but NOT shared between preMap and postResponseMap (separate scopes)
+- **Returning `{}` from preMap** → skips record for current import only; record continues through subsequent PPs
+
+### Cross-PP Data Flow Pattern
+
+**Use Case**: Data computed at one PP needs to be available at a later PP
+
+**❌ Wrong approach** — setting data in a PP's preMap:
+```javascript
+// PP3 preMap — this data is consumed by PP3's import only
+function preMap(options) {
+  var triggerRec = {};
+  triggerRec.computedData = JSON.stringify(myData);  // ❌ NOT on pipeline
+  return [{ data: triggerRec }];
+}
+// PP4 preMap — computedData is NOT available here
+```
+
+**✅ Correct approach** — setting data at the export stage:
+```javascript
+// Export preSavePage — persists through ALL PPs
+function preSavePage(options) {
+  records.push({
+    isTrigger: true,
+    computedData: JSON.stringify(myData)  // ✅ Available at PP0–PP4
+  });
+  return { data: records, errors: options.errors, abort: false };
+}
+```
+
+**✅ Also correct** — adding data via postResponseMap:
+```javascript
+// PP0 postResponseMap — adds field that persists to PP1, PP2, etc.
+function captureResponse(options) {
+  var data = options.data || options.postResponseMapData || [];
+  var result = [];
+  for (var i = 0; i < data.length; i++) {
+    var newRec = {};
+    // Copy existing fields + add new ones
+    var source = data[i].data || data[i];
+    for (var k in source) newRec[k] = source[k];
+    newRec.enrichedField = JSON.stringify(options.responseData[i].data);  // ✅ Persists
+    result.push(data[i].data !== undefined ? { data: newRec } : newRec);
+  }
+  return result;
+}
+```
+
+### Dynamic Button Generation Pattern
+
+**Use Case**: Generate interactive Slack buttons for any flow with errors, without static configuration
+
+**Pattern:**
+1. **Export preSavePage** sets `flowMap` (flowId → flowName) on trigger record
+2. **PP3 preMap** (AI Agent) consumes `liveErrors` but pipeline retains `flowMap`
+3. **PP4 preMap** (Slack) reads `flowMap` from pipeline, matches flow names in AI text
+4. **Button value**: `flowId|actionType` — handler discovers `expOrImpIds` dynamically
+
+```javascript
+// block_kit_builder.js — dynamic button generation
+var flowMap = {};
+if (rec.flowMap) {
+  try { flowMap = JSON.parse(rec.flowMap); } catch (e) {}
+}
+// Sort by name length descending to avoid substring conflicts
+var entries = Object.keys(flowMap).map(function(fid) {
+  return { flowId: fid, flowName: flowMap[fid] };
+}).sort(function(a, b) { return b.flowName.length - a.flowName.length; });
+
+// Match flow names in AI text → generate buttons
+for (var fe = 0; fe < entries.length; fe++) {
+  if (paragraph.indexOf(entries[fe].flowName) !== -1) {
+    buttons.push({
+      type: 'button',
+      value: entries[fe].flowId + '|resolve',  // Handler looks up expOrImpIds
+      style: 'primary'
+    });
+  }
+}
+```
+
+### AI Agent Import Specifics
+
+- **postResponseMap**: `options.data` is `null` for AI Agent imports. Use `options.postResponseMapData` instead.
+- **Response mapping**: AI Agent returns `_text` field. Map via `responseMapping.fields: [{extract: "_text", generate: "aiSummary"}]`.
+- **preMap return `{}`**: Skips record for AI processing, but record continues through pipeline to subsequent PPs.
+
+**See also**: [Pipeline Field Persistence Solution Doc](../../docs/solutions/integration-issues/pipeline-field-persistence-premap-vs-export-CeligoIntegration-20260224.md)
+
 ## Troubleshooting Guide
 
 ### Common Issues

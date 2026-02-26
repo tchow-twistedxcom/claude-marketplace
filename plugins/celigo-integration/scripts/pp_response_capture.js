@@ -15,7 +15,12 @@
  *     Response: {flowErrors: [{_expOrImpId, numError, lastErrorAt}]}
  *     Injects: flowErrors (JSON string of the flowErrors inner array)
  *
- *   - captureSlackResponse: PP4 (Slack chat.postMessage)
+ *   - captureDashboardResponse: PP4 (POST /api/health/ingest)
+ *     Sets _dashboardDelivered=true on pipeline record when dashboard responds successfully.
+ *     PP5 preMap (dashboard_fallback_preMap.js) checks this field — if true, skips Slack.
+ *     This enables the fallback notification path without flow reconfiguration.
+ *
+ *   - captureSlackResponse: PP5 (Slack chat.postMessage — fallback, legacy)
  *     Validates Slack API response body for ok=false errors.
  *     Celigo HTTPImport counts HTTP 200 as success even when Slack returns
  *     {"ok": false, "error": "..."}. This hook throws on API errors.
@@ -56,6 +61,55 @@ function captureIntegrationErrors(options) {
     }
 
     // Preserve original wrapper format
+    if (original && typeof original === 'object' && original.data !== undefined) {
+      result.push({ data: newRec });
+    } else {
+      result.push(newRec);
+    }
+  }
+
+  return result;
+}
+
+function captureDashboardResponse(options) {
+  var data = options.data || options.postResponseMapData || [];
+  var respData = options.responseData || [];
+  var result = [];
+
+  for (var i = 0; i < data.length; i++) {
+    var original = data[i];
+    var newRec = {};
+
+    if (typeof original === 'object' && original !== null) {
+      var source = original.data || original;
+      var sourceKeys = Object.keys(source);
+      for (var k = 0; k < sourceKeys.length; k++) {
+        newRec[sourceKeys[k]] = source[sourceKeys[k]];
+      }
+    }
+
+    // Check if dashboard responded successfully
+    var delivered = false;
+    if (respData[i] && !respData[i].ignored) {
+      var resp = respData[i];
+      var body = resp._json || resp.data || resp;
+      if (body && body.success === true) {
+        delivered = true;
+      }
+    }
+
+    // Set pipeline field for PP5 fallback gate
+    newRec._dashboardDelivered = delivered;
+
+    if (!delivered) {
+      // Log the error for visibility but don't throw — let PP5 handle fallback
+      var errMsg = 'Dashboard ingest failed or returned error';
+      if (respData[i] && respData[i].data) {
+        errMsg += ': ' + JSON.stringify(respData[i].data).substring(0, 200);
+      }
+      newRec._dashboardError = errMsg;
+    }
+
     if (original && typeof original === 'object' && original.data !== undefined) {
       result.push({ data: newRec });
     } else {

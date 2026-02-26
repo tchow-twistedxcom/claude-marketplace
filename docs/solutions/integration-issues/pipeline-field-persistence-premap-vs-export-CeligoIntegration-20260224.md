@@ -162,3 +162,4 @@ if (para.indexOf(entry.flowName) !== -1) {
 
 - See also: [response-mapping-array-drop-CeligoIntegration-20260223.md](./response-mapping-array-drop-CeligoIntegration-20260223.md) — Response mapping limitations that led to the postResponseMap approach for capturing array data. The postResponseMap additions DO persist on the pipeline, unlike preMap output.
 - See also: [ai-agent-response-mapping-CeligoIntegration-20260219.md](./ai-agent-response-mapping-CeligoIntegration-20260219.md) — AI Agent `_text` response mapping to `aiSummary` field, which is an example of responseMapping additions that persist downstream.
+- See also: [cross-routing-premap-filter-CeligoIntegration-20260226.md](./cross-routing-premap-filter-CeligoIntegration-20260226.md) — preMap `{}` skip for record-type routing. Also documents that preMap hooks must be set on import resources, not flow-level PUT.

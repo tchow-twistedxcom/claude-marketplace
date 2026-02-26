@@ -19,18 +19,12 @@ var _integrations = {}; // { integrationId: { flowNames: { flowId: name } } }
 var _standalones = [];  // [ { _id: flowId, name: flowName } ]
 var _flowStepIds = {};  // { flowId: [{ id: exportOrImportId, type: 'export'|'import' }] }
 
-// Exclude the health digest flow from monitoring itself
-var SELF_FLOW_ID = '698b4a31ae386aee54914746';
-
 function preSavePage(options) {
   var PAGE_SIZE = 1000;
 
   // Accumulate this page's data
   for (var i = 0; i < options.data.length; i++) {
     var flow = options.data[i];
-
-    // Skip self — the health digest flow's own proceedOnFailure errors are not real errors
-    if (flow._id === SELF_FLOW_ID) continue;
 
     if (flow._integrationId) {
       // Integration-linked flow

@@ -537,9 +537,15 @@ def compare(
         all_pass = False
     _print_row(status, 'Amount Due', _fmt_amt(eff_native_amt_due), _fmt_amt(eff_cre2_amt_due))
 
-    # Balance Forward — native omits the BF line entirely when BF=$0.00
+    # Balance Forward — handle $0 cases where one side may not extract from the PDF
     if native_bf is None and cre2_bf is not None and abs(cre2_bf) < 0.01:
+        # Native omits the BF line when BF=$0; CRE2 renders $0 → both mean $0
         _print_row(PASS, 'Balance Forward', '(not shown=$0.00)', _fmt_amt(cre2_bf))
+    elif native_bf is not None and abs(native_bf) < 0.01 and cre2_bf is None:
+        # Native shows $0.00 explicitly; CRE2 also renders $0 but pdfplumber
+        # can't extract it from the right-aligned amount cell separately —
+        # both sides agree on $0 balance forward.
+        _print_row(PASS, 'Balance Forward', _fmt_amt(native_bf), '($0.00)')
     else:
         status, msg = _compare_amounts('Balance Forward', native_bf, cre2_bf)
         if status == FAIL:
@@ -683,14 +689,24 @@ def _suiteql(query: str, account: str, environment: str) -> List[Dict]:
 
 
 def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tuple[str, str]]:
-    """Return up to n (customer_id, category) pairs spread across balance categories."""
+    """Return up to n (customer_id, category) pairs spread across balance categories.
+
+    Only top-level customers (parent IS NULL) are included — matching the batch
+    statement run criteria.  Child customers are excluded because the native
+    consolidateStatements rolls up to the parent while CRE2 anchors on record.id,
+    making the comparison invalid for child records.
+    """
     per_cat = max(1, (n + 4) // 5)  # spread across 5 categories
+
+    # Subquery that restricts to top-level customers (mirrors batch run criteria)
+    _TOP_LEVEL = "(SELECT id FROM customer WHERE parent IS NULL AND isinactive = 'F')"
 
     candidates: List[Tuple[str, str]] = []
 
     for r in _suiteql(
         f"SELECT DISTINCT csr.entity AS cid FROM CustomerSubsidiaryRelationship csr "
-        f"WHERE csr.balance > 0 FETCH FIRST {per_cat} ROWS ONLY",
+        f"WHERE csr.balance > 0 AND csr.entity IN {_TOP_LEVEL} "
+        f"FETCH FIRST {per_cat} ROWS ONLY",
         account, environment,
     ):
         if r.get('cid'):
@@ -698,21 +714,23 @@ def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tup
 
     for r in _suiteql(
         f"SELECT DISTINCT csr.entity AS cid FROM CustomerSubsidiaryRelationship csr "
-        f"WHERE csr.balance < 0 FETCH FIRST {per_cat} ROWS ONLY",
+        f"WHERE csr.balance < 0 AND csr.entity IN {_TOP_LEVEL} "
+        f"FETCH FIRST {per_cat} ROWS ONLY",
         account, environment,
     ):
         if r.get('cid'):
             candidates.append((str(r['cid']), 'credit_balance'))
 
     inv_ids = {str(r['cid']) for r in _suiteql(
-        "SELECT DISTINCT t.entity AS cid FROM Transaction t "
-        "WHERE t.type = 'CustInvc' AND t.foreignamountunpaid > 0 FETCH FIRST 500 ROWS ONLY",
+        f"SELECT DISTINCT t.entity AS cid FROM Transaction t "
+        f"WHERE t.type = 'CustInvc' AND t.foreignamountunpaid > 0 "
+        f"AND t.entity IN {_TOP_LEVEL} FETCH FIRST 500 ROWS ONLY",
         account, environment,
     ) if r.get('cid')}
     cred_ids = {str(r['cid']) for r in _suiteql(
-        "SELECT DISTINCT t.entity AS cid FROM Transaction t "
-        "WHERE t.type = 'CustCred' AND t.status NOT IN ('CustCred:B','CustCred:V') "
-        "FETCH FIRST 500 ROWS ONLY",
+        f"SELECT DISTINCT t.entity AS cid FROM Transaction t "
+        f"WHERE t.type = 'CustCred' AND t.status NOT IN ('CustCred:B','CustCred:V') "
+        f"AND t.entity IN {_TOP_LEVEL} FETCH FIRST 500 ROWS ONLY",
         account, environment,
     ) if r.get('cid')}
     for cid in sorted(inv_ids & cred_ids)[:per_cat]:
@@ -721,7 +739,8 @@ def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tup
     for r in _suiteql(
         f"SELECT DISTINCT t.entity AS cid FROM Transaction t "
         f"WHERE t.type = 'CustInvc' AND t.foreignamountunpaid > 0 "
-        f"AND t.foreignamountunpaid < t.foreigntotal FETCH FIRST {per_cat} ROWS ONLY",
+        f"AND t.foreignamountunpaid < t.foreigntotal "
+        f"AND t.entity IN {_TOP_LEVEL} FETCH FIRST {per_cat} ROWS ONLY",
         account, environment,
     ):
         if r.get('cid'):
@@ -730,7 +749,8 @@ def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tup
     for r in _suiteql(
         f"SELECT DISTINCT c.id AS cid FROM customer c "
         f"INNER JOIN customer child ON child.parent = c.id "
-        f"WHERE child.isinactive = 'F' AND c.isinactive = 'F' FETCH FIRST {per_cat} ROWS ONLY",
+        f"WHERE child.isinactive = 'F' AND c.isinactive = 'F' AND c.parent IS NULL "
+        f"FETCH FIRST {per_cat} ROWS ONLY",
         account, environment,
     ):
         if r.get('cid'):

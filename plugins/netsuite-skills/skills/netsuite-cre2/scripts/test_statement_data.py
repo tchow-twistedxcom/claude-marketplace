@@ -113,12 +113,13 @@ WHERE t.entity IN ({entity_ids})
   AND t.type = 'CustInvc'
   AND t.foreignamountunpaid <> 0
 UNION ALL
-SELECT t.id, COALESCE(t.foreignamountunpaid, t.foreigntotal) AS amount_remaining
+SELECT t.id, -TL.foreignpaymentamountunused AS amount_remaining
 FROM Transaction t
+JOIN TransactionLine TL ON TL.transaction = t.id AND TL.mainline = 'T'
 WHERE t.entity IN ({entity_ids})
   AND t.type = 'CustCred'
   AND t.status NOT IN ('CustCred:B', 'CustCred:V')
-  AND COALESCE(t.foreignamountunpaid, t.foreigntotal) <> 0
+  AND TL.foreignpaymentamountunused > 0
 ORDER BY 1
 """
 
@@ -427,11 +428,13 @@ WHERE t.entity IN ({ids_str})
   AND t.type = 'CustInvc'
   AND t.foreignamountunpaid <> 0
 UNION ALL
-SELECT t.entity AS customer_id, t.id, t.foreigntotal AS amount_remaining
+SELECT t.entity AS customer_id, t.id, -TL.foreignpaymentamountunused AS amount_remaining
 FROM Transaction t
+JOIN TransactionLine TL ON TL.transaction = t.id AND TL.mainline = 'T'
 WHERE t.entity IN ({ids_str})
   AND t.type = 'CustCred'
-  AND t.status <> 'CustCred:B'
+  AND t.status NOT IN ('CustCred:B', 'CustCred:V')
+  AND TL.foreignpaymentamountunused > 0
 ORDER BY 1, 2
 """
         for attempt in range(4):
@@ -587,14 +590,17 @@ def _extract_tranids(rows: List[Dict]) -> List[str]:
 # ─── Entity ID Helper ────────────────────────────────────────────────────────
 
 def get_entity_ids(customer_id: int, account: str, environment: str) -> List[int]:
-    """Return all entity IDs for a customer: parent + active consolidated children.
+    """Return all entity IDs for a customer: parent + all active descendants at any level.
 
-    Uses the same query as the CRE2 cus_children datasource so that the test
-    validates exactly the same population that CRE2 renders.
+    Uses CONNECT BY hierarchical traversal so grandchildren and deeper descendants
+    are included — matching the consolidated view that native NetSuite renders.
+    CONNECT BY does not support parameterized ? params in SuiteQL, so customer_id
+    is embedded directly (it is always a validated int from discovery queries).
     """
     result = execute_query(
-        "SELECT id FROM customer WHERE (id = ? OR parent = ?) AND isinactive = 'F'",
-        params=[customer_id, customer_id],
+        f"SELECT id FROM customer WHERE isinactive = 'F' "
+        f"START WITH id = {customer_id} "
+        f"CONNECT BY PRIOR id = parent AND isinactive = 'F'",
         account=account, environment=environment,
         return_all_rows=False,
     )
@@ -630,16 +636,25 @@ def _preprocess_freemarker(sql: str, entity_ids: List[int]) -> str:
         '',
         sql, flags=re.DOTALL,
     )
-    # Replace the entity subquery (which may contain a PARMS.consolidateStatements FreeMarker
-    # conditional) with a direct IN list of all entity IDs.  The entity_ids list already
-    # encodes the correct parent+child scope (same as get_entity_ids()), so this is equivalent
-    # to what the profile renders and matches what the reference data query covers.
+    # Replace entity subquery with a direct IN list of all entity IDs.
+    # entity_ids already encodes the full parent+descendant scope (from get_entity_ids()),
+    # so this is equivalent to what the profile renders.
+    # Two patterns to handle:
+    #   OLD: IN (SELECT id FROM customer WHERE (id = N<#if...> OR parent = N</#if>) AND isinactive = 'F')
+    #   NEW: IN (<#if PARMS.consolidateStatements...>SELECT ... CONNECT BY ...<#else>SELECT ...</#if>)
     entity_ids_str = ','.join(str(i) for i in entity_ids)
+    # OLD pattern (pre-fix queries with OR parent)
     sql = re.sub(
         r'IN\s*\(\s*SELECT\s+id\s+FROM\s+customer\s+WHERE\s*\(id\s*=\s*\d+'
         r'(?:<#if[^>]*>.*?</#if>)?\)\s*AND\s+isinactive\s*=\s*\'F\'\s*\)',
         f'IN ({entity_ids_str})',
         sql, flags=re.DOTALL | re.IGNORECASE,
+    )
+    # NEW pattern (post-fix queries with CONNECT BY inside FreeMarker conditional)
+    sql = re.sub(
+        r'IN\s*\(\s*<#if\s+PARMS\.consolidateStatements[^>]*>[\s\S]*?</#if>\s*\)',
+        f'IN ({entity_ids_str})',
+        sql, flags=re.DOTALL,
     )
     return sql
 

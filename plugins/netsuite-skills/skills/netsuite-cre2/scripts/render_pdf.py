@@ -87,7 +87,8 @@ def render_pdf(
     profile_id: str,
     record_id: str,
     account: str = DEFAULT_ACCOUNT,
-    environment: str = DEFAULT_ENVIRONMENT
+    environment: str = DEFAULT_ENVIRONMENT,
+    parms: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Call SuiteAPI with cre2Render action to generate a PDF.
@@ -97,6 +98,7 @@ def render_pdf(
         record_id: Source record ID to render
         account: NetSuite account (twistedx, dutyman)
         environment: Environment (prod, sb1, sb2)
+        parms: Optional CRE2 parameters (statementDate, startDate, consolidateStatements)
 
     Returns:
         Dict with success, data (pdfUrl, fileId, fileName) or error
@@ -112,6 +114,8 @@ def render_pdf(
         'netsuiteAccount': resolved_account,
         'netsuiteEnvironment': resolved_env
     }
+    if parms:
+        payload['parms'] = parms
 
     try:
         data = json.dumps(payload).encode('utf-8')
@@ -213,14 +217,29 @@ Examples:
         action='store_true',
         help='Only output URL on success'
     )
+    parser.add_argument(
+        '--parms',
+        default=None,
+        help='JSON string of CRE2 parms (e.g. \'{"statementDate":"3/4/2026","startDate":"2/4/2026","consolidateStatements":true}\')'
+    )
 
     args = parser.parse_args()
+
+    parms = None
+    if args.parms:
+        import json as _json
+        try:
+            parms = _json.loads(args.parms)
+        except ValueError as e:
+            print(f"Error: --parms is not valid JSON: {e}", file=sys.stderr)
+            sys.exit(1)
 
     result = render_pdf(
         args.profile_id,
         args.record_id,
         args.account,
-        args.env
+        args.env,
+        parms=parms
     )
 
     if args.quiet:

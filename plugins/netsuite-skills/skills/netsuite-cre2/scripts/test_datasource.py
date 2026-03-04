@@ -53,9 +53,19 @@ def execute_query(
     query: str,
     params: Optional[List[Any]] = None,
     account: str = DEFAULT_ACCOUNT,
-    environment: str = DEFAULT_ENVIRONMENT
+    environment: str = DEFAULT_ENVIRONMENT,
+    return_all_rows: bool = True,
 ) -> Dict[str, Any]:
-    """Execute a SuiteQL query via the API Gateway."""
+    """Execute a SuiteQL query via the API Gateway.
+
+    Args:
+        return_all_rows: When True (default), the gateway wraps the query in a
+            ROWNUM pagination subquery to fetch all rows beyond NetSuite's 5000-row
+            limit.  Set to False to run the query bare (as the CRE2 engine does
+            internally).  Bare execution is required for UNION ALL queries that
+            contain ``status <> '...'`` filters, because SuiteQL silently drops
+            those filters when the query is wrapped in a subquery context.
+    """
     resolved_account = resolve_account(account)
     resolved_env = resolve_environment(environment)
 
@@ -64,7 +74,7 @@ def execute_query(
         'procedure': 'queryRun',
         'query': query,
         'params': params or [],
-        'returnAllRows': True,
+        'returnAllRows': return_all_rows,
         'netsuiteAccount': resolved_account,
         'netsuiteEnvironment': resolved_env
     }

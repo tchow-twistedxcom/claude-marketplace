@@ -70,7 +70,8 @@ def resolve_environment(e: str) -> str:
 def _render_native(
     customer_id: str, account: str, environment: str,
     statement_date: Optional[str], start_date: Optional[str],
-    consolidate: bool
+    consolidate: bool,
+    open_transactions_only: bool = True,
 ) -> Dict[str, Any]:
     """Render native NS statement via statementRender procedure."""
     import urllib.request
@@ -81,7 +82,7 @@ def _render_native(
         'procedure': 'statementRender',
         'entityId': str(customer_id),
         'consolidateStatements': consolidate,
-        'openTransactionsOnly': True,
+        'openTransactionsOnly': open_transactions_only,
         'printMode': 'PDF',
         'netsuiteAccount': resolve_account(account),
         'netsuiteEnvironment': resolve_environment(environment)
@@ -105,12 +106,16 @@ def _render_cre2(
     customer_id: str, account: str, environment: str,
     statement_date: Optional[str], start_date: Optional[str],
     consolidate: bool,
-    profile_id: str = CRE2_PROFILE_ID
+    open_transactions_only: bool = True,
+    profile_id: str = CRE2_PROFILE_ID,
 ) -> Dict[str, Any]:
     """Render CRE2 statement via cre2Render procedure."""
     import urllib.request
 
-    parms: Dict[str, Any] = {'consolidateStatements': consolidate}
+    parms: Dict[str, Any] = {
+        'consolidateStatements': consolidate,
+        'openTransactionsOnly': str(open_transactions_only).lower(),
+    }
     if statement_date:
         parms['statementDate'] = statement_date
     if start_date:
@@ -415,13 +420,15 @@ def _compare_transaction_ids(native_ids: List[str], cre2_ids: List[str]
 
 def _print_header(customer_id: str, account: str, environment: str,
                   statement_date: Optional[str], start_date: Optional[str],
-                  consolidate: bool) -> None:
+                  consolidate: bool,
+                  open_transactions_only: bool = True) -> None:
     today = datetime.date.today().strftime('%-m/%-d/%Y')
     sd = statement_date or today
     print()
     print(f"Customer ID : {customer_id}")
     print(f"Account     : {account} / {environment}")
-    print(f"Stmt Date   : {sd}  |  Start Date: {start_date or '(NS default)'}  |  Consolidated: {consolidate}")
+    print(f"Stmt Date   : {sd}  |  Start Date: {start_date or '(none)'}  |  "
+          f"Consolidated: {consolidate}  |  OpenTxnOnly: {open_transactions_only}")
     print('─' * 70)
 
 
@@ -436,6 +443,8 @@ def compare(
     statement_date: Optional[str] = None,
     start_date: Optional[str] = None,
     consolidate: bool = False,
+    use_start_date: bool = True,
+    open_transactions_only: bool = True,
     verbose: bool = False,
     profile_id: str = CRE2_PROFILE_ID
 ) -> bool:
@@ -444,21 +453,29 @@ def compare(
     Returns True if all checks PASS (or WARN), False if any FAIL.
 
     Defaults:
-      statement_date — today if not provided
-      start_date     — one calendar month prior to statement_date if not provided
+      statement_date        — today if not provided
+      start_date            — one calendar month prior to statement_date if not
+                              provided (only applied when use_start_date=True)
+      use_start_date        — when False, no startDate is sent to either renderer,
+                              so all transactions are shown regardless of date
+      open_transactions_only — when False, both native and CRE2 include fully-paid
+                              invoices/credits (default True = open items only)
     """
     # Resolve statement date (default: today)
     if statement_date is None:
         statement_date = datetime.date.today().strftime('%-m/%-d/%Y')
 
     # Resolve start date (default: one month prior to statement date)
-    if start_date is None:
+    if use_start_date and start_date is None:
         start_date = _one_month_prior(statement_date)
+    elif not use_start_date:
+        start_date = None
 
     print(f"\nRendering native statement for customer {customer_id}...")
     try:
         native_result = _render_native(
-            customer_id, account, environment, statement_date, start_date, consolidate)
+            customer_id, account, environment, statement_date, start_date, consolidate,
+            open_transactions_only=open_transactions_only)
     except Exception as e:
         print(f"FAIL  Native statement render failed: {e}", file=sys.stderr)
         return False
@@ -476,6 +493,7 @@ def compare(
     try:
         cre2_result = _render_cre2(
             customer_id, account, environment, statement_date, start_date, consolidate,
+            open_transactions_only=open_transactions_only,
             profile_id=profile_id)
     except Exception as e:
         print(f"FAIL  CRE2 statement render failed: {e}", file=sys.stderr)
@@ -519,7 +537,8 @@ def compare(
     cre2_tran_amts      = _parse_transaction_amounts(cre2_text, 'cre2')
 
     # Print report
-    _print_header(customer_id, account, environment, statement_date, start_date, consolidate)
+    _print_header(customer_id, account, environment, statement_date, start_date, consolidate,
+                  open_transactions_only=open_transactions_only)
 
     print(f"{'':5}  {'Metric':<22}  {'Native':<20}  {'CRE2'}")
     print(f"{'':5}  {'──────':<22}  {'──────':<20}  {'────'}")
@@ -688,21 +707,31 @@ def _suiteql(query: str, account: str, environment: str) -> List[Dict]:
         return []
 
 
-def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tuple[str, str]]:
-    """Return up to n (customer_id, category) pairs spread across balance categories.
+def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tuple[str, str, bool, bool, bool]]:
+    """Return up to n (customer_id, category, consolidate, use_start_date, open_txn_only) tuples.
 
-    Only top-level customers (parent IS NULL) are included — matching the batch
-    statement run criteria.  Child customers are excluded because the native
-    consolidateStatements rolls up to the parent while CRE2 anchors on record.id,
-    making the comparison invalid for child records.
+    Covers 10 categories to exercise all combinations of the three key parameters:
+      consolidate:          False (standalone) vs True (roll up children)
+      use_start_date:       True (filter by date ~1 month window) vs False (no date filter)
+      open_transactions_only: True (open items only) vs False (all transactions including paid)
+
+    Only top-level customers (parent IS NULL) are included as the comparison anchor.
     """
-    per_cat = max(1, (n + 4) // 5)  # spread across 5 categories
+    per_cat = max(1, (n + 9) // 10)  # spread across 10 categories
 
     # Subquery that restricts to top-level customers (mirrors batch run criteria)
     _TOP_LEVEL = "(SELECT id FROM customer WHERE parent IS NULL AND isinactive = 'F')"
+    # Subquery: top-level customers who have at least one active child
+    _PARENT = (
+        "(SELECT DISTINCT c.id FROM customer c "
+        "INNER JOIN customer child ON child.parent = c.id "
+        "WHERE child.isinactive = 'F' AND c.isinactive = 'F' AND c.parent IS NULL)"
+    )
 
-    candidates: List[Tuple[str, str]] = []
+    # (customer_id, category, consolidate, use_start_date, open_transactions_only)
+    candidates: List[Tuple[str, str, bool, bool, bool]] = []
 
+    # ── Leaf customers, open-txn-only=True, with startDate (standard path) ────
     for r in _suiteql(
         f"SELECT DISTINCT csr.entity AS cid FROM CustomerSubsidiaryRelationship csr "
         f"WHERE csr.balance > 0 AND csr.entity IN {_TOP_LEVEL} "
@@ -710,7 +739,7 @@ def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tup
         account, environment,
     ):
         if r.get('cid'):
-            candidates.append((str(r['cid']), 'positive_balance'))
+            candidates.append((str(r['cid']), 'positive_balance', False, True, True))
 
     for r in _suiteql(
         f"SELECT DISTINCT csr.entity AS cid FROM CustomerSubsidiaryRelationship csr "
@@ -719,7 +748,7 @@ def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tup
         account, environment,
     ):
         if r.get('cid'):
-            candidates.append((str(r['cid']), 'credit_balance'))
+            candidates.append((str(r['cid']), 'credit_balance', False, True, True))
 
     inv_ids = {str(r['cid']) for r in _suiteql(
         f"SELECT DISTINCT t.entity AS cid FROM Transaction t "
@@ -734,7 +763,7 @@ def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tup
         account, environment,
     ) if r.get('cid')}
     for cid in sorted(inv_ids & cred_ids)[:per_cat]:
-        candidates.append((cid, 'mixed_inv_credits'))
+        candidates.append((cid, 'mixed_inv_credits', False, True, True))
 
     for r in _suiteql(
         f"SELECT DISTINCT t.entity AS cid FROM Transaction t "
@@ -744,25 +773,82 @@ def _discover_compare_sample(n: int, account: str, environment: str) -> List[Tup
         account, environment,
     ):
         if r.get('cid'):
-            candidates.append((str(r['cid']), 'partial_payment'))
+            candidates.append((str(r['cid']), 'partial_payment', False, True, True))
 
+    # ── Leaf, open-txn-only=True, NO startDate (all open txns regardless of date)
     for r in _suiteql(
-        f"SELECT DISTINCT c.id AS cid FROM customer c "
-        f"INNER JOIN customer child ON child.parent = c.id "
-        f"WHERE child.isinactive = 'F' AND c.isinactive = 'F' AND c.parent IS NULL "
+        f"SELECT DISTINCT csr.entity AS cid FROM CustomerSubsidiaryRelationship csr "
+        f"WHERE csr.balance > 0 AND csr.entity IN {_TOP_LEVEL} "
         f"FETCH FIRST {per_cat} ROWS ONLY",
         account, environment,
     ):
         if r.get('cid'):
-            candidates.append((str(r['cid']), 'parent_customer'))
+            candidates.append((str(r['cid']), 'no_startdate', False, False, True))
 
-    # Deduplicate by customer_id, keep first-seen category, respect limit n
+    # ── Leaf, open-txn-only=False, with startDate (all transactions incl paid) ─
+    for r in _suiteql(
+        f"SELECT DISTINCT csr.entity AS cid FROM CustomerSubsidiaryRelationship csr "
+        f"WHERE csr.balance > 0 AND csr.entity IN {_TOP_LEVEL} "
+        f"FETCH FIRST {per_cat} ROWS ONLY",
+        account, environment,
+    ):
+        if r.get('cid'):
+            candidates.append((str(r['cid']), 'all_transactions_startdate', False, True, False))
+
+    # ── Leaf, open-txn-only=False, NO startDate (all txns, no date filter) ────
+    for r in _suiteql(
+        f"SELECT DISTINCT csr.entity AS cid FROM CustomerSubsidiaryRelationship csr "
+        f"WHERE csr.balance > 0 AND csr.entity IN {_TOP_LEVEL} "
+        f"FETCH FIRST {per_cat} ROWS ONLY",
+        account, environment,
+    ):
+        if r.get('cid'):
+            candidates.append((str(r['cid']), 'all_transactions_no_startdate', False, False, False))
+
+    # ── Parent, non-consolidated, open-txn-only=True, no startDate ───────────
+    for r in _suiteql(
+        f"SELECT DISTINCT c.id AS cid FROM customer c "
+        f"WHERE c.id IN {_PARENT} FETCH FIRST {per_cat} ROWS ONLY",
+        account, environment,
+    ):
+        if r.get('cid'):
+            candidates.append((str(r['cid']), 'parent_non_consol', False, False, True))
+
+    # ── Parent, consolidated, open-txn-only=True, no startDate (CONNECT BY) ──
+    for r in _suiteql(
+        f"SELECT DISTINCT c.id AS cid FROM customer c "
+        f"WHERE c.id IN {_PARENT} FETCH FIRST {per_cat} ROWS ONLY",
+        account, environment,
+    ):
+        if r.get('cid'):
+            candidates.append((str(r['cid']), 'parent_consolidated', True, False, True))
+
+    # ── Parent, consolidated, open-txn-only=True, with startDate ─────────────
+    for r in _suiteql(
+        f"SELECT DISTINCT c.id AS cid FROM customer c "
+        f"WHERE c.id IN {_PARENT} FETCH FIRST {per_cat} ROWS ONLY",
+        account, environment,
+    ):
+        if r.get('cid'):
+            candidates.append((str(r['cid']), 'parent_consol_startdate', True, True, True))
+
+    # ── Parent, consolidated, open-txn-only=False (all txns consolidated) ────
+    for r in _suiteql(
+        f"SELECT DISTINCT c.id AS cid FROM customer c "
+        f"WHERE c.id IN {_PARENT} FETCH FIRST {per_cat} ROWS ONLY",
+        account, environment,
+    ):
+        if r.get('cid'):
+            candidates.append((str(r['cid']), 'parent_consol_all_txns', True, False, False))
+
+    # Deduplicate by (customer_id, category) — same customer can appear in multiple categories
     seen: set = set()
-    sample: List[Tuple[str, str]] = []
-    for cid, cat in candidates:
-        if cid not in seen:
-            seen.add(cid)
-            sample.append((cid, cat))
+    sample: List[Tuple[str, str, bool, bool, bool]] = []
+    for entry in candidates:
+        key = (entry[0], entry[1])
+        if key not in seen:
+            seen.add(key)
+            sample.append(entry)
         if len(sample) >= n:
             break
     return sample
@@ -774,13 +860,14 @@ def compare_batch(
     environment: str = DEFAULT_ENVIRONMENT,
     statement_date: Optional[str] = None,
     start_date: Optional[str] = None,
-    consolidate: bool = False,
     verbose: bool = False,
     profile_id: str = CRE2_PROFILE_ID,
 ) -> bool:
-    """Run compare() for a sample of n customers across balance categories.
+    """Run compare() for a sample of n customers across all parameter categories.
 
-    Returns True if all comparisons pass, False if any fail.
+    Each entry in the sample carries its own (consolidate, use_start_date,
+    open_transactions_only) settings so the full combination matrix is covered
+    automatically.  Returns True if all comparisons pass, False if any fail.
     """
     print(f"\nDiscovering {n} sample customers for batch comparison...")
     sample = _discover_compare_sample(n, account, environment)
@@ -789,13 +876,15 @@ def compare_batch(
         return False
 
     print(f"Found {len(sample)} customer(s): "
-          + ', '.join(f"{cid}({cat})" for cid, cat in sample))
+          + ', '.join(f"{cid}({cat})" for cid, cat, *_ in sample))
 
     results: List[Tuple[str, str, bool]] = []
-    for cid, cat in sample:
+    for entry in sample:
+        cid, cat, consolidate, use_start_date, open_txn_only = entry
         sep = '=' * 70
         print(f"\n{sep}")
-        print(f"Customer {cid}  [{cat}]")
+        flags = f"consolidated={consolidate}  startDate={'yes' if use_start_date else 'no'}  openTxnOnly={open_txn_only}"
+        print(f"Customer {cid}  [{cat}]  {flags}")
         print(sep)
         ok = compare(
             customer_id=cid,
@@ -804,6 +893,8 @@ def compare_batch(
             statement_date=statement_date,
             start_date=start_date,
             consolidate=consolidate,
+            use_start_date=use_start_date,
+            open_transactions_only=open_txn_only,
             verbose=verbose,
             profile_id=profile_id,
         )
@@ -841,26 +932,34 @@ Examples:
   python3 compare_statements.py --customer-id 7258 --env sb2
   python3 compare_statements.py -c 7258 -e sb2 --consolidate
   python3 compare_statements.py -c 7258 -e prod --consolidate --verbose
-  python3 compare_statements.py --compare-sample 5 --env sb2
-  python3 compare_statements.py --compare-sample 10 --env prod --consolidate
+  python3 compare_statements.py -c 7258 -e prod --all-transactions
+  python3 compare_statements.py -c 7258 -e prod --no-start-date
+  python3 compare_statements.py --compare-sample 10 --env prod
         """
     )
 
     parser.add_argument('--customer-id',    '-c', default=None,
                         help='Customer internal ID (required unless --compare-sample is used)')
     parser.add_argument('--compare-sample', '-n', type=int, default=None, metavar='N',
-                        help='Batch compare N sample customers across balance categories')
+                        help='Batch compare N sample customers across all parameter categories')
     parser.add_argument('--account',        '-a', default=DEFAULT_ACCOUNT,
                         choices=['twx', 'twistedx', 'dm', 'dutyman'])
     parser.add_argument('--env',            '-e', default=DEFAULT_ENVIRONMENT,
                         choices=['prod', 'production', 'sb1', 'sandbox', 'sb2', 'sandbox2'])
     parser.add_argument('--statement-date', '-d', default=None, help='Statement date MM/DD/YYYY')
     parser.add_argument('--start-date',     '-s', default=None, help='Start date MM/DD/YYYY')
+    parser.add_argument('--no-start-date',  action='store_true',
+                        help='Disable startDate filter — show all open transactions regardless of date')
     parser.add_argument('--consolidate',    action='store_true', help='Consolidate sub-customer statements')
+    parser.add_argument('--all-transactions', action='store_true',
+                        help='Include fully-paid invoices/credits (openTransactionsOnly=false)')
     parser.add_argument('--verbose',        '-v', action='store_true', help='Show PDF text excerpts and transaction details')
     parser.add_argument('--profile-id',     default=CRE2_PROFILE_ID, help=f'CRE2 profile ID (default: {CRE2_PROFILE_ID})')
 
     args = parser.parse_args()
+
+    open_transactions_only = not args.all_transactions
+    use_start_date = not args.no_start_date
 
     if args.compare_sample is not None:
         ok = compare_batch(
@@ -869,7 +968,6 @@ Examples:
             environment=args.env,
             statement_date=args.statement_date,
             start_date=args.start_date,
-            consolidate=args.consolidate,
             verbose=args.verbose,
             profile_id=args.profile_id,
         )
@@ -882,6 +980,8 @@ Examples:
             statement_date=args.statement_date,
             start_date=args.start_date,
             consolidate=args.consolidate,
+            use_start_date=use_start_date,
+            open_transactions_only=open_transactions_only,
             verbose=args.verbose,
         )
     else:

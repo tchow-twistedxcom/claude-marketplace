@@ -617,10 +617,12 @@ def _preprocess_freemarker(sql: str, entity_ids: List[int]) -> str:
             → resolved to ,child1,child2,... (children beyond first entity)
       • <#if PARMS.startDate?has_content> ... </#if>
             → stripped (test runs without a startDate, so the block is inactive)
+      • <#if !PARMS.openTransactionsOnly?? || PARMS.openTransactionsOnly?string != 'false'> ... </#if>
+            → kept (block is active — test always treats openTransactionsOnly as true)
       • IN (SELECT id FROM customer WHERE (id = N<#if PARMS.consolidateStatements...> OR parent = N</#if>) AND isinactive = 'F')
             → replaced with IN (entity_id1, entity_id2, ...) using the full entity_ids list.
-              entity_ids is always parent + all active children (same as get_entity_ids()),
-              which matches both the reference query scope and the profile's consolidated view.
+      • IN (<#if PARMS.consolidateStatements...>SELECT...CONNECT BY...<#else>SELECT...</#if>)
+            → replaced with IN (entity_id1, entity_id2, ...)
     """
     # Replace cus_children list expression with actual child IDs
     child_ids = entity_ids[1:] if len(entity_ids) > 1 else []
@@ -636,12 +638,13 @@ def _preprocess_freemarker(sql: str, entity_ids: List[int]) -> str:
         '',
         sql, flags=re.DOTALL,
     )
+    # Strip openTransactionsOnly conditional wrapper — keep the inner SQL (open-only=True path)
+    sql = re.sub(
+        r"<#if\s+!PARMS\.openTransactionsOnly\?\?[^>]*>\s*(.*?)\s*</#if>",
+        r'\1',
+        sql, flags=re.DOTALL,
+    )
     # Replace entity subquery with a direct IN list of all entity IDs.
-    # entity_ids already encodes the full parent+descendant scope (from get_entity_ids()),
-    # so this is equivalent to what the profile renders.
-    # Two patterns to handle:
-    #   OLD: IN (SELECT id FROM customer WHERE (id = N<#if...> OR parent = N</#if>) AND isinactive = 'F')
-    #   NEW: IN (<#if PARMS.consolidateStatements...>SELECT ... CONNECT BY ...<#else>SELECT ...</#if>)
     entity_ids_str = ','.join(str(i) for i in entity_ids)
     # OLD pattern (pre-fix queries with OR parent)
     sql = re.sub(

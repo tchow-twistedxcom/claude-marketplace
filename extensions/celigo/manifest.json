@@ -1,0 +1,75 @@
+{
+  "dxt_version": "0.1",
+  "name": "celigo-integration",
+  "display_name": "Celigo Integration",
+  "version": "3.0.0",
+  "description": "Celigo iPaaS integration via MCP. Manage integrations, flows, jobs, errors, connections, and scripts.",
+  "author": {
+    "name": "tchow"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tchow-twistedxcom/claude-marketplace"
+  },
+  "license": "MIT",
+  "keywords": ["celigo", "integration", "iPaaS", "etl", "workflow"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp>=1.0.0",
+        "--with", "httpx>=0.27.0",
+        "${__dirname}/src/server.py"
+      ],
+      "env": {
+        "CELIGO_API_KEY": "${user_config.api_key}",
+        "CELIGO_API_URL": "${user_config.api_url}"
+      }
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "Celigo API Key",
+      "description": "Your Celigo integrator.io API key. Find it in Celigo → Settings → API tokens.",
+      "sensitive": true,
+      "required": true
+    },
+    "api_url": {
+      "type": "string",
+      "title": "API URL",
+      "description": "Celigo API base URL (leave default unless using a custom endpoint).",
+      "required": false,
+      "default": "https://api.integrator.io/v1"
+    }
+  },
+  "tools": [
+    { "name": "celigo_list_integrations", "description": "List all Celigo integrations" },
+    { "name": "celigo_get_integration", "description": "Get integration details" },
+    { "name": "celigo_get_integration_errors", "description": "Get error summary for an integration" },
+    { "name": "celigo_list_flows", "description": "List flows, optionally by integration" },
+    { "name": "celigo_get_flow", "description": "Get flow details and structure" },
+    { "name": "celigo_run_flow", "description": "Trigger a flow to run" },
+    { "name": "celigo_get_flow_errors", "description": "Get error counts per flow step" },
+    { "name": "celigo_list_jobs", "description": "List jobs with status filters" },
+    { "name": "celigo_get_job", "description": "Get job details" },
+    { "name": "celigo_list_step_errors", "description": "List errors for a flow step" },
+    { "name": "celigo_resolve_step_errors", "description": "Resolve/dismiss step errors" },
+    { "name": "celigo_list_connections", "description": "List connections" },
+    { "name": "celigo_list_scripts", "description": "List scripts" },
+    { "name": "celigo_get_script", "description": "Get script content" },
+    { "name": "celigo_list_edi_integrations", "description": "List all EDI trading partner integrations with partner name, network type (VAN/SPS/direct), and staging status" },
+    { "name": "celigo_get_edi_error_summary", "description": "Aggregated error counts across all active EDI integrations, ranked by partner" },
+    { "name": "celigo_get_edi_flow_summary", "description": "Detailed flow status for one EDI trading partner, grouped by document type (850/856/810 etc.)" },
+    { "name": "celigo_get_edi_health_dashboard", "description": "High-level health dashboard across all active EDI partners: flow counts, errors, doc types, network" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

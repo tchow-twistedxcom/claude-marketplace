@@ -1,0 +1,85 @@
+{
+  "dxt_version": "0.1",
+  "name": "netsuite-edi",
+  "display_name": "NetSuite EDI Analytics",
+  "version": "1.0.0",
+  "description": "NetSuite SuiteQL queries for EDI customer and transaction analytics via local API Gateway. Query EDI trading partners, transaction volumes, dollar amounts, and document type breakdowns.",
+  "author": {
+    "name": "tchow"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tchow-twistedxcom/claude-marketplace"
+  },
+  "license": "MIT",
+  "keywords": ["netsuite", "edi", "suiteql", "analytics", "trading-partner"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp>=1.0.0",
+        "--with", "httpx>=0.27.0",
+        "${__dirname}/src/server.py"
+      ],
+      "env": {
+        "NETSUITE_GATEWAY_URL": "${user_config.gateway_url}",
+        "NETSUITE_API_KEY": "${user_config.api_key}",
+        "NETSUITE_ACCOUNT": "${user_config.netsuite_account}",
+        "NETSUITE_ENVIRONMENT": "${user_config.netsuite_environment}"
+      }
+    }
+  },
+  "user_config": {
+    "gateway_url": {
+      "type": "string",
+      "title": "API Gateway URL",
+      "description": "NetSuite API Gateway URL. Production: https://api.twistedx.com",
+      "required": true,
+      "default": "https://api.twistedx.com"
+    },
+    "api_key": {
+      "type": "string",
+      "title": "Gateway API Key",
+      "description": "X-API-Key secret for server-to-server access to the gateway.",
+      "sensitive": true,
+      "required": false,
+      "default": ""
+    },
+    "netsuite_account": {
+      "type": "string",
+      "title": "NetSuite Account",
+      "description": "Account to query: 'twistedx' (Twisted X, OAuth 1.0a, account 4138030) or 'dutyman' (Dutyman, OAuth 2.0, account 8055418). Default: twistedx",
+      "required": false,
+      "default": "twistedx"
+    },
+    "netsuite_environment": {
+      "type": "string",
+      "title": "NetSuite Environment",
+      "description": "Environment to query: 'production', 'sandbox', or 'sandbox2'. Dutyman only supports production and sandbox. Default: production",
+      "required": false,
+      "default": "production"
+    }
+  },
+  "tools": [
+    { "name": "netsuite_run_suiteql", "description": "Execute a raw SuiteQL query against NetSuite via the API Gateway" },
+    { "name": "netsuite_list_edi_customers", "description": "List EDI-enabled customers with trading partner info and transaction counts" },
+    { "name": "netsuite_search_edi_customer", "description": "Search for an EDI customer by company name, customer number, or internal ID" },
+    { "name": "netsuite_edi_trading_partners", "description": "List all EDI trading partners with transaction counts by document type" },
+    { "name": "netsuite_edi_volume_by_customer", "description": "EDI transaction counts grouped by trading partner for a date range" },
+    { "name": "netsuite_edi_dollars_by_customer", "description": "EDI dollar amounts grouped by trading partner for a date range" },
+    { "name": "netsuite_edi_summary_by_period", "description": "EDI transaction summary aggregated by month or week with doc type breakdown" },
+    { "name": "netsuite_edi_document_breakdown", "description": "EDI transaction counts broken down by document type (850, 856, 810, etc.)" },
+    { "name": "netsuite_edi_top_customers", "description": "Top EDI trading partners ranked by transaction volume or revenue" },
+    { "name": "netsuite_edi_transaction_detail", "description": "Get individual EDI transaction records for a partner or date range" },
+    { "name": "netsuite_edi_recent_activity", "description": "Most recent EDI transactions across all trading partners" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

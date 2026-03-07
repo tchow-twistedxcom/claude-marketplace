@@ -1,0 +1,9 @@
+[project]
+name = "meraki-integration"
+version = "1.0.0"
+description = "Cisco Meraki Dashboard API MCP server"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.0.0",
+    "httpx>=0.27.0",
+]

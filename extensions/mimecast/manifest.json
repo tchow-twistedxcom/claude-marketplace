@@ -1,0 +1,107 @@
+{
+  "dxt_version": "0.1",
+  "name": "mimecast-integration",
+  "display_name": "Mimecast Email Security",
+  "version": "1.0.0",
+  "description": "Mimecast email security operations via MCP. Manage held messages, TTP logs, users, groups, policies, and audit events.",
+  "author": {
+    "name": "tchow"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tchow-twistedxcom/claude-marketplace"
+  },
+  "license": "MIT",
+  "keywords": ["mimecast", "email-security", "ttp", "anti-phishing"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp>=1.0.0",
+        "--with", "httpx>=0.27.0",
+        "${__dirname}/src/server.py"
+      ],
+      "env": {
+        "MIMECAST_CLIENT_ID": "${user_config.client_id}",
+        "MIMECAST_CLIENT_SECRET": "${user_config.client_secret}",
+        "MIMECAST_APP_ID": "${user_config.app_id}",
+        "MIMECAST_APP_KEY": "${user_config.app_key}",
+        "MIMECAST_ACCESS_KEY": "${user_config.access_key}",
+        "MIMECAST_SECRET_KEY": "${user_config.secret_key}",
+        "MIMECAST_REGION": "${user_config.region}"
+      }
+    }
+  },
+  "user_config": {
+    "client_id": {
+      "type": "string",
+      "title": "OAuth 2.0 Client ID",
+      "description": "OAuth 2.0 Client ID from Mimecast Administration → Services → API and Platform Integrations. Required if not using Legacy HMAC auth.",
+      "sensitive": false,
+      "required": false
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "OAuth 2.0 Client Secret",
+      "description": "OAuth 2.0 Client Secret from Mimecast API application.",
+      "sensitive": true,
+      "required": false
+    },
+    "app_id": {
+      "type": "string",
+      "title": "Legacy App ID (HMAC auth)",
+      "description": "Application ID for Legacy HMAC authentication. Leave blank if using OAuth 2.0.",
+      "sensitive": false,
+      "required": false
+    },
+    "app_key": {
+      "type": "string",
+      "title": "Legacy App Key (HMAC auth)",
+      "description": "Application Key for Legacy HMAC authentication.",
+      "sensitive": true,
+      "required": false
+    },
+    "access_key": {
+      "type": "string",
+      "title": "Legacy Access Key (HMAC auth)",
+      "description": "Access Key for Legacy HMAC authentication.",
+      "sensitive": false,
+      "required": false
+    },
+    "secret_key": {
+      "type": "string",
+      "title": "Legacy Secret Key (HMAC auth)",
+      "description": "Base64-encoded Secret Key for Legacy HMAC authentication.",
+      "sensitive": true,
+      "required": false
+    },
+    "region": {
+      "type": "string",
+      "title": "Region",
+      "description": "Your Mimecast data region: us, eu, de, au, za, ca, uk, or sandbox",
+      "required": false,
+      "default": "us"
+    }
+  },
+  "tools": [
+    { "name": "mimecast_get_account", "description": "Get account information" },
+    { "name": "mimecast_list_held_messages", "description": "List messages in hold queue" },
+    { "name": "mimecast_track_message", "description": "Track messages through the gateway" },
+    { "name": "mimecast_list_ttp_url_logs", "description": "Get TTP URL protection scan logs" },
+    { "name": "mimecast_list_ttp_attachment_logs", "description": "Get TTP attachment scan logs" },
+    { "name": "mimecast_list_users", "description": "List internal users" },
+    { "name": "mimecast_list_groups", "description": "List directory groups" },
+    { "name": "mimecast_list_managed_senders", "description": "List blocked or permitted senders" },
+    { "name": "mimecast_get_audit_events", "description": "Get audit events log" },
+    { "name": "mimecast_list_policies", "description": "List email policies" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "meraki-skills",
+  "version": "1.0.0",
+  "description": "Cisco Meraki Dashboard API integration for network monitoring and management. Covers organizations, networks, devices, wireless, switches, MX appliances, and cameras.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": ["meraki", "cisco", "networking", "wireless", "switch", "mx", "rmm"],
+  "skills": [
+    "./skills/meraki-api"
+  ],
+  "commands": [],
+  "mcpServers": [],
+  "globalInstructions": []
+}

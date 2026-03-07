@@ -1,0 +1,77 @@
+{
+  "dxt_version": "0.1",
+  "name": "ninjaone-integration",
+  "display_name": "NinjaOne RMM",
+  "version": "1.0.0",
+  "description": "NinjaOne RMM operations via MCP. Manage devices, organizations, alerts, tickets, policies, and activity logs.",
+  "author": {
+    "name": "tchow"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tchow-twistedxcom/claude-marketplace"
+  },
+  "license": "MIT",
+  "keywords": ["ninjaone", "ninjarmm", "rmm", "msp", "device-management"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp>=1.0.0",
+        "--with", "httpx>=0.27.0",
+        "${__dirname}/src/server.py"
+      ],
+      "env": {
+        "NINJAONE_CLIENT_ID": "${user_config.client_id}",
+        "NINJAONE_CLIENT_SECRET": "${user_config.client_secret}",
+        "NINJAONE_API_URL": "${user_config.api_url}"
+      }
+    }
+  },
+  "user_config": {
+    "client_id": {
+      "type": "string",
+      "title": "OAuth Client ID",
+      "description": "NinjaOne OAuth 2.0 Client ID. Create in NinjaOne → Administration → Apps → API.",
+      "sensitive": false,
+      "required": true
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "OAuth Client Secret",
+      "description": "NinjaOne OAuth 2.0 Client Secret from the API application.",
+      "sensitive": true,
+      "required": true
+    },
+    "api_url": {
+      "type": "string",
+      "title": "API URL",
+      "description": "NinjaOne API base URL. Default is US. EU customers use https://eu.ninjarmm.com",
+      "required": false,
+      "default": "https://app.ninjarmm.com"
+    }
+  },
+  "tools": [
+    { "name": "ninjaone_list_devices", "description": "List all devices" },
+    { "name": "ninjaone_get_device", "description": "Get device details" },
+    { "name": "ninjaone_get_device_software", "description": "Get software inventory for a device" },
+    { "name": "ninjaone_get_device_patches", "description": "Get patch status for a device" },
+    { "name": "ninjaone_list_organizations", "description": "List all organizations" },
+    { "name": "ninjaone_list_alerts", "description": "List active alerts" },
+    { "name": "ninjaone_list_tickets", "description": "List tickets" },
+    { "name": "ninjaone_get_ticket", "description": "Get ticket details" },
+    { "name": "ninjaone_create_ticket", "description": "Create a new ticket" },
+    { "name": "ninjaone_add_ticket_comment", "description": "Add comment to a ticket" },
+    { "name": "ninjaone_list_policies", "description": "List all policies" },
+    { "name": "ninjaone_list_activities", "description": "List activity log entries" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

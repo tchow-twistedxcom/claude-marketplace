@@ -1,0 +1,73 @@
+{
+  "dxt_version": "0.1",
+  "name": "meraki-integration",
+  "display_name": "Cisco Meraki",
+  "version": "1.0.0",
+  "description": "Cisco Meraki Dashboard API via MCP. Manage organizations, networks, devices, clients, wireless SSIDs, switch ports, and event logs.",
+  "author": {
+    "name": "tchow"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tchow-twistedxcom/claude-marketplace"
+  },
+  "license": "MIT",
+  "keywords": ["meraki", "cisco", "networking", "rmm", "wireless", "switch"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp>=1.0.0",
+        "--with", "httpx>=0.27.0",
+        "${__dirname}/src/server.py"
+      ],
+      "env": {
+        "MERAKI_API_KEY": "${user_config.api_key}",
+        "MERAKI_API_URL": "${user_config.api_url}"
+      }
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "Meraki API Key",
+      "description": "Your Meraki Dashboard API key. Find it in Meraki Dashboard → Account → API access.",
+      "sensitive": true,
+      "required": true
+    },
+    "api_url": {
+      "type": "string",
+      "title": "API URL",
+      "description": "Meraki API base URL. Leave default unless using a regional endpoint (e.g. https://api.eu.meraki.com/api/v1).",
+      "required": false,
+      "default": "https://api.meraki.com/api/v1"
+    }
+  },
+  "tools": [
+    { "name": "meraki_list_organizations", "description": "List all accessible organizations" },
+    { "name": "meraki_get_organization", "description": "Get organization details" },
+    { "name": "meraki_get_organization_inventory", "description": "Get device inventory for an organization" },
+    { "name": "meraki_get_organization_uplinks_status", "description": "Get WAN uplink status for all MX appliances" },
+    { "name": "meraki_list_networks", "description": "List all networks in an organization" },
+    { "name": "meraki_get_network", "description": "Get network details" },
+    { "name": "meraki_get_network_devices", "description": "List devices in a network" },
+    { "name": "meraki_get_network_clients", "description": "List clients connected to a network" },
+    { "name": "meraki_get_network_alerts", "description": "Get alert settings for a network" },
+    { "name": "meraki_get_network_events", "description": "Get event log for a network" },
+    { "name": "meraki_get_device", "description": "Get device details by serial" },
+    { "name": "meraki_get_device_uplink", "description": "Get uplink settings for an MX appliance" },
+    { "name": "meraki_list_ssids", "description": "List wireless SSIDs for a network" },
+    { "name": "meraki_get_wireless_status", "description": "Get wireless channel utilization stats" },
+    { "name": "meraki_list_switch_ports", "description": "List all ports on a switch" },
+    { "name": "meraki_get_switch_port_statuses", "description": "Get live port statuses on a switch" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

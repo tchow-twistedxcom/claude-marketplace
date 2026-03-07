@@ -1,0 +1,4 @@
+{
+  "api_key": "YOUR_MERAKI_API_KEY",
+  "api_url": "https://api.meraki.com/api/v1"
+}

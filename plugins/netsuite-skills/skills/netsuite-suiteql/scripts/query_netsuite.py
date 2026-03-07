@@ -17,6 +17,7 @@ Environment Support:
 """
 
 import sys
+import os
 import json
 import urllib.request
 import urllib.error
@@ -305,6 +306,9 @@ def print_usage():
 
 Usage: python3 query_netsuite.py <query> [options]
        python3 query_netsuite.py --list-accounts
+       python3 query_netsuite.py --describe <TABLE> [options]
+       python3 query_netsuite.py --tables [PATTERN] [options]
+       python3 query_netsuite.py --search-columns <PATTERN> [options]
 
 Options:
   --account <account>    Account to query (default: twistedx)
@@ -320,6 +324,11 @@ Options:
   --format <format>      Output format: json, table, csv (default: table)
 
   --list-accounts        List available accounts and environments
+
+Schema Discovery (no query needed):
+  --describe <TABLE>     Show columns, types, and FK relationships for a table
+  --tables [PATTERN]     List tables (optional glob pattern, e.g. "custom*")
+  --search-columns <PAT> Search column names/descriptions across all tables
 
 Examples:
   # Query Twisted X sandbox2 (default)
@@ -337,6 +346,18 @@ Examples:
   # List available accounts
   python3 query_netsuite.py --list-accounts
 
+  # Describe a table schema (columns + types + FK relationships)
+  python3 query_netsuite.py --describe Transaction --env sb2
+  python3 query_netsuite.py --describe customrecord_pri_frgt_cnt --env sb2 --format json
+
+  # List all tables or filter by pattern
+  python3 query_netsuite.py --tables --env sb2
+  python3 query_netsuite.py --tables "custom*" --env sb2
+
+  # Search for columns by name
+  python3 query_netsuite.py --search-columns "shipping" --env sb2
+  python3 query_netsuite.py --search-columns "custrecord_pri" --env sb2
+
 Accounts:
   twistedx (twx)  - Twisted X (OAuth 1.0a) - Environments: production, sandbox, sandbox2
   dutyman (dm)    - Dutyman (OAuth 2.0 M2M) - Environments: production, sandbox
@@ -344,6 +365,61 @@ Accounts:
 Note: The NetSuite API Gateway must be running at http://localhost:3001
       Run 'docker compose up -d' in ~/NetSuiteApiGateway if needed
 """)
+
+
+def _run_schema_command(argv: List[str]) -> None:
+    """
+    Handle --describe, --tables, --search-columns by delegating to schema_lookup.py.
+    Translates query_netsuite flags to schema_lookup subcommand format.
+    """
+    import importlib.util
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    lookup_path = os.path.join(script_dir, 'schema_lookup.py')
+
+    if not os.path.exists(lookup_path):
+        print(f"ERROR: schema_lookup.py not found at {lookup_path}")
+        sys.exit(1)
+
+    flag = argv[0]  # e.g. '--describe'
+    rest = argv[1:]
+
+    # Map --describe <TABLE> → ['describe', TABLE, ...]
+    # Map --tables [PATTERN] → ['tables', PATTERN, ...]
+    # Map --search-columns <PAT> → ['search', PAT, ...]
+    subcommand_map = {
+        '--describe': 'describe',
+        '--tables': 'tables',
+        '--search-columns': 'search'
+    }
+    sub = subcommand_map[flag]
+
+    # Build new argv for schema_lookup: [script, subcommand, target?, --opt val, ...]
+    new_argv = ['schema_lookup.py', sub]
+    i = 0
+    while i < len(rest):
+        arg = rest[i]
+        # Pass through known option pairs
+        if arg in ('--account', '--env', '--format') and i + 1 < len(rest):
+            new_argv.extend([arg, rest[i + 1]])
+            i += 2
+        elif not arg.startswith('--'):
+            # Positional argument (table name or pattern)
+            new_argv.insert(2, arg)
+            i += 1
+        else:
+            i += 1
+
+    # Load and invoke schema_lookup.main() with modified sys.argv
+    spec = importlib.util.spec_from_file_location('schema_lookup', lookup_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    original_argv = sys.argv
+    try:
+        sys.argv = new_argv
+        module.main()
+    finally:
+        sys.argv = original_argv
 
 
 def main():
@@ -369,6 +445,12 @@ def main():
     if sys.argv[1] in ['-h', '--help', 'help']:
         print_usage()
         sys.exit(0)
+
+    # Schema discovery flags — delegate to schema_lookup.py
+    SCHEMA_FLAGS = {'--describe', '--tables', '--search-columns'}
+    if sys.argv[1] in SCHEMA_FLAGS:
+        _run_schema_command(sys.argv[1:])
+        return
 
     # Check if first argument is an option (indicates wrong argument order)
     first_arg = sys.argv[1]

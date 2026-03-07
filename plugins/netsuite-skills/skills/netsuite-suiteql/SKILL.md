@@ -73,13 +73,46 @@ Determine what data you need to test or verify:
 - Custom record validation
 - Performance testing
 
-### 2. **Build Query**
-Use the reference documentation to construct your SuiteQL:
-- `references/table_reference.md` - Schema and field names
+### 2. **Look Up Schema (Required Before Writing Queries)**
+
+Before writing any SuiteQL query for an unfamiliar table, verify exact table and column names. **Never guess column names** — they differ from UI field names and many fields are not exposed in SuiteQL.
+
+**Find the right table:**
+```bash
+python3 scripts/schema_lookup.py tables "Transaction*" --env sb2
+python3 scripts/schema_lookup.py tables "custom*" --env sb2
+python3 scripts/schema_lookup.py search "shipping" --env sb2
+```
+
+**Get exact column names for your target table:**
+```bash
+python3 scripts/schema_lookup.py describe Transaction --env sb2
+python3 scripts/schema_lookup.py describe customrecord_pri_frgt_cnt --env sb2
+python3 scripts/query_netsuite.py --describe TransactionLine --env sb2
+```
+
+**Find which table has a specific column:**
+```bash
+python3 scripts/schema_lookup.py search "shippingrate" --env sb2
+python3 scripts/schema_lookup.py search "custrecord_pri" --env sb2
+```
+
+**Check FK relationships before writing JOINs:**
+```bash
+python3 scripts/schema_lookup.py relationships Transaction --env sb2
+```
+
+The `describe` command shows **all columns** including custom fields (`custbody_*`, `custrecord_*`) with their human-readable labels. Common pitfalls this prevents:
+- `Transaction.shippingcost` doesn't exist → use `TransactionShipment.shippingrate`
+- `Transaction.total` doesn't exist → use `SUM(TransactionLine.netamount)`
+- Custom field names like `custbody_pri_bpa_ff_inv_link` — must be exact, no guessing
+
+### 3. **Build Query**
+Use the verified column names from schema lookup plus the reference documentation:
 - `references/common_queries.md` - Pre-built query patterns
 - `references/suiteql_functions.md` - Supported/unsupported SQL functions
 
-### 3. **Execute Query**
+### 4. **Execute Query**
 Run the query using the Python script:
 ```bash
 python3 scripts/query_netsuite.py '<query>' [options]
@@ -90,8 +123,11 @@ python3 scripts/query_netsuite.py '<query>' [options]
 - `--env sb2|prod` - Target environment (default: sb2)
 - `--all-rows` - Enable pagination for large result sets
 - `--format json|table|csv` - Output format (default: table)
+- `--describe <TABLE>` - Schema lookup shortcut (no query needed)
+- `--tables [PATTERN]` - List tables (no query needed)
+- `--search-columns <PAT>` - Column search (no query needed)
 
-### 4. **Analyze Results**
+### 5. **Analyze Results**
 Review the output to validate data or debug issues:
 - Table format for quick visual inspection
 - JSON format for programmatic processing
@@ -212,9 +248,15 @@ The gateway handles OAuth 1.0a authentication automatically. If you receive auth
 - Ensure credentials are properly configured for the target environment
 
 ### Query Syntax Errors
-If the query fails, check:
-- Table names (case-sensitive in some contexts)
-- Field names (use `table_reference.md` for correct names)
+If the query fails with "Field not found" or similar errors, verify the exact column names before guessing:
+```bash
+python3 scripts/schema_lookup.py describe Transaction --env sb2
+# or: search for a column pattern
+python3 scripts/schema_lookup.py search "shippingcost" --env sb2
+```
+
+Also check:
+- Table names (case-insensitive in SuiteQL but check OA_TABLES for exact names)
 - Parameter count matches `?` placeholders
 - Single quotes properly escaped in bash
 
@@ -444,6 +486,23 @@ Main executable Python script for query execution. Handles:
 - Parameter handling and environment selection
 - Error handling and timeout management
 
+### scripts/schema_lookup.py
+Schema discovery tool for exploring table definitions, columns, and relationships.
+Reads from cached JSON files at `~/.cache/netsuite-schema/`. Stdlib-only.
+Subcommands: `describe`, `tables`, `search`, `relationships`, `refresh-custom`, `status`.
+The `refresh-custom` subcommand queries CustomRecordType + CustomField via the API gateway
+to get custom record types and custom field labels (no ODBC required).
+
+### scripts/schema_refresh.py
+ODBC-based full schema dump tool. Connects to NetSuite SuiteAnalytics Connect and
+writes OA_TABLES, OA_COLUMNS, OA_FKEYS to JSON cache files.
+Requires pyodbc and the NetSuite ODBC driver. Run quarterly or after NetSuite releases.
+Uses DSNs named `netsuite_{account}_{environment}` (configured by setup_odbc.sh).
+
+### scripts/setup_odbc.sh
+One-time setup script for the NetSuite ODBC driver, unixODBC, pyodbc, and DSN configuration.
+Run once per machine before using schema_refresh.py.
+
 ### scripts/update_record.py
 Executable Python script for record CRUD operations. Handles:
 - Record creation (--create flag)
@@ -530,10 +589,69 @@ If you are writing or reviewing SuiteScript that uses `runSuiteQLPaged`, be awar
 
 **When testing queries via this skill:** If the query works fine via `query_netsuite.py` but returns 0 records when used with `runSuiteQLPaged` in SuiteScript, suspect one of the above failure modes.
 
+## Schema Discovery
+
+Explore NetSuite table schemas without writing queries. Uses the schema cache at `~/.cache/netsuite-schema/`.
+
+### Quick Commands
+
+```bash
+# Describe a table (columns, types, FK relationships, custom field labels)
+python3 scripts/schema_lookup.py describe Transaction --env sb2
+python3 scripts/schema_lookup.py describe customrecord_pri_frgt_cnt --env sb2
+python3 scripts/query_netsuite.py --describe TransactionShipment --env sb2
+
+# List tables (with optional glob filter)
+python3 scripts/schema_lookup.py tables --env sb2
+python3 scripts/schema_lookup.py tables "custom*" --env sb2
+python3 scripts/query_netsuite.py --tables "Transaction*" --env sb2
+
+# Search across table names and column names
+python3 scripts/schema_lookup.py search "shipping" --env sb2
+python3 scripts/schema_lookup.py search "custrecord_pri" --env sb2
+python3 scripts/query_netsuite.py --search-columns "entity" --env sb2
+
+# FK graph for planning JOINs
+python3 scripts/schema_lookup.py relationships Transaction --env sb2
+
+# Check cache freshness
+python3 scripts/schema_lookup.py status
+```
+
+### Schema Cache Setup
+
+The schema cache has two sources — use either or both:
+
+**Custom records only (no ODBC needed, run anytime):**
+```bash
+python3 scripts/schema_lookup.py refresh-custom --account twx --env sb2
+```
+Queries `CustomRecordType` and `CustomField` via the API gateway. Covers all custom record types and custom fields with human-readable labels.
+
+**Full schema (requires ODBC setup, run quarterly):**
+```bash
+# One-time ODBC setup
+bash scripts/setup_odbc.sh
+
+# Refresh all accounts/environments
+export NETSUITE_ODBC_USER='your@email.com'
+export NETSUITE_ODBC_PASSWORD='yourpassword'
+python3 scripts/schema_refresh.py --all-accounts --all-environments
+```
+Queries `OA_TABLES`, `OA_COLUMNS`, `OA_FKEYS` via SuiteAnalytics Connect ODBC. Covers all standard tables, all custom tables, column types/lengths, and FK relationships.
+
+### Fallback Behavior
+
+Schema commands work at whatever level is available:
+- Full ODBC cache → all tables, types, lengths, FK relationships
+- Custom cache only → custom record columns with labels (standard tables limited)
+- No cache at all → real-time probe (`SELECT * WHERE ROWNUM=1`) discovers column names
+
 ## Best Practices
 
+0. **Schema First:** Run `schema_lookup.py describe <table>` before writing queries for unfamiliar tables. Never guess column names — they differ from the UI and many fields are unexposed.
 1. **Start Simple:** Test with ROWNUM <= 10 before running full queries
-2. **Use References:** Check `table_reference.md` for correct field names
+2. **Use References:** Check `references/table_reference.md` and schema cache for correct field names
 3. **Parameterize:** Always use `?` placeholders for dynamic values
 4. **Filter Early:** Apply WHERE conditions before JOINs for performance
 5. **Avoid BUILTIN.DF in Loops:** Get IDs first, format only what's displayed

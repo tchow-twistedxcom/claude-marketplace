@@ -14,11 +14,15 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 
-# Default config location
+# Default config location (bundled with plugin — may be overwritten on plugin updates)
 DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'atlassian_config.json'
 
+# Persistent config location (survives plugin cache rebuilds and version bumps)
+PERSISTENT_CONFIG_DIR = Path.home() / '.claude' / 'config' / 'atlassian'
+PERSISTENT_CONFIG_PATH = PERSISTENT_CONFIG_DIR / 'atlassian_config.json'
+
 # Persistent token cache location (survives restarts)
-TOKEN_CACHE_PATH = Path(__file__).parent.parent / 'config' / '.atlassian_tokens.json'
+TOKEN_CACHE_PATH = PERSISTENT_CONFIG_DIR / '.atlassian_tokens.json'
 
 # Token refresh buffer (refresh 5 minutes before expiry)
 TOKEN_REFRESH_BUFFER = 300
@@ -64,7 +68,31 @@ class AtlassianAuth:
         self._token_cache = self._load_token_cache()  # Persistent cache
 
     def _load_config(self):
-        """Load configuration from JSON file."""
+        """
+        Load configuration, preferring the persistent copy over the bundled one.
+
+        Atlassian uses rotating refresh tokens — each use invalidates the old token
+        and returns a new one. The bundled config inside the plugin cache directory
+        gets overwritten on plugin version bumps, losing the rotated token.
+
+        Resolution order:
+        1. Persistent config (~/.claude/config/atlassian/) — survives plugin updates
+        2. Bundled config (plugin cache directory) — initial/fallback source
+
+        On first load, the bundled config is copied to the persistent location.
+        """
+        # Try persistent location first
+        if PERSISTENT_CONFIG_PATH.exists():
+            try:
+                with open(PERSISTENT_CONFIG_PATH, 'r') as f:
+                    config = json.load(f)
+                # Also update the bundled copy so both stay in sync
+                self._sync_to_bundled(config)
+                return config
+            except (json.JSONDecodeError, IOError):
+                pass  # Fall through to bundled config
+
+        # Fall back to bundled config
         if not self.config_path.exists():
             raise AtlassianAuthError(
                 f"Config file not found: {self.config_path}\n"
@@ -74,9 +102,33 @@ class AtlassianAuth:
 
         try:
             with open(self.config_path, 'r') as f:
-                return json.load(f)
+                config = json.load(f)
         except json.JSONDecodeError as e:
             raise AtlassianAuthError(f"Invalid JSON in config file: {e}")
+
+        # Bootstrap: copy bundled config to persistent location
+        self._save_persistent_config(config)
+        return config
+
+    def _save_persistent_config(self, config):
+        """Save config to the persistent location outside plugin cache."""
+        try:
+            PERSISTENT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            temp_path = PERSISTENT_CONFIG_PATH.with_suffix('.tmp')
+            with open(temp_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            temp_path.replace(PERSISTENT_CONFIG_PATH)
+        except (IOError, OSError) as e:
+            print(f"Warning: Could not save persistent config: {e}")
+
+    def _sync_to_bundled(self, config):
+        """Best-effort sync persistent config back to bundled location."""
+        try:
+            if self.config_path.exists():
+                with open(self.config_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+        except (IOError, OSError):
+            pass  # Non-fatal — persistent copy is the source of truth
 
     def _validate_config(self, config):
         """
@@ -328,26 +380,19 @@ class AtlassianAuth:
 
     def _update_refresh_token(self, new_token):
         """
-        Update refresh token in config file atomically.
+        Update refresh token in both persistent and bundled config files.
 
-        Atlassian rotates refresh tokens, so we need to save the new one.
-        Uses atomic write (temp file + rename) to prevent corruption.
+        Atlassian rotates refresh tokens — each use invalidates the old one.
+        We save to the persistent location first (source of truth), then
+        best-effort sync to the bundled copy.
         """
         self.config['oauth']['refresh_token'] = new_token
 
-        # Write atomically to prevent corruption
-        temp_path = self.config_path.with_suffix('.tmp')
-        try:
-            with open(temp_path, 'w') as f:
-                json.dump(self.config, f, indent=2)
-            temp_path.replace(self.config_path)  # Atomic on POSIX
-        except Exception as e:
-            # Clean up temp file if it exists
-            try:
-                temp_path.unlink(missing_ok=True)
-            except:
-                pass
-            raise AtlassianAuthError(f"Failed to save new refresh token: {e}")
+        # Save to persistent location (source of truth)
+        self._save_persistent_config(self.config)
+
+        # Best-effort sync to bundled config
+        self._sync_to_bundled(self.config)
 
     def get_headers(self, site_alias=None):
         """

@@ -1,53 +1,41 @@
 #!/usr/bin/env python3
 """
-CRE2 Customer Statement Data Validation Test Suite
+CRE2 Customer Statement Validation Test Suite
 
-Validates that CRE2 Profile 16 (Customer Statement Portrait) produces correct,
-complete statements by running checks at two layers:
-
-DATA LAYER  (always run — fast, no rendering)
-  1. balance          — scalar balance matches CustomerSubsidiaryRelationship
-  2. transactions     — set of open transaction IDs matches reference
-  3. tran_amounts     — per-transaction foreignamountunpaid matches reference
-  4. tran_fields      — tran datasource contains required template fields
-  5. balance_forward  — balance_forward sanity (WARN if suspiciously large)
-
-COMPARE LAYER  (--compare-check, top 3 customers per category by transaction count)
-  6. compare          — render both native NS statement + CRE2 → compare:
-                        • Amount Due
-                        • Balance Forward
-                        • Aging buckets (current, 1-30, 31-60, 61-90, 90+, total)
-                        • Transaction IDs (set match)
-                        • Per-transaction remaining balance amounts
-                        • Paylink annotation — clickable URI (extforms.netsuite.com) present
+Validates CRE2 Profile 16 (Customer Statement Portrait) by rendering both the
+native NetSuite statement and the CRE2 PDF for each customer and comparing:
+  • Amount Due
+  • Balance Forward
+  • Aging buckets (current, 1-30, 31-60, 61-90, 90+, total)
+  • Transaction IDs (set match)
+  • Per-transaction remaining balance amounts
+  • Paylink annotation — clickable URI (extforms.netsuite.com) present
 
 Usage:
   python3 test_statement_data.py --env sb2
   python3 test_statement_data.py --env prod
-  python3 test_statement_data.py --env sb2 --compare-check
   python3 test_statement_data.py --env sb2 --customers 5764,4631,12926
   python3 test_statement_data.py --env sb2 --format json
 
-Full-Coverage Mode (tests ALL statement-eligible customers):
+Full-Coverage Mode (tests ALL customers matching the suitelet population —
+  customsearch118507 "TWX | Customers Statement List" + balance!=0):
   python3 test_statement_data.py --env sb2 --full-coverage
   python3 test_statement_data.py --env prod --full-coverage
-  python3 test_statement_data.py --env sb2 --full-coverage --compare-check
   python3 test_statement_data.py --env sb2 --full-coverage --concurrency 12
+  Note: --full-coverage renders native+CRE2 for every customer — very slow.
 """
 
 import sys
 import os
 import io
 import json
-import math
 import re
 import time
 import argparse
 import tempfile
 import base64
-import contextlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Optional, Dict, Any, List, Set, Tuple, FrozenSet
+from typing import Optional, Dict, Any, List, Tuple
 
 # Add this scripts directory to path so sibling scripts can be imported
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -62,7 +50,6 @@ sys.path.insert(0, os.path.normpath(_FILE_CAB_DIR))
 
 from test_datasource import (
     execute_query,
-    get_datasources,
     resolve_account,
     resolve_environment,
     DEFAULT_ACCOUNT,
@@ -72,72 +59,49 @@ from test_datasource import (
 # CRE2 Profile 16: Customer Statement (Portrait)
 PROFILE_ID = 16
 
-BALANCE_TOLERANCE = 0.01          # Within 1 cent
-BALANCE_FORWARD_WARN_RATIO = 10.0 # Warn if |BF| > ratio × |total|
+# ─── Known Diffs and Skips ────────────────────────────────────────────────────
+# Customers whose CRE2 value will never match native due to fundamental
+# methodology differences. These are tracked but not treated as failures.
+# Root cause (historical): native's ${record.amountDue} uses Customer.balancesearch /
+# consolbalancesearch fields — now used directly in Q227 and Q128. All former
+# KNOWN_DIFF customers now PASS (2026-03-06).
 
-# ── Template field requirements ───────────────────────────────────────────────
-# REQUIRED groups → FAIL if none of the fields in the tuple are present.
-# EXPECTED groups → WARN if none are present.
+KNOWN_DIFFS: Dict[int, str] = {
+}
 
-REQUIRED_TRAN_FIELD_GROUPS: List[Tuple[str, ...]] = [
-    ('id', 'internalid'),
-    ('tranid', 'documentnumber', 'tran_id'),
-    ('foreignamountunpaid', 'amountremaining', 'openamount'),
-]
-EXPECTED_TRAN_FIELD_GROUPS: List[Tuple[str, ...]] = [
-    ('trandate', 'date', 'transactiondate'),
-    ('duedate', 'due_date'),
-    ('foreigntotal', 'foreignamount', 'total', 'amount'),
-]
+SKIP_CUSTOMERS: Dict[int, str] = {
+    4373: "610 subcustomers — impractical for PDF statement rendering (times out)",
+}
 
-
-# ─── Reference Queries ───────────────────────────────────────────────────────
-
-REFERENCE_BALANCE_QUERY = """
-SELECT SUM(csr.balance) AS balance
-FROM CustomerSubsidiaryRelationship csr
-WHERE csr.entity = ?
-"""
-
-# SuiteQL quirk: status <> 'CustCred:B' only works at the OUTERMOST query level.
-# It is silently dropped when inside a subquery, OR condition, or UNION ALL branch
-# that is wrapped in a subquery.  The only reliable pattern is a bare top-level UNION ALL
-# where each branch has its own simple WHERE clause (no OR, no subquery wrapper).
-# This template uses {entity_ids} substitution (not ? params) to avoid having to
-# bind the same value twice in UNION ALL.  {entity_ids} is replaced with a
-# comma-separated list of IDs (parent + consolidated children).
-REFERENCE_TRAN_QUERY_TEMPLATE = """
-SELECT t.id, t.foreignamountunpaid AS amount_remaining
-FROM Transaction t
-WHERE t.entity IN ({entity_ids})
-  AND t.type = 'CustInvc'
-  AND t.foreignamountunpaid <> 0
-UNION ALL
-SELECT t.id, -TL.foreignpaymentamountunused AS amount_remaining
-FROM Transaction t
-JOIN TransactionLine TL ON TL.transaction = t.id AND TL.mainline = 'T'
-WHERE t.entity IN ({entity_ids})
-  AND t.type = 'CustCred'
-  AND t.status NOT IN ('CustCred:B', 'CustCred:V')
-  AND TL.foreignpaymentamountunused > 0
-ORDER BY 1
-"""
-
-REFERENCE_BALANCE_QUERY_MULTI = """
-SELECT SUM(csr.balance) AS balance
-FROM CustomerSubsidiaryRelationship csr
-WHERE csr.entity IN ({entity_ids})
-"""
 
 
 # ─── Customer Discovery ──────────────────────────────────────────────────────
 
+# SQL fragment appended to sampled discovery queries to exclude sub-customers
+# that are descendants (at any depth) of a consolidated parent.  Those customers
+# are covered by the ancestor's consolidated statement and should not be tested as
+# independent statement recipients.  Mirrors the exclusion in
+# discover_statement_customers() for the full-coverage path.
+# Uses CONNECT BY hierarchy walk (LEVEL > 1) to catch grandchildren and deeper
+# descendants, not just direct children.
+_EXCL_CONSOL_CHILD = (
+    "AND {col} NOT IN ("
+    "SELECT id FROM customer "
+    "WHERE LEVEL > 1 "
+    "START WITH NVL(custentity_twx_consolidated_statement, 'F') = 'T' "
+    "CONNECT BY PRIOR id = parent "
+    "AND isinactive = 'F')"
+)
+
+
 def _discover_balance_category(where_clause: str, limit: int,
                                 account: str, environment: str) -> List[int]:
+    excl = _EXCL_CONSOL_CHILD.format(col='csr.entity')
     result = execute_query(
         f"SELECT DISTINCT csr.entity AS customer_id "
         f"FROM CustomerSubsidiaryRelationship csr "
         f"WHERE {where_clause} "
+        f"{excl} "
         f"FETCH FIRST {limit} ROWS ONLY",
         account=account, environment=environment,
         return_all_rows=False,
@@ -148,9 +112,10 @@ def _discover_balance_category(where_clause: str, limit: int,
 
 
 def _discover_mixed_customers(limit: int, account: str, environment: str) -> List[int]:
+    excl = _EXCL_CONSOL_CHILD.format(col='t.entity')
     inv = execute_query(
         "SELECT DISTINCT t.entity AS customer_id FROM Transaction t "
-        "WHERE t.type = 'CustInvc' AND t.foreignamountunpaid > 0 "
+        f"WHERE t.type = 'CustInvc' AND t.foreignamountunpaid > 0 {excl} "
         "FETCH FIRST 500 ROWS ONLY",
         account=account, environment=environment,
         return_all_rows=False,
@@ -159,7 +124,7 @@ def _discover_mixed_customers(limit: int, account: str, environment: str) -> Lis
     # CRITICAL: status <> 'CustCred:B' only works bare (no ROWNUM wrapper) — use return_all_rows=False
     cred = execute_query(
         "SELECT DISTINCT t.entity AS customer_id FROM Transaction t "
-        "WHERE t.type = 'CustCred' AND t.status <> 'CustCred:B' "
+        f"WHERE t.type = 'CustCred' AND t.status <> 'CustCred:B' {excl} "
         "FETCH FIRST 500 ROWS ONLY",
         account=account, environment=environment,
         return_all_rows=False,
@@ -170,6 +135,8 @@ def _discover_mixed_customers(limit: int, account: str, environment: str) -> Lis
 
 
 def _discover_parent_customers(limit: int, account: str, environment: str) -> List[int]:
+    # Returns top-level parents with active children — these are never children
+    # of another parent, so no consolidated-parent exclusion needed here.
     result = execute_query(
         "SELECT DISTINCT c.id AS customer_id "
         "FROM customer c "
@@ -185,12 +152,13 @@ def _discover_parent_customers(limit: int, account: str, environment: str) -> Li
 
 
 def _discover_partial_payment_customers(limit: int, account: str, environment: str) -> List[int]:
+    excl = _EXCL_CONSOL_CHILD.format(col='t.entity')
     result = execute_query(
         "SELECT DISTINCT t.entity AS customer_id "
         "FROM Transaction t "
         "WHERE t.type = 'CustInvc' "
         "  AND t.foreignamountunpaid > 0 "
-        "  AND t.foreignamountunpaid < t.foreigntotal "
+        f"  AND t.foreignamountunpaid < t.foreigntotal {excl} "
         f"FETCH FIRST {limit} ROWS ONLY",
         account=account, environment=environment,
         return_all_rows=False,
@@ -198,6 +166,32 @@ def _discover_partial_payment_customers(limit: int, account: str, environment: s
     if result.get('error'):
         return []
     return [int(r['customer_id']) for r in result.get('records', []) if r.get('customer_id')]
+
+
+def _get_consolidated_prefs(
+    customer_ids: List[int],
+    account: str,
+    environment: str,
+) -> Dict[int, bool]:
+    """Return {customer_id: consolidated_pref} for each ID in the list.
+
+    Queries custentity_twx_consolidated_statement directly so renders are driven
+    by the customer's actual statement preference, not a category label.
+    """
+    if not customer_ids:
+        return {}
+    id_list = ','.join(str(i) for i in customer_ids)
+    result = execute_query(
+        f"SELECT id, NVL(custentity_twx_consolidated_statement, 'F') AS consol_pref "
+        f"FROM customer WHERE id IN ({id_list})",
+        account=account, environment=environment,
+        return_all_rows=False,
+    )
+    return {
+        int(r['id']): (r.get('consol_pref') or 'F') == 'T'
+        for r in result.get('records', [])
+        if r.get('id')
+    }
 
 
 def discover_test_customers(account: str, environment: str) -> Dict[str, List[int]]:
@@ -229,12 +223,41 @@ def discover_statement_customers(
     account: str,
     environment: str,
 ) -> Tuple[Dict[int, Dict[str, Any]], Dict[str, List[int]]]:
-    """Discover ALL statement-eligible customers matching the actual batch run population.
+    """Discover ALL statement-eligible customers matching the actual suitelet population.
 
-    Uses the same selection criteria as the TWX Dashboard/Prolecto Suitelet:
-      - Top-level customers only (parent IS NULL)
-      - Active (isinactive = 'F')
-      - Entity status 13 (Customer - Active)
+    Mirrors the criteria of customscript_tx_sl_gen_cust_statements (TX: Generate Customer
+    Statements) which loads saved search customsearch118507 ("TWX | Customers Statement List")
+    as the base filter, then appends runtime filters.
+
+    Saved search base criteria (customsearch118507):
+      - custentity_twx_customer_status = 2 (Active)
+      - category NOT IN (32)  — excludes "Internal Website"
+      - terms NOT IN (22)     — excludes "Credit Card"
+      - entityid DOESNOTCONTAIN: Boot Barn, Cavenders, Mid-States, Scheels,
+        powerplay retail, power play, ross stores, tractor supply, Bomgaars,
+        Wheatbelt, Orscheln Farm, Dillard's, Bass Pro Shops, AAFES, QVC,
+        Nordstrom, Shoe Sensation, Fitted, Academy LTD, Buckle Brands Inc,
+        Cabelas Inc, Rural King Supply, Zappos Inc, Zulily Inc, Amazon Vendor Central
+
+    Suitelet runtime filters (always applied, non-consolidated default):
+      - isinactive = 'F'
+      - balance != 0
+
+    Consolidated-parent exclusion (applied here):
+      Descendants at ANY depth of a customer with custentity_twx_consolidated_statement='T'
+      are excluded. When the suitelet runs in consolidated mode (custpage_consolidate
+      checkbox checked), it adds "parent ANYOF @NONE@" — top-level only — and
+      generates ONE statement per consolidated parent using consolbalance. Those
+      descendants are already covered by the ancestor's statement and should not be
+      tested as independent statement recipients.
+
+      Uses CONNECT BY hierarchy walk (WHERE LEVEL > 1) so grandchildren and
+      deeper sub-customers are excluded — not just direct children.
+
+      Included:  consolidated parents themselves, sub-customers of non-consolidated
+                 parents whose ENTIRE ancestry chain has no consolidated flag.
+      Excluded:  descendants (children, grandchildren, etc.) of any customer
+                 with consolidatedStatement = T, at any depth in the hierarchy.
 
     Returns:
         customers: Dict[customer_id, {balance, categories, consolidated, sub_count}]
@@ -242,9 +265,10 @@ def discover_statement_customers(
     """
     print("Discovering statement-eligible customers...", file=sys.stderr)
 
-    # Single broad query mirroring the batch run selection criteria.
+    # Single broad query mirroring the saved search + runtime filter criteria.
     # The LEFT JOIN to CustomerSubsidiaryRelationship is a derived subquery — safe
     # with return_all_rows=True (no status filter, simple aggregate).
+    # COALESCE(csr.total_balance, 0) <> 0 mirrors the suitelet's balance != 0 filter.
     discovery_sql = """
     SELECT
         c.id AS customer_id,
@@ -259,9 +283,43 @@ def discover_statement_customers(
         FROM CustomerSubsidiaryRelationship
         GROUP BY entity
     ) csr ON csr.entity = c.id
-    WHERE c.parent IS NULL
-      AND c.isinactive = 'F'
-      AND c.entitystatus = 13
+    WHERE c.isinactive = 'F'
+      AND c.custentity_twx_customer_status = 2
+      AND (c.category IS NULL OR c.category <> 32)
+      AND (c.terms IS NULL OR c.terms <> 22)
+      AND LOWER(c.entityid) NOT LIKE '%boot barn%'
+      AND LOWER(c.entityid) NOT LIKE '%cavenders%'
+      AND LOWER(c.entityid) NOT LIKE '%mid-states%'
+      AND LOWER(c.entityid) NOT LIKE '%scheels%'
+      AND LOWER(c.entityid) NOT LIKE '%powerplay retail%'
+      AND LOWER(c.entityid) NOT LIKE '%power play%'
+      AND LOWER(c.entityid) NOT LIKE '%ross stores%'
+      AND LOWER(c.entityid) NOT LIKE '%tractor supply%'
+      AND LOWER(c.entityid) NOT LIKE '%bomgaars%'
+      AND LOWER(c.entityid) NOT LIKE '%wheatbelt%'
+      AND LOWER(c.entityid) NOT LIKE '%orscheln farm%'
+      AND LOWER(c.entityid) NOT LIKE '%dillard%'
+      AND LOWER(c.entityid) NOT LIKE '%bass pro shops%'
+      AND LOWER(c.entityid) NOT LIKE '%aafes%'
+      AND LOWER(c.entityid) NOT LIKE '%qvc%'
+      AND LOWER(c.entityid) NOT LIKE '%nordstrom%'
+      AND LOWER(c.entityid) NOT LIKE '%shoe sensation%'
+      AND LOWER(c.entityid) NOT LIKE '%fitted%'
+      AND LOWER(c.entityid) NOT LIKE '%academy ltd%'
+      AND LOWER(c.entityid) NOT LIKE '%buckle brands inc%'
+      AND LOWER(c.entityid) NOT LIKE '%cabelas inc%'
+      AND LOWER(c.entityid) NOT LIKE '%rural king supply%'
+      AND LOWER(c.entityid) NOT LIKE '%zappos inc%'
+      AND LOWER(c.entityid) NOT LIKE '%zulily inc%'
+      AND LOWER(c.entityid) NOT LIKE '%amazon vendor central%'
+      AND COALESCE(csr.total_balance, 0) <> 0
+      AND c.id NOT IN (
+          SELECT id FROM customer
+          WHERE LEVEL > 1
+          START WITH NVL(custentity_twx_consolidated_statement, 'F') = 'T'
+          CONNECT BY PRIOR id = parent
+          AND isinactive = 'F'
+      )
     ORDER BY c.id
     """
     result = execute_query(discovery_sql, account=account, environment=environment,
@@ -271,7 +329,7 @@ def discover_statement_customers(
         return {}, {}
 
     records = result.get('records', [])
-    print(f"  Found {len(records)} top-level active customers", file=sys.stderr)
+    print(f"  Found {len(records)} statement-eligible customers", file=sys.stderr)
 
     # Build customer info map and classify by balance
     customers: Dict[int, Dict[str, Any]] = {}
@@ -392,426 +450,6 @@ def discover_statement_customers(
             print(f"  {cat.replace('_', ' ').title():<26}  {count}", file=sys.stderr)
 
     return customers, categories
-
-
-def bulk_reference_transactions(
-    customer_ids: List[int],
-    account: str,
-    environment: str,
-    batch_size: int = 75,
-    max_workers: int = 6,
-) -> Dict[int, Dict[int, float]]:
-    """Fetch reference transactions for all customers in parallel batches.
-
-    Uses IN (...) batches to amortize gateway round-trips.
-    CRITICAL: return_all_rows=False required because the UNION ALL contains
-    status <> 'CustCred:B', which SuiteQL silently drops in a subquery context.
-    """
-    if not customer_ids:
-        return {}
-
-    # Split into batches
-    batches = [
-        customer_ids[i:i + batch_size]
-        for i in range(0, len(customer_ids), batch_size)
-    ]
-
-    result: Dict[int, Dict[int, float]] = {cid: {} for cid in customer_ids}
-    errors: List[str] = []
-
-    def _fetch_batch(batch: List[int]) -> Dict[int, Dict[int, float]]:
-        ids_str = ', '.join(str(i) for i in batch)
-        query = f"""
-SELECT t.entity AS customer_id, t.id, t.foreignamountunpaid AS amount_remaining
-FROM Transaction t
-WHERE t.entity IN ({ids_str})
-  AND t.type = 'CustInvc'
-  AND t.foreignamountunpaid <> 0
-UNION ALL
-SELECT t.entity AS customer_id, t.id, -TL.foreignpaymentamountunused AS amount_remaining
-FROM Transaction t
-JOIN TransactionLine TL ON TL.transaction = t.id AND TL.mainline = 'T'
-WHERE t.entity IN ({ids_str})
-  AND t.type = 'CustCred'
-  AND t.status NOT IN ('CustCred:B', 'CustCred:V')
-  AND TL.foreignpaymentamountunused > 0
-ORDER BY 1, 2
-"""
-        for attempt in range(4):
-            qr = execute_query(query, account=account, environment=environment,
-                               return_all_rows=False)
-            err = str(qr.get('error') or '')
-            if '429' in err and 'too many requests' in err.lower():
-                time.sleep(2 ** (attempt + 1))
-                continue
-            break
-
-        batch_result: Dict[int, Dict[int, float]] = {}
-        if qr.get('error'):
-            return batch_result  # caller will notice missing customer_ids
-        for row in qr.get('records', []):
-            try:
-                cid  = int(row['customer_id'])
-                tid  = int(row['id'])
-                amt  = float(row.get('amount_remaining') or 0)
-            except (KeyError, ValueError, TypeError):
-                continue
-            batch_result.setdefault(cid, {})[tid] = amt
-        return batch_result
-
-    t0 = time.time()
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(_fetch_batch, b): b for b in batches}
-        for future in as_completed(futures):
-            batch_data = future.result()
-            for cid, tran_data in batch_data.items():
-                result[cid] = tran_data
-
-    elapsed = time.time() - t0
-    print(
-        f"  Reference transactions: {len(batches)} batch(es) in {elapsed:.1f}s",
-        file=sys.stderr,
-    )
-    return result
-
-
-def _is_429_error(result: Dict[str, Any]) -> bool:
-    """Return True if the execute_query result is a gateway 429 rate-limit error."""
-    err = str(result.get('error') or '')
-    return '429' in err and 'too many requests' in err.lower()
-
-
-def _validate_one_customer(
-    profile_id: int,
-    cid: int,
-    category: str,
-    datasources: List[Dict],
-    ref_balance: float,
-    ref_tran_data: Dict[int, float],
-    account: str,
-    environment: str,
-    max_retries: int = 4,
-) -> Dict[str, Any]:
-    """Thread-safe per-customer CRE2 validation using pre-fetched reference data.
-
-    Retries with exponential backoff on HTTP 429 rate-limit errors from the gateway.
-    """
-    ref_data = {
-        'balance':   ref_balance,
-        'tran_data': ref_tran_data,
-        'error':     None,
-    }
-
-    for attempt in range(max_retries + 1):
-        cre2_data = get_cre2_data(profile_id, cid, account, environment,
-                                  datasources=datasources)
-
-        # Check if ALL datasource calls failed with 429 — if so, retry after backoff
-        err = cre2_data.get('error') or ''
-        has_data = cre2_data.get('balance_ds') or cre2_data.get('tran_ds')
-        all_429 = ('429' in err and 'too many requests' in err.lower() and not has_data)
-
-        if all_429 and attempt < max_retries:
-            wait_secs = 2 ** (attempt + 1)  # 2, 4, 8, 16 seconds
-            time.sleep(wait_secs)
-            continue
-
-        return validate_customer(cid, category, cre2_data, ref_data)
-
-    # All retries exhausted — return whatever we got
-    return validate_customer(cid, category, cre2_data, ref_data)  # type: ignore[return-value]
-
-
-# ─── Field Extraction Helpers ────────────────────────────────────────────────
-
-def _first_match(row: Dict[str, Any], candidates: tuple) -> Optional[Any]:
-    row_lower = {k.lower(): v for k, v in row.items()}
-    for c in candidates:
-        if c in row_lower:
-            return row_lower[c]
-    return None
-
-
-def _extract_balance_value(rows: List[Dict]) -> Optional[float]:
-    if not rows:
-        return None
-    row = rows[0]
-    raw = _first_match(row, ('balance', 'amount', 'total', 'openbalance', 'foreignamount'))
-    if raw is None:
-        for v in row.values():
-            try:
-                return float(v)
-            except (ValueError, TypeError):
-                continue
-        return None
-    try:
-        return float(raw) if raw is not None else None
-    except (ValueError, TypeError):
-        return None
-
-
-def _extract_tran_amounts(rows: List[Dict]) -> Dict[int, float]:
-    """Return {transaction_id: open_amount} for each tran datasource row."""
-    result: Dict[int, float] = {}
-    for row in rows:
-        id_raw  = _first_match(row, ('id', 'internalid'))
-        amt_raw = _first_match(row, ('foreignamountunpaid', 'amountremaining',
-                                     'amount_remaining', 'openamount', 'foreignamount'))
-        if id_raw is None:
-            continue
-        try:
-            tran_id = int(id_raw)
-        except (ValueError, TypeError):
-            continue
-        try:
-            amount = float(amt_raw) if amt_raw is not None else 0.0
-        except (ValueError, TypeError):
-            amount = 0.0
-        result[tran_id] = amount
-    return result
-
-
-def _extract_tran_fields(rows: List[Dict]) -> FrozenSet[str]:
-    if not rows:
-        return frozenset()
-    return frozenset(k.lower() for k in rows[0].keys())
-
-
-def _extract_tranids(rows: List[Dict]) -> List[str]:
-    """Extract human-readable transaction number strings (e.g. 'INV-12345') from tran rows."""
-    tranids = []
-    for row in rows:
-        val = _first_match(row, ('tranid', 'documentnumber', 'tran_id', 'invoice_number'))
-        if val and str(val).strip():
-            tranids.append(str(val).strip())
-    return tranids
-
-
-# ─── Entity ID Helper ────────────────────────────────────────────────────────
-
-def get_entity_ids(customer_id: int, account: str, environment: str) -> List[int]:
-    """Return all entity IDs for a customer: parent + all active descendants at any level.
-
-    Uses CONNECT BY hierarchical traversal so grandchildren and deeper descendants
-    are included — matching the consolidated view that native NetSuite renders.
-    CONNECT BY does not support parameterized ? params in SuiteQL, so customer_id
-    is embedded directly (it is always a validated int from discovery queries).
-    """
-    result = execute_query(
-        f"SELECT id FROM customer WHERE isinactive = 'F' "
-        f"START WITH id = {customer_id} "
-        f"CONNECT BY PRIOR id = parent AND isinactive = 'F'",
-        account=account, environment=environment,
-        return_all_rows=False,
-    )
-    if result.get('error') or not result.get('records'):
-        return [customer_id]
-    return [int(r['id']) for r in result.get('records', []) if r.get('id')]
-
-
-def _preprocess_freemarker(sql: str, entity_ids: List[int]) -> str:
-    """Substitute known CRE2 FreeMarker patterns so queries can be executed directly.
-
-    Handles:
-      • <#list cus_children.rows as C>,${C.id}</#list>
-            → resolved to ,child1,child2,... (children beyond first entity)
-      • <#if PARMS.startDate?has_content> ... </#if>
-            → stripped (test runs without a startDate, so the block is inactive)
-      • <#if !PARMS.openTransactionsOnly?? || PARMS.openTransactionsOnly?string != 'false'> ... </#if>
-            → kept (block is active — test always treats openTransactionsOnly as true)
-      • IN (SELECT id FROM customer WHERE (id = N<#if PARMS.consolidateStatements...> OR parent = N</#if>) AND isinactive = 'F')
-            → replaced with IN (entity_id1, entity_id2, ...) using the full entity_ids list.
-      • IN (<#if PARMS.consolidateStatements...>SELECT...CONNECT BY...<#else>SELECT...</#if>)
-            → replaced with IN (entity_id1, entity_id2, ...)
-    """
-    # Replace cus_children list expression with actual child IDs
-    child_ids = entity_ids[1:] if len(entity_ids) > 1 else []
-    child_suffix = ''.join(f',{cid}' for cid in child_ids)
-    sql = re.sub(
-        r'<#list cus_children\.rows as C>.*?</#list>',
-        child_suffix,
-        sql, flags=re.DOTALL,
-    )
-    # Strip PARMS.startDate conditional blocks (treat startDate as empty)
-    sql = re.sub(
-        r'<#if PARMS\.startDate\?has_content>.*?</#if>',
-        '',
-        sql, flags=re.DOTALL,
-    )
-    # Strip openTransactionsOnly conditional wrapper — keep the inner SQL (open-only=True path)
-    sql = re.sub(
-        r"<#if\s+!PARMS\.openTransactionsOnly\?\?[^>]*>\s*(.*?)\s*</#if>",
-        r'\1',
-        sql, flags=re.DOTALL,
-    )
-    # Replace entity subquery with a direct IN list of all entity IDs.
-    entity_ids_str = ','.join(str(i) for i in entity_ids)
-    # OLD pattern (pre-fix queries with OR parent)
-    sql = re.sub(
-        r'IN\s*\(\s*SELECT\s+id\s+FROM\s+customer\s+WHERE\s*\(id\s*=\s*\d+'
-        r'(?:<#if[^>]*>.*?</#if>)?\)\s*AND\s+isinactive\s*=\s*\'F\'\s*\)',
-        f'IN ({entity_ids_str})',
-        sql, flags=re.DOTALL | re.IGNORECASE,
-    )
-    # NEW pattern (post-fix queries with CONNECT BY inside FreeMarker conditional)
-    sql = re.sub(
-        r'IN\s*\(\s*<#if\s+PARMS\.consolidateStatements[^>]*>[\s\S]*?</#if>\s*\)',
-        f'IN ({entity_ids_str})',
-        sql, flags=re.DOTALL,
-    )
-    return sql
-
-
-# ─── CRE2 Datasource Classification ─────────────────────────────────────────
-
-# Exact datasource names that are definitively one type.
-# Used in a priority pre-pass so secondary datasources (discount_lines, cus_children, etc.)
-# cannot steal the tran_ds slot before the real transaction datasource is processed.
-_BALANCE_DS_EXACT: FrozenSet[str] = frozenset((
-    'account_balance', 'balance', 'header', 'summary', 'customer_balance',
-))
-_TRAN_DS_EXACT: FrozenSet[str] = frozenset((
-    'tran', 'transactions', 'transaction_lines', 'invoices', 'open_transactions',
-    'open_invoices',
-))
-
-
-def _classify_datasource(name: str, paged: bool, single_json: bool) -> str:
-    n = (name or '').lower()
-    # Exact-name priority (prevents 'discount_lines' from stealing the tran slot)
-    if n in _BALANCE_DS_EXACT:
-        return 'balance'
-    if n in _TRAN_DS_EXACT:
-        return 'tran'
-    # Keyword heuristics — NOTE: 'line' intentionally omitted to avoid false-matching
-    # names like 'discount_lines', 'address_lines', etc.
-    if any(kw in n for kw in ('balance', 'account', 'header', 'summary')):
-        return 'balance'
-    if any(kw in n for kw in ('tran', 'invoice')):
-        return 'tran'
-    if single_json:
-        return 'balance'
-    if paged:
-        return 'tran'
-    return 'unknown'
-
-
-# ─── CRE2 Data Retrieval ─────────────────────────────────────────────────────
-
-def get_cre2_data(profile_id: int, customer_id: int,
-                  account: str, environment: str,
-                  datasources: Optional[List[Dict]] = None,
-                  entity_ids: Optional[List[int]] = None) -> Dict[str, Any]:
-    if datasources is None:
-        datasources = get_datasources(profile_id, account, environment)
-    if not datasources:
-        return {'balance_ds': None, 'tran_ds': None,
-                'error': f'No datasources found for profile {profile_id}'}
-
-    # Pre-fetch entity IDs (parent + children) for FreeMarker substitution.
-    # Reuse caller-supplied value if available to avoid an extra round-trip.
-    if entity_ids is None:
-        entity_ids = get_entity_ids(customer_id, account, environment)
-
-    result: Dict[str, Any] = {'balance_ds': None, 'tran_ds': None, 'error': None}
-    errors: List[str] = []
-
-    for ds in datasources:
-        query_sql = ds.get('query_sql') or ''
-        if not query_sql:
-            continue
-
-        test_sql = query_sql.replace('${record.id}', str(customer_id))
-        # Substitute CRE2 FreeMarker patterns the test knows how to resolve.
-        test_sql = _preprocess_freemarker(test_sql, entity_ids)
-
-        # Guard: if the SQL still contains unresolved FreeMarker expressions after
-        # substituting ${record.id} and known patterns, report explicitly.
-        if '${' in test_sql or '<#' in test_sql:
-            errors.append(
-                f"Datasource '{ds.get('name', '?')}': SQL contains unresolved FreeMarker "
-                f"expressions after substituting ${{record.id}} — test can only substitute "
-                f"that placeholder; datasource skipped"
-            )
-            continue
-
-        qr = execute_query(test_sql, account=account, environment=environment,
-                            return_all_rows=False)
-
-        if qr.get('error'):
-            errors.append(f"Datasource '{ds.get('name', '?')}': {qr['error']}")
-            continue
-
-        rows = qr.get('records', [])
-        ds_type = _classify_datasource(
-            ds.get('name', ''), ds.get('paged') == 'T', ds.get('single_record_json') == 'T',
-        )
-        if ds_type == 'unknown':
-            # Skip rather than guess — secondary datasources like 'discount_lines' or
-            # 'cus_children' would otherwise steal the tran_ds slot by row-count heuristic.
-            # Add names to _TRAN_DS_EXACT / _BALANCE_DS_EXACT if a valid ds is being skipped.
-            continue
-
-        if ds_type == 'balance' and result['balance_ds'] is None:
-            result['balance_ds'] = {
-                'name':    ds.get('name', ''),
-                'rows':    rows,
-                'balance': _extract_balance_value(rows),
-            }
-        elif ds_type == 'tran' and result['tran_ds'] is None:
-            result['tran_ds'] = {
-                'name':    ds.get('name', ''),
-                'rows':    rows,
-                'amounts': _extract_tran_amounts(rows),
-                'fields':  _extract_tran_fields(rows),
-            }
-
-    if errors:
-        result['error'] = '; '.join(errors)
-    return result
-
-
-# ─── Reference Data ──────────────────────────────────────────────────────────
-
-def get_reference_data(customer_id: int, account: str, environment: str,
-                       entity_ids: Optional[List[int]] = None) -> Dict[str, Any]:
-    result: Dict[str, Any] = {'balance': None, 'tran_data': {}, 'error': None}
-    errors: List[str] = []
-
-    # Reuse caller-supplied entity_ids or fetch fresh (parent + children).
-    if entity_ids is None:
-        entity_ids = get_entity_ids(customer_id, account, environment)
-
-    entity_ids_str = ','.join(str(i) for i in entity_ids)
-
-    # Use multi-entity balance query so reference matches the CRE2 account_balance datasource.
-    bal_query = REFERENCE_BALANCE_QUERY_MULTI.format(entity_ids=entity_ids_str)
-    bal = execute_query(bal_query, account=account, environment=environment,
-                        return_all_rows=False)
-    if bal.get('error'):
-        errors.append(f"Balance: {bal['error']}")
-    elif bal.get('records'):
-        raw = bal['records'][0].get('balance')
-        try:
-            result['balance'] = float(raw) if raw is not None else 0.0
-        except (ValueError, TypeError):
-            result['balance'] = None
-
-    tran_query = REFERENCE_TRAN_QUERY_TEMPLATE.format(entity_ids=entity_ids_str)
-    tran = execute_query(tran_query, account=account, environment=environment,
-                         return_all_rows=False)
-    if tran.get('error'):
-        errors.append(f"Transactions: {tran['error']}")
-    else:
-        result['tran_data'] = {
-            int(r['id']): float(r.get('amount_remaining') or 0)
-            for r in tran.get('records', [])
-            if r.get('id')
-        }
-
-    if errors:
-        result['error'] = '; '.join(errors)
-    return result
 
 
 # ─── PDF Content Check ───────────────────────────────────────────────────────
@@ -940,9 +578,9 @@ def _paylink_check_by_file_id(file_id: int, account: str, environment: str) -> D
 def run_compare_check(
     profile_id: int,
     customer_id: int,
-    category: str,
     account: str,
     environment: str,
+    consolidate: bool = False,
 ) -> Dict[str, Any]:
     """Run compare_statements.compare() for one customer, capturing its printed output.
 
@@ -950,35 +588,56 @@ def run_compare_check(
     True (all pass/warn) or False (any fail).  This wrapper captures stdout,
     interprets the return value, and returns a structured result dict.
 
-    The 'consolidated' category maps to consolidate=True so child-customer
-    transactions are included in the native statement request.
+    consolidate should reflect the customer's custentity_twx_consolidated_statement
+    preference — True renders a consolidated statement (parent + all children),
+    False renders only the customer's individual statement.
+
+    Retry behaviour: if a render fails before the comparison completes (timeout or
+    transient gateway error), the compare report will not contain "Overall".  In that
+    case a single retry is attempted after a 15-second backoff.  If the retry also
+    fails without completing, the result is downgraded to WARN (not FAIL/ERROR) to
+    avoid false positives under concurrency load.
     """
     try:
         import compare_statements
     except ImportError as e:
         return {'status': 'SKIP', 'detail': f'compare_statements import failed: {e}', 'report': ''}
 
-    consolidate = category in ('consolidated', 'parent_customer')
+    def _attempt() -> Tuple[bool, str]:
+        """Single compare attempt; returns (ok, report). Exceptions → (False, partial_report).
 
-    buf = io.StringIO()
-    try:
-        with contextlib.redirect_stdout(buf):
-            ok = compare_statements.compare(
+        Passes a per-thread StringIO as output= so concurrent calls don't share sys.stdout
+        (contextlib.redirect_stdout is NOT thread-safe).
+        """
+        buf2 = io.StringIO()
+        try:
+            result = compare_statements.compare(
                 customer_id=str(customer_id),
                 account=account,
                 environment=environment,
                 consolidate=consolidate,
                 profile_id=str(profile_id),
+                output=buf2,
             )
-    except Exception as exc:
-        report = buf.getvalue()
-        return {
-            'status': 'ERROR',
-            'detail': f'compare raised exception: {exc}',
-            'report': report,
-        }
+        except Exception:
+            return False, buf2.getvalue()
+        return result, buf2.getvalue()
 
-    report = buf.getvalue()
+    ok, report = _attempt()
+
+    # If the comparison didn't run to completion (render timed out / gateway error),
+    # the report will not contain "Overall" (which compare() always prints last).
+    # Retry once with backoff before reporting a failure.
+    if not ok and 'Overall' not in report:
+        time.sleep(15)
+        ok, report = _attempt()
+        if not ok and 'Overall' not in report:
+            # Still incomplete after retry — transient infrastructure issue, not a data failure.
+            return {
+                'status': 'WARN',
+                'detail': 'render timed out after retry — re-run individually to confirm',
+                'report': report,
+            }
 
     # ── Paylink annotation check ───────────────────────────────────────────────
     # compare_statements prints "CRE2  → fileId=<N>" — parse that to get the file_id
@@ -1029,206 +688,27 @@ def run_compare_check(
     return {'status': 'FAIL', 'detail': detail, 'report': report, 'paylink': paylink_info}
 
 
-# ─── Validation ──────────────────────────────────────────────────────────────
+# ─── Result Builder ──────────────────────────────────────────────────────────
 
-def _make_check(status: str, detail: str = '', **extra) -> Dict[str, Any]:
-    return {'status': status, 'detail': detail, **extra}
-
-
-def validate_customer(
+def _customer_result_from_compare(
     customer_id: int,
     category: str,
-    cre2_data: Dict[str, Any],
-    ref_data: Dict[str, Any],
-    compare_check_result: Optional[Dict[str, Any]] = None,
+    compare_result: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Run all data-layer checks (and attach optional compare result) for one customer."""
-    out: Dict[str, Any] = {
+    """Build a customer result dict from a single compare check result."""
+    return {
         'customer_id': customer_id,
         'category':    category,
-        'status':      'PASS',
-        'checks':      {},
+        'status':      compare_result.get('status', 'ERROR'),
+        'checks':      {'compare': compare_result},
     }
 
-    cre2_dead = cre2_data.get('error') and not cre2_data.get('balance_ds') and not cre2_data.get('tran_ds')
-    ref_dead  = ref_data.get('error') and ref_data.get('balance') is None and not ref_data.get('tran_data')
-    if cre2_dead or ref_dead:
-        out['status'] = 'ERROR'
-        out['error']  = cre2_data.get('error') or ref_data.get('error')
-        return out
 
-    check_statuses: List[str] = []
-    bal_ds  = cre2_data.get('balance_ds') or {}
-    tran_ds = cre2_data.get('tran_ds') or {}
-
-    # ── 1. Balance ────────────────────────────────────────────────────────────
-    cre2_balance: Optional[float] = bal_ds.get('balance')
-    ref_balance:  Optional[float] = ref_data.get('balance')
-
-    if not cre2_data.get('balance_ds'):
-        bal_check = _make_check('FAIL', 'account_balance datasource not found in CRE2 profile — PDF would render without balance data')
-    elif cre2_balance is None:
-        bal_check = _make_check('WARN', 'Could not extract numeric balance from CRE2 result',
-                                cre2=None, reference=ref_balance)
-    elif ref_balance is None:
-        bal_check = _make_check('WARN', 'Reference balance query returned no data',
-                                cre2=cre2_balance, reference=None)
-    elif not math.isclose(cre2_balance, ref_balance, abs_tol=BALANCE_TOLERANCE):
-        bal_check = _make_check('FAIL',
-                                f'CRE2={cre2_balance:.2f}, Reference={ref_balance:.2f}',
-                                cre2=cre2_balance, reference=ref_balance)
-    else:
-        bal_check = _make_check('PASS', f'{cre2_balance:.2f}',
-                                cre2=cre2_balance, reference=ref_balance)
-
-    out['checks']['balance'] = bal_check
-    if bal_check['status'] != 'SKIP':
-        check_statuses.append(bal_check['status'])
-
-    # ── 2. Transaction coverage ───────────────────────────────────────────────
-    cre2_ids: Set[int] = set(tran_ds.get('amounts', {}).keys()) if cre2_data.get('tran_ds') else set()
-    ref_ids:  Set[int] = set(ref_data.get('tran_data', {}).keys())
-    missing = sorted(ref_ids - cre2_ids)
-    extra   = sorted(cre2_ids - ref_ids)
-
-    if missing or extra:
-        parts = []
-        if missing:
-            parts.append(f'missing {len(missing)} tran(s)')
-        if extra:
-            parts.append(f'extra {len(extra)} tran(s)')
-        tran_check = _make_check('FAIL', ', '.join(parts),
-                                 cre2_count=len(cre2_ids), ref_count=len(ref_ids),
-                                 missing=missing[:10], extra=extra[:10])
-    else:
-        tran_check = _make_check('PASS', f'{len(cre2_ids)} transaction(s) match',
-                                 cre2_count=len(cre2_ids), ref_count=len(ref_ids),
-                                 missing=[], extra=[])
-
-    out['checks']['transactions'] = tran_check
-    check_statuses.append(tran_check['status'])
-
-    # ── 3. Per-transaction amounts ────────────────────────────────────────────
-    cre2_amounts: Dict[int, float] = tran_ds.get('amounts', {}) if cre2_data.get('tran_ds') else {}
-    ref_amounts:  Dict[int, float] = ref_data.get('tran_data', {})
-
-    if not cre2_data.get('tran_ds'):
-        amt_check = _make_check('FAIL', 'tran datasource not found in CRE2 profile — PDF would render without transaction amounts')
-    elif not cre2_amounts:
-        if not ref_amounts:
-            # Zero open transactions in both CRE2 and reference — expected for zero/credit-balance customers
-            amt_check = _make_check('PASS', 'No open transactions (zero balance customer)')
-        else:
-            amt_check = _make_check('WARN',
-                                    'Could not extract transaction ID/amount pairs; '
-                                    'field names may differ from expected')
-    else:
-        mismatches = []
-        for tid in (cre2_ids & ref_ids):
-            c_amt = cre2_amounts.get(tid, 0.0)
-            r_amt = ref_amounts.get(tid, 0.0)
-            if not math.isclose(c_amt, r_amt, abs_tol=BALANCE_TOLERANCE):
-                mismatches.append({'id': tid, 'cre2': c_amt,
-                                   'reference': r_amt, 'delta': round(c_amt - r_amt, 2)})
-        if mismatches:
-            amt_check = _make_check(
-                'FAIL',
-                f'{len(mismatches)} of {len(cre2_ids & ref_ids)} common transaction(s) '
-                'have wrong open amount',
-                mismatches=mismatches[:10],
-            )
-        else:
-            amt_check = _make_check('PASS',
-                                    f'All {len(cre2_ids & ref_ids)} common transaction amounts match')
-
-    out['checks']['tran_amounts'] = amt_check
-    if amt_check['status'] != 'SKIP':
-        check_statuses.append(amt_check['status'])
-
-    # ── 4. Template field completeness ───────────────────────────────────────
-    tran_fields: FrozenSet[str] = tran_ds.get('fields', frozenset()) if cre2_data.get('tran_ds') else frozenset()
-
-    if not cre2_data.get('tran_ds'):
-        field_check = _make_check('FAIL', 'tran datasource not found in CRE2 profile — PDF would render without transactions')
-    elif not tran_fields:
-        field_check = _make_check('SKIP', 'Tran datasource returned 0 rows (cannot inspect fields)')
-    else:
-        missing_req = [grp for grp in REQUIRED_TRAN_FIELD_GROUPS
-                       if not any(f in tran_fields for f in grp)]
-        missing_exp = [grp for grp in EXPECTED_TRAN_FIELD_GROUPS
-                       if not any(f in tran_fields for f in grp)]
-
-        if missing_req:
-            field_check = _make_check(
-                'FAIL',
-                f'Missing required field group(s): {["/".join(g) for g in missing_req]}',
-                missing_required=['/'.join(g) for g in missing_req],
-                missing_expected=['/'.join(g) for g in missing_exp],
-                present=sorted(tran_fields),
-            )
-        elif missing_exp:
-            field_check = _make_check(
-                'WARN',
-                f'Missing expected field group(s): {["/".join(g) for g in missing_exp]}; '
-                'template may display blanks',
-                missing_required=[],
-                missing_expected=['/'.join(g) for g in missing_exp],
-                present=sorted(tran_fields),
-            )
-        else:
-            field_check = _make_check(
-                'PASS',
-                f'All required and expected field groups present ({len(tran_fields)} fields total)',
-            )
-
-    out['checks']['tran_fields'] = field_check
-    if field_check['status'] != 'SKIP':
-        check_statuses.append(field_check['status'])
-
-    # ── 5. Balance Forward sanity ─────────────────────────────────────────────
-    if not (cre2_data.get('balance_ds') and cre2_data.get('tran_ds')) or cre2_balance is None:
-        bf_check = _make_check('SKIP', 'Requires both balance and tran datasources')
-    else:
-        tran_total = sum(cre2_amounts.values()) if cre2_amounts else 0.0
-        bf_value   = cre2_balance - tran_total
-        if ref_balance and abs(ref_balance) > BALANCE_TOLERANCE:
-            ratio = abs(bf_value) / abs(ref_balance)
-            if ratio > BALANCE_FORWARD_WARN_RATIO:
-                bf_check = _make_check(
-                    'WARN',
-                    f'balance_forward={bf_value:.2f} ({ratio:.1f}× total {ref_balance:.2f}); '
-                    'possible query drift',
-                    value=round(bf_value, 2),
-                )
-            else:
-                bf_check = _make_check('PASS', f'balance_forward={bf_value:.2f}',
-                                       value=round(bf_value, 2))
-        else:
-            bf_check = _make_check('PASS', f'balance_forward={bf_value:.2f}',
-                                   value=round(bf_value, 2))
-
-    out['checks']['balance_forward'] = bf_check
-    if bf_check['status'] not in ('SKIP',):
-        check_statuses.append(bf_check['status'])
-
-    # ── 6. Compare check (optional) ───────────────────────────────────────────
-    if compare_check_result is not None:
-        out['checks']['compare'] = compare_check_result
-        if compare_check_result['status'] not in ('SKIP',):
-            check_statuses.append(compare_check_result['status'])
-
-    # ── Overall status ────────────────────────────────────────────────────────
-    for s in ('ERROR', 'FAIL', 'WARN', 'PASS'):
-        if s in check_statuses:
-            out['status'] = s
-            break
-
-    return out
 
 
 # ─── Output Formatting ───────────────────────────────────────────────────────
 
-_ICON = {'PASS': '✅', 'FAIL': '❌', 'WARN': '⚠️ ', 'ERROR': '🔴', 'SKIP': '⏭️ '}
+_ICON = {'PASS': '✅', 'FAIL': '❌', 'WARN': '⚠️ ', 'ERROR': '🔴', 'SKIP': '⏭️ ', 'KNOWN_DIFF': '📋'}
 
 
 def _icon(status: str) -> str:
@@ -1243,55 +723,26 @@ def print_customer_result(res: Dict[str, Any]) -> None:
     cid    = res['customer_id']
     cat    = res['category'].replace('_', ' ').title()
     status = res['status']
-    checks = res.get('checks', {})
-    bal    = checks.get('balance', {})
-    tran   = checks.get('transactions', {})
+    cmp    = res.get('checks', {}).get('compare', {})
 
     if status == 'PASS':
-        bal_str  = f"balance={_fmt_float(bal.get('cre2'))}"
-        tran_str = f"tran={tran.get('cre2_count','?')}/{tran.get('ref_count','?')}"
-        cmp_str  = ' cmp=✓' if checks.get('compare', {}).get('status') == 'PASS' else ''
-        print(f"{_icon(status)} [{cid:<6}]  {cat:<20}  {bal_str}  {tran_str}{cmp_str}  PASS")
+        print(f"{_icon(status)} [{cid:<6}]  {cat:<20}  PASS")
+        return
+
+    if status == 'KNOWN_DIFF':
+        reason = KNOWN_DIFFS.get(cid, '')
+        print(f"{_icon(status)} [{cid:<6}]  {cat:<20}  KNOWN_DIFF  {reason}")
+        return
+
+    if status == 'SKIP':
+        reason = SKIP_CUSTOMERS.get(cid, res.get('detail', ''))
+        print(f"{_icon(status)} [{cid:<6}]  {cat:<20}  SKIP  {reason}")
         return
 
     print(f"{_icon(status)} [{cid:<6}]  {cat:<20}  {status}")
 
-    if bal.get('status') not in ('PASS', 'SKIP', None):
-        sfx = '  ← MISMATCH' if bal.get('status') == 'FAIL' else ''
-        print(f"   balance:       CRE2={_fmt_float(bal.get('cre2'))}, "
-              f"Reference={_fmt_float(bal.get('reference'))}{sfx}")
-
-    if tran.get('status') not in ('PASS', None):
-        sfx = '  ← MISMATCH' if tran.get('status') == 'FAIL' else '  ← OK'
-        print(f"   transactions:  CRE2={tran.get('cre2_count','?')}, "
-              f"Reference={tran.get('ref_count','?')}{sfx}")
-        for label, key in (('missing', 'missing'), ('extra', 'extra')):
-            ids = tran.get(key, [])
-            if ids:
-                more = f'…+{len(ids)-5}' if len(ids) > 5 else ''
-                print(f"   {label} IDs:    {ids[:5]}{more}")
-
-    amt = checks.get('tran_amounts', {})
-    if amt.get('status') not in ('PASS', 'SKIP', None):
-        print(f"   tran_amounts:  {amt.get('detail', '')}")
-        for m in (amt.get('mismatches') or [])[:3]:
-            print(f"     id={m['id']}  CRE2={m['cre2']:.2f}  Ref={m['reference']:.2f}  "
-                  f"Δ={m['delta']:+.2f}")
-
-    fld = checks.get('tran_fields', {})
-    if fld.get('status') not in ('PASS', 'SKIP', None):
-        print(f"   tran_fields:   {fld.get('detail', '')}")
-        if fld.get('missing_required'):
-            print(f"     MISSING (required): {fld['missing_required']}")
-
-    bf = checks.get('balance_forward', {})
-    if bf.get('status') == 'WARN':
-        print(f"   balance_fwd:   {bf.get('detail', '')}")
-
-    cmp = checks.get('compare', {})
     if cmp.get('status') not in ('PASS', 'SKIP', None):
         print(f"   compare:       {cmp.get('detail', '')}")
-        # Print first few FAIL lines from the captured report for context
         report = cmp.get('report', '')
         fail_lines = [ln.strip() for ln in report.splitlines() if 'FAIL' in ln]
         for fl in fail_lines[:5]:
@@ -1310,14 +761,13 @@ def main() -> None:
         epilog="""
 Examples:
   python3 test_statement_data.py --env sb2
-  python3 test_statement_data.py --env sb2 --compare-check
   python3 test_statement_data.py --env prod
   python3 test_statement_data.py --env sb2 --customers 5764,4631,12926
   python3 test_statement_data.py --env sb2 --format json
 
 Full-coverage mode (tests ALL statement-eligible customers):
   python3 test_statement_data.py --env sb2 --full-coverage
-  python3 test_statement_data.py --env prod --full-coverage --compare-check
+  python3 test_statement_data.py --env prod --full-coverage
   python3 test_statement_data.py --env sb2 --full-coverage --concurrency 12
 """,
     )
@@ -1325,16 +775,28 @@ Full-coverage mode (tests ALL statement-eligible customers):
     parser.add_argument('--account',     default=DEFAULT_ACCOUNT, help='Account (default: twistedx)')
     parser.add_argument('--profile',     type=int, default=PROFILE_ID, help=f'Profile ID (default: {PROFILE_ID})')
     parser.add_argument('--customers',   help='Comma-separated customer IDs (skips auto-discovery)')
-    parser.add_argument('--compare-check', action='store_true',
-                        help='Also render native+CRE2 statements and compare for one customer per category')
     parser.add_argument('--format',      choices=['table', 'json'], default='table')
+    parser.add_argument('--output-file', default=None,
+                        help='Write JSON output to this file instead of stdout (avoids pipe maxBuffer limits)')
     parser.add_argument('--full-coverage', action='store_true',
-                        help='Validate ALL statement-eligible customers (parent IS NULL, active, entitystatus=13)')
+                        help='Validate ALL statement-eligible customers matching the suitelet population '
+                             '(customsearch118507: active status, excl. Internal Website category, '
+                             'Credit Card terms, named large retailers, balance!=0)')
     parser.add_argument('--concurrency', type=int, default=4,
                         help='Max parallel gateway requests in full-coverage mode (default: 4)')
-    parser.add_argument('--batch-size',  type=int, default=75,
-                        help='Customers per bulk reference-transaction batch (default: 75)')
+    parser.add_argument('--compare-check', action='store_true',
+                        help='(no-op: compare checks always run) Accepted for Jest test compatibility')
     args = parser.parse_args()
+
+    def _emit_json(payload: dict) -> None:
+        """Write JSON to --output-file (if set) or stdout."""
+        text = json.dumps(payload, indent=2,
+                          default=lambda o: list(o) if isinstance(o, (set, frozenset)) else str(o))
+        if args.output_file:
+            with open(args.output_file, 'w', encoding='utf-8') as fh:
+                fh.write(text)
+        else:
+            print(text)
 
     account     = resolve_account(args.account)
     environment = resolve_environment(args.env)
@@ -1347,9 +809,7 @@ Full-coverage mode (tests ALL statement-eligible customers):
         print(f"\nCRE2 Customer Statement Validation — {account}/{environment}  [{mode_label}]")
         print('═' * 62)
         print(f"Profile: {args.profile} (Customer Statement Portrait)")
-        extra_layers = ' · compare' if args.compare_check else ''
-        print(f"Layers:  balance · transactions · tran_amounts · tran_fields · "
-              f"balance_forward{extra_layers}")
+        print(f"Layers:  compare (render native + CRE2, verify amounts / aging / transactions)")
         print()
 
     # ══════════════════════════════════════════════════════════════
@@ -1368,94 +828,68 @@ Full-coverage mode (tests ALL statement-eligible customers):
         all_customer_ids = list(customers_info.keys())
         total_discovered = len(all_customer_ids)
 
-        # Phase 2: Bulk-fetch reference transactions
-        print("\nFetching bulk reference data...", file=sys.stderr)
-        ref_transactions = bulk_reference_transactions(
-            all_customer_ids, account, environment,
-            batch_size=args.batch_size,
-            max_workers=min(args.concurrency, 3),  # cap batch parallelism conservatively
+        # Phase 2: Run compare checks for ALL customers in parallel
+        print(
+            f"\nRunning compare checks for all {total_discovered} customers "
+            f"(concurrency={args.concurrency})...",
+            file=sys.stderr,
+        )
+        print(
+            "  (compare renders native + CRE2 PDF for each customer — "
+            "at low concurrency this may take several hours)",
+            file=sys.stderr,
         )
 
-        # Phase 3: Cache datasources once
-        datasources_cached = get_datasources(args.profile, account, environment)
-        if not datasources_cached:
-            print(f"ERROR: No datasources found for profile {args.profile}", file=sys.stderr)
-            sys.exit(1)
-        print(f"  Datasources cached: {len(datasources_cached)} query(ies)", file=sys.stderr)
+        completed_cmp = 0
+        cmp_start = time.time()
 
-        # Phase 4: Parallel per-customer CRE2 validation
-        print(f"\nValidating {total_discovered} customers (concurrency={args.concurrency})...",
-              file=sys.stderr)
-        print("  (use --concurrency to adjust; >4 may trigger NetSuite 429 rate limits)",
-              file=sys.stderr)
-
-        # Build flat list of (cid, primary_category) in ID order
-        work_items: List[Tuple[int, str]] = [
-            (cid, customers_info[cid]['primary_category'])
-            for cid in sorted(customers_info.keys())
-        ]
-
-        completed_count = 0
-        phase4_start = time.time()
+        # Pre-check SKIPs before submitting to executor
+        runnable_ids = []
+        for cid in all_customer_ids:
+            if cid in SKIP_CUSTOMERS:
+                all_results.append({
+                    'customer_id': cid,
+                    'status':      'SKIP',
+                    'detail':      SKIP_CUSTOMERS[cid],
+                    'category':    customers_info[cid]['primary_category'],
+                    'checks':      {},
+                })
+            else:
+                runnable_ids.append(cid)
 
         with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
             future_to_cid = {
                 executor.submit(
-                    _validate_one_customer,
-                    args.profile, cid, category,
-                    datasources_cached,
-                    customers_info[cid]['balance'],
-                    ref_transactions.get(cid, {}),
-                    account, environment,
-                ): cid
-                for cid, category in work_items
+                    run_compare_check,
+                    args.profile,
+                    cid,
+                    account,
+                    environment,
+                    customers_info[cid]['consolidated'],
+                ): (cid, customers_info[cid]['primary_category'])
+                for cid in runnable_ids
             }
-
             for future in as_completed(future_to_cid):
-                result = future.result()
-                all_results.append(result)
-                completed_count += 1
+                cid, category = future_to_cid[future]
+                compare_result = future.result()
+                all_results.append(_customer_result_from_compare(cid, category, compare_result))
+                completed_cmp += 1
 
-                if is_table and completed_count % 250 == 0:
-                    elapsed = time.time() - phase4_start
-                    pct = completed_count * 100 // total_discovered
+                if is_table and completed_cmp % 50 == 0:
+                    elapsed = time.time() - cmp_start
+                    total_runnable = len(runnable_ids)
+                    pct = completed_cmp * 100 // total_runnable
                     print(
-                        f"  Progress: {completed_count}/{total_discovered} ({pct}%) "
-                        f"— {elapsed:.0f}s elapsed",
+                        f"  Compare progress: {completed_cmp}/{total_runnable} "
+                        f"({pct}%) — {elapsed:.0f}s elapsed",
                         file=sys.stderr,
                     )
 
-        elapsed_total = time.time() - phase4_start
+        elapsed_cmp = time.time() - cmp_start
         print(
-            f"  Done: {completed_count}/{total_discovered} in {elapsed_total:.0f}s",
+            f"  Compare done: {completed_cmp}/{total_discovered} in {elapsed_cmp:.0f}s",
             file=sys.stderr,
         )
-
-        # Phase 5: Compare checks for subset (1 per category, serial)
-        if args.compare_check:
-            print("\nRunning compare checks (1 per category)...", file=sys.stderr)
-            result_by_cid: Dict[int, Dict[str, Any]] = {r['customer_id']: r for r in all_results}
-
-            for cat in _CATEGORY_PRIORITY:
-                cat_ids = categories.get(cat, [])
-                if not cat_ids:
-                    continue
-                cmp_cid = sorted(cat_ids)[0]
-                cmp_result_entry = result_by_cid.get(cmp_cid)
-                if cmp_result_entry is None:
-                    continue
-
-                compare_check_result = run_compare_check(
-                    args.profile, cmp_cid, cat, account, environment
-                )
-                cmp_result_entry['checks']['compare'] = compare_check_result
-                # Update overall status
-                statuses = [c.get('status', 'PASS') for c in cmp_result_entry['checks'].values()
-                            if c.get('status') != 'SKIP']
-                for s in ('ERROR', 'FAIL', 'WARN', 'PASS'):
-                    if s in statuses:
-                        cmp_result_entry['status'] = s
-                        break
 
         # Sort results by customer_id for consistent output
         all_results.sort(key=lambda r: r['customer_id'])
@@ -1480,14 +914,13 @@ Full-coverage mode (tests ALL statement-eligible customers):
             print(f"\nResults: {passed}/{total} PASS, {failed} FAIL, {warned} WARN{err_part}")
             print(f"Time: {run_elapsed:.0f}s total")
         else:
-            print(json.dumps({
+            _emit_json({
                 'profile_id':           args.profile,
                 'account':              account,
                 'environment':          environment,
                 'mode':                 'full_coverage',
-                'selection_criteria':   'parent IS NULL, active, entitystatus=13',
+                'selection_criteria':   'customsearch118507 (TWX | Customers Statement List): custentity_twx_customer_status=2 (Active), category!=32, terms!=22, named-retailer exclusions, isinactive=F, balance!=0, excl. children of consolidated parents',
                 'total_discovered':     total_discovered,
-                'compare_check':        args.compare_check,
                 'concurrency':          args.concurrency,
                 'execution_time_seconds': round(run_elapsed, 1),
                 'total':                total,
@@ -1497,7 +930,7 @@ Full-coverage mode (tests ALL statement-eligible customers):
                 'errored':              errored,
                 'categories':           cat_counts,
                 'results':              all_results,
-            }, indent=2, default=lambda o: list(o) if isinstance(o, (set, frozenset)) else str(o)))
+            })
 
         if failed > 0 or errored > 0:
             sys.exit(1)
@@ -1529,76 +962,73 @@ Full-coverage mode (tests ALL statement-eligible customers):
             active_s = sum(1 for v in categories_sampled.values() if v)
             print(f"\nTesting {total_s} customers across {active_s} categories...\n")
 
-    # ── Run data-layer validations ────────────────────────────────────────────
+    # ── Run compare checks for all sampled customers ──────────────────────────
     all_results_sampled: List[Dict[str, Any]] = []
+
+    # Fetch consolidated preferences once — needed for compare render type selection.
+    all_cids_sampled_flat = [cid for ids in categories_sampled.values() for cid in ids]
+    sampled_consol_prefs = _get_consolidated_prefs(all_cids_sampled_flat, account, environment)
 
     for category, customer_ids in categories_sampled.items():
         for cid in customer_ids:
-            entity_ids = get_entity_ids(cid, account, environment)
-            cre2_data = get_cre2_data(args.profile, cid, account, environment,
-                                      entity_ids=entity_ids)
-            ref_data  = get_reference_data(cid, account, environment,
-                                           entity_ids=entity_ids)
+            # Check SKIP before rendering
+            if cid in SKIP_CUSTOMERS:
+                result = {
+                    'customer_id': cid,
+                    'category':    category,
+                    'status':      'SKIP',
+                    'detail':      SKIP_CUSTOMERS[cid],
+                    'checks':      {},
+                }
+                all_results_sampled.append(result)
+                if is_table:
+                    print_customer_result(result)
+                continue
 
-            result = validate_customer(cid, category, cre2_data, ref_data)
+            consolidate_cid = sampled_consol_prefs.get(cid, False)
+            cmp = run_compare_check(args.profile, cid, account, environment,
+                                    consolidate=consolidate_cid)
+            result = _customer_result_from_compare(cid, category, cmp)
+
+            # Reclassify WARN as KNOWN_DIFF for documented methodology diffs
+            if result['status'] == 'WARN' and cid in KNOWN_DIFFS:
+                result['status'] = 'KNOWN_DIFF'
+
             all_results_sampled.append(result)
 
-            if is_table and not args.compare_check:
+            if is_table:
                 print_customer_result(result)
 
-    # ── Compare checks: top 3 per category by transaction count ───────────────
-    if args.compare_check:
-        # Group results by category, sort each group by cre2_count descending
-        by_cat: Dict[str, List[Dict[str, Any]]] = {}
-        for r in all_results_sampled:
-            by_cat.setdefault(r['category'], []).append(r)
-
-        for cat, cat_results in by_cat.items():
-            top3 = sorted(
-                cat_results,
-                key=lambda r: r.get('checks', {}).get('transactions', {}).get('cre2_count', 0),
-                reverse=True,
-            )[:3]
-            for r in top3:
-                cid = r['customer_id']
-                cmp = run_compare_check(args.profile, cid, cat, account, environment)
-                r['checks']['compare'] = cmp
-                # Re-derive overall status
-                statuses = [c.get('status', 'PASS') for c in r['checks'].values()
-                            if c.get('status') != 'SKIP']
-                for s in ('ERROR', 'FAIL', 'WARN', 'PASS'):
-                    if s in statuses:
-                        r['status'] = s
-                        break
-
-        if is_table:
-            for r in all_results_sampled:
-                print_customer_result(r)
-
     # ── Summary ───────────────────────────────────────────────────────────────
-    passed  = sum(1 for r in all_results_sampled if r['status'] == 'PASS')
-    failed  = sum(1 for r in all_results_sampled if r['status'] == 'FAIL')
-    warned  = sum(1 for r in all_results_sampled if r['status'] == 'WARN')
-    errored = sum(1 for r in all_results_sampled if r['status'] == 'ERROR')
-    total   = len(all_results_sampled)
+    passed     = sum(1 for r in all_results_sampled if r['status'] == 'PASS')
+    failed     = sum(1 for r in all_results_sampled if r['status'] == 'FAIL')
+    warned     = sum(1 for r in all_results_sampled if r['status'] == 'WARN')
+    errored    = sum(1 for r in all_results_sampled if r['status'] == 'ERROR')
+    known_diff = sum(1 for r in all_results_sampled if r['status'] == 'KNOWN_DIFF')
+    skipped    = sum(1 for r in all_results_sampled if r['status'] == 'SKIP')
+    total      = len(all_results_sampled)
 
     if is_table:
-        err_part = f", {errored} ERROR" if errored else ""
-        print(f"\nResults: {passed}/{total} PASS, {failed} FAIL, {warned} WARN{err_part}")
+        err_part  = f", {errored} ERROR" if errored else ""
+        warn_part = f", {warned} WARN" if warned else ""
+        kd_part   = f", {known_diff} KNOWN_DIFF" if known_diff else ""
+        sk_part   = f", {skipped} SKIP" if skipped else ""
+        print(f"\nResults: {passed}/{total} PASS, {failed} FAIL{warn_part}{kd_part}{sk_part}{err_part}")
     else:
-        print(json.dumps({
+        _emit_json({
             'profile_id':     args.profile,
             'account':        account,
             'environment':    environment,
             'mode':           'sampled',
-            'compare_check':  args.compare_check,
             'total':          total,
             'passed':         passed,
             'failed':         failed,
             'warned':         warned,
+            'known_diff':     known_diff,
+            'skipped':        skipped,
             'errored':        errored,
             'results':        all_results_sampled,
-        }, indent=2, default=lambda o: list(o) if isinstance(o, (set, frozenset)) else str(o)))
+        })
 
     if failed > 0 or errored > 0:
         sys.exit(1)

@@ -2389,6 +2389,170 @@ def cmd_edi(args):
         print_result(api.get_fa_details(args.id), args.format)
 
 
+def cmd_edi_reports(args):
+    """EDI-specific reporting and health commands."""
+    import re
+
+    client = CeligoClient(args.env)
+
+    _EDI_DOC_TYPES = {
+        "850": "Purchase Order (IB)", "855": "PO Acknowledgement (OB)",
+        "856": "Advance Ship Notice (OB)", "810": "Invoice (OB)",
+        "820": "Payment Order (IB)", "846": "Inventory Advice (OB)",
+        "860": "PO Change (IB)", "864": "Text Message (IB)",
+        "997": "Functional Acknowledgement", "753": "Routing Request (OB)",
+        "754": "Routing Instructions (IB)", "824": "App Advice (IB)",
+        "940": "Warehouse Shipping Order", "945": "Warehouse Shipping Advice",
+    }
+
+    def parse_edi_name(name):
+        staging_match = re.search(r'\((\d{1,2}/\d{1,2}/\d{4})\)\s*$', name)
+        is_staging = staging_match is not None
+        clean = re.sub(r'\s*\(\d{1,2}/\d{1,2}/\d{4}\)\s*$', '', name).strip()
+        network = "direct"
+        partner = clean
+        if clean.startswith("EDI - VAN - "):
+            network, partner = "VAN", clean[len("EDI - VAN - "):]
+        elif clean.startswith("EDI - SPS - "):
+            network, partner = "SPS", clean[len("EDI - SPS - "):]
+        elif clean.startswith("EDI - "):
+            partner = clean[len("EDI - "):]
+        return partner, network, is_staging, (staging_match.group(1) if staging_match else None)
+
+    def extract_doc_type(flow_name):
+        m = re.search(r'\b(8[0-9]{2}|9[0-9]{2}|7[0-9]{2})\b', flow_name)
+        return m.group(1) if m else "other"
+
+    def get_edi_integrations(include_staging=False, network_filter=None):
+        all_ints = client.get( "/integrations")
+        result = []
+        for i in all_ints:
+            name = i.get("name", "")
+            if not (name.startswith("EDI") and any(k in name.upper() for k in ["EDI", "856", "850", "810"])):
+                continue
+            partner, network, staging, sdate = parse_edi_name(name)
+            if not include_staging and staging:
+                continue
+            if network_filter and network.upper() != network_filter.upper():
+                continue
+            result.append({**i, "partner": partner, "network": network,
+                           "staging": staging, "staging_date": sdate})
+        return sorted(result, key=lambda x: x["partner"].lower())
+
+    if args.action == "list":
+        include_staging = getattr(args, "include_staging", False)
+        network_filter = getattr(args, "network", None)
+        edi_ints = get_edi_integrations(include_staging, network_filter)
+        rows = [{
+            "_id": i["_id"], "partner": i["partner"],
+            "network": i["network"], "staging": i["staging"],
+            "lastModified": i.get("lastModified", ""),
+        } for i in edi_ints]
+        print_result(rows, args.format, ["_id", "partner", "network", "staging"])
+
+    elif args.action == "errors":
+        include_staging = getattr(args, "include_staging", False)
+        edi_ints = get_edi_integrations(include_staging)
+        print(f"Fetching errors for {len(edi_ints)} EDI integrations...", file=sys.stderr)
+        results = []
+        for integ in edi_ints:
+            try:
+                errors = client.get( f"/integrations/{integ['_id']}/errors") or []
+                total = sum(e.get("numError", 0) for e in errors)
+                results.append({
+                    "partner": integ["partner"],
+                    "network": integ["network"],
+                    "_integrationId": integ["_id"],
+                    "total_errors": total,
+                    "flows_with_errors": sum(1 for e in errors if e.get("numError", 0) > 0),
+                })
+            except Exception as ex:
+                results.append({"partner": integ["partner"], "network": integ["network"],
+                                "_integrationId": integ["_id"], "total_errors": -1, "error": str(ex)})
+        results.sort(key=lambda x: -x.get("total_errors", 0))
+        total_errors = sum(r["total_errors"] for r in results if r["total_errors"] >= 0)
+        print(f"\nTotal EDI errors: {total_errors} across {sum(1 for r in results if r['total_errors'] > 0)} partners\n")
+        print_result(results, args.format, ["partner", "network", "total_errors", "flows_with_errors", "_integrationId"])
+
+    elif args.action == "partner":
+        if not getattr(args, "integration_id", None):
+            print("Error: --integration-id required", file=sys.stderr)
+            sys.exit(1)
+        iid = args.integration_id
+        integ = client.get( f"/integrations/{iid}")
+        all_flows = client.get( "/flows")
+        errors = client.get( f"/integrations/{iid}/errors") or []
+        error_map = {e["_flowId"]: e.get("numError", 0) for e in errors}
+
+        flows = [f for f in all_flows if f.get("_integrationId") == iid]
+        by_doc: dict = {}
+        for f in flows:
+            doc = extract_doc_type(f["name"])
+            label = _EDI_DOC_TYPES.get(doc, f"Doc {doc}")
+            if doc not in by_doc:
+                by_doc[doc] = {"doc_type": doc, "description": label, "flows": []}
+            by_doc[doc]["flows"].append({
+                "_id": f["_id"],
+                "name": f["name"],
+                "enabled": not f.get("disabled", False),
+                "lastExecutedAt": f.get("lastExecutedAt", ""),
+                "numError": error_map.get(f["_id"], 0),
+            })
+
+        name = integ.get("name", "")
+        partner, network, staging, _ = parse_edi_name(name)
+        report = {
+            "_integrationId": iid, "partner": partner, "network": network,
+            "total_flows": len(flows),
+            "active_flows": sum(1 for f in flows if not f.get("disabled")),
+            "total_errors": sum(error_map.values()),
+            "by_doc_type": sorted(by_doc.values(), key=lambda x: x["doc_type"]),
+        }
+        print_result(report, args.format)
+
+    elif args.action == "dashboard":
+        edi_ints = get_edi_integrations(include_staging=False)
+        all_flows = client.get( "/flows")
+        print(f"Fetching errors for {len(edi_ints)} active EDI partners...", file=sys.stderr)
+
+        flow_map: dict = {}
+        for f in all_flows:
+            iid = f.get("_integrationId", "")
+            if iid not in flow_map:
+                flow_map[iid] = {"active": 0, "disabled": 0, "doc_types": set()}
+            if f.get("disabled"):
+                flow_map[iid]["disabled"] += 1
+            else:
+                flow_map[iid]["active"] += 1
+            doc = extract_doc_type(f["name"])
+            if doc != "other":
+                flow_map[iid]["doc_types"].add(doc)
+
+        rows = []
+        for integ in edi_ints:
+            iid = integ["_id"]
+            try:
+                errors = client.get( f"/integrations/{iid}/errors") or []
+                total_errors = sum(e.get("numError", 0) for e in errors)
+            except Exception:
+                total_errors = -1
+            fmap = flow_map.get(iid, {"active": 0, "disabled": 0, "doc_types": set()})
+            rows.append({
+                "partner": integ["partner"],
+                "network": integ["network"],
+                "active_flows": fmap["active"],
+                "errors": total_errors,
+                "doc_types": ",".join(sorted(fmap["doc_types"])),
+                "_integrationId": iid,
+            })
+
+        rows.sort(key=lambda x: (-x["errors"], x["partner"].lower()))
+        total_errors = sum(r["errors"] for r in rows if r["errors"] >= 0)
+        partners_with_errors = sum(1 for r in rows if r["errors"] > 0)
+        print(f"\nEDI Dashboard: {len(rows)} active partners | {total_errors} total errors | {partners_with_errors} partners with errors\n")
+        print_result(rows, args.format, ["partner", "network", "active_flows", "errors", "doc_types", "_integrationId"])
+
+
 def cmd_health_digest(args):
     """Generate a comprehensive health digest from all recent jobs."""
     from datetime import timezone
@@ -3306,6 +3470,22 @@ Examples:
     tpl_update.add_argument("--file", help="Path to JSON file")
 
     # --- EDI/B2B ---
+    # EDI Reports
+    edir_parser = subparsers.add_parser("edi-reports", help="EDI trading partner reporting and health")
+    edir_sub = edir_parser.add_subparsers(dest="action")
+
+    edir_list = edir_sub.add_parser("list", help="List all EDI trading partner integrations")
+    edir_list.add_argument("--include-staging", action="store_true", help="Include dated staging copies")
+    edir_list.add_argument("--network", choices=["VAN", "SPS", "direct"], help="Filter by network type")
+
+    edir_err = edir_sub.add_parser("errors", help="Aggregated error counts across all EDI partners")
+    edir_err.add_argument("--include-staging", action="store_true", help="Include dated staging copies")
+
+    edir_partner = edir_sub.add_parser("partner", help="Detailed flow view for one trading partner")
+    edir_partner.add_argument("--integration-id", required=True, help="Integration _id")
+
+    edir_sub.add_parser("dashboard", help="High-level health dashboard across all active EDI partners")
+
     edi_parser = subparsers.add_parser("edi", help="EDI/B2B operations")
     edi_sub = edi_parser.add_subparsers(dest="action")
 
@@ -3379,6 +3559,7 @@ def main():
         "processors": cmd_processors,
         "templates": cmd_templates,
         "edi": cmd_edi,
+        "edi-reports": cmd_edi_reports,
         "health-digest": cmd_health_digest,
     }
 

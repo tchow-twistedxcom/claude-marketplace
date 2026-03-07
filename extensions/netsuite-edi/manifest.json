@@ -36,9 +36,9 @@
     "gateway_url": {
       "type": "string",
       "title": "API Gateway URL",
-      "description": "NetSuite API Gateway URL. Production: https://api.twistedx.com",
+      "description": "NetSuite API Gateway URL. Production: https://nsapi.twistedx.tech",
       "required": true,
-      "default": "https://api.twistedx.com"
+      "default": "https://nsapi.twistedx.tech"
     },
     "api_key": {
       "type": "string",

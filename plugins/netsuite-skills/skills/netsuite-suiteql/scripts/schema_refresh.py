@@ -13,7 +13,7 @@ Requires:
     or prompts if not set
 
 Accounts and environments are read dynamically from the API gateway.
-Set NETSUITE_GATEWAY_URL to override (default: http://localhost:3001).
+Set NETSUITE_GATEWAY_URL to override (default: https://nsapi.twistedx.tech).
 
 Cache location: ~/.cache/netsuite-schema/{account}/{environment}/
 
@@ -35,7 +35,7 @@ from urllib.error import URLError
 CACHE_ROOT = os.path.expanduser('~/.cache/netsuite-schema')
 
 # Gateway URL (override via env var)
-GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'http://localhost:3001')
+GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
 
 # Environment aliases — universal NetSuite conventions, not account-specific
 ENV_ALIASES = {

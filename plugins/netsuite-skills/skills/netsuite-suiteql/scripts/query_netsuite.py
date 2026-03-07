@@ -23,8 +23,9 @@ import urllib.request
 import urllib.error
 from typing import Optional, List, Dict, Any
 
-# NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -71,10 +72,10 @@ def list_accounts() -> Dict[str, Any]:
     """
     try:
         req = urllib.request.Request(
-            'http://localhost:3001/api/common/accounts',
+            f'{_gw_base}/api/common/accounts',
             headers={
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                'Origin': _gw_base
             }
         )
 
@@ -153,7 +154,7 @@ def execute_query(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'  # Required by gateway CORS validation
+                'Origin': _gw_base  # Required by gateway CORS validation
             }
         )
 
@@ -362,7 +363,7 @@ Accounts:
   twistedx (twx)  - Twisted X (OAuth 1.0a) - Environments: production, sandbox, sandbox2
   dutyman (dm)    - Dutyman (OAuth 2.0 M2M) - Environments: production, sandbox
 
-Note: The NetSuite API Gateway must be running at http://localhost:3001
+Note: The NetSuite API Gateway: https://nsapi.twistedx.tech (override with NETSUITE_GATEWAY_URL)
       Run 'docker compose up -d' in ~/NetSuiteApiGateway if needed
 """)
 

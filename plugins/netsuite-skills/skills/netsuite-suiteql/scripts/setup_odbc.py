@@ -15,7 +15,7 @@ What this script does:
   7. Adds required env vars to ~/.bashrc
 
 Requirements:
-  - Gateway running at localhost:3001 (or NETSUITE_GATEWAY_URL)
+  - Gateway running at nsapi.twistedx.tech (or NETSUITE_GATEWAY_URL)
   - NetSuite ODBC driver zip downloaded from:
       NetSuite > Setup > Company > SuiteAnalytics Connect > Set Up SuiteAnalytics Connect
   - Certificates zip (ca3.cer, ca4.cer) from the same page
@@ -36,7 +36,7 @@ from pathlib import Path
 from urllib.request import urlopen
 from urllib.error import URLError
 
-GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'http://localhost:3001')
+GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
 DRIVER_INSTALL_DIR = Path.home() / 'netsuite' / 'odbcclient'
 ODBC_INI = Path.home() / '.odbc.ini'
 ODBCINST_INI = Path.home() / '.odbcinst.ini'

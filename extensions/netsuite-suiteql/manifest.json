@@ -1,0 +1,80 @@
+{
+  "dxt_version": "0.1",
+  "name": "netsuite-suiteql",
+  "display_name": "NetSuite SuiteQL",
+  "version": "1.0.0",
+  "description": "Schema-aware NetSuite SuiteQL querying via the API Gateway. Includes full table/column/FK schema (2042 tables, 19363 columns) and reference docs. Ask natural language questions about NetSuite data — Claude automatically looks up the schema and generates correct SuiteQL.",
+  "author": {
+    "name": "tchow"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tchow-twistedxcom/claude-marketplace"
+  },
+  "license": "MIT",
+  "keywords": ["netsuite", "suiteql", "schema", "erp", "analytics", "queries"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp>=1.0.0",
+        "--with", "httpx>=0.27.0",
+        "${__dirname}/src/server.py"
+      ],
+      "env": {
+        "NETSUITE_GATEWAY_URL": "${user_config.gateway_url}",
+        "NETSUITE_API_KEY": "${user_config.api_key}",
+        "NETSUITE_ACCOUNT": "${user_config.netsuite_account}",
+        "NETSUITE_ENVIRONMENT": "${user_config.netsuite_environment}"
+      }
+    }
+  },
+  "user_config": {
+    "gateway_url": {
+      "type": "string",
+      "title": "API Gateway URL",
+      "description": "NetSuite API Gateway URL.",
+      "required": true,
+      "default": "https://nsapi.twistedx.tech"
+    },
+    "api_key": {
+      "type": "string",
+      "title": "Gateway API Key",
+      "description": "X-API-Key for gateway authentication. Contact your NetSuite admin for the key.",
+      "sensitive": true,
+      "required": true
+    },
+    "netsuite_account": {
+      "type": "string",
+      "title": "NetSuite Account",
+      "description": "Account to query: 'twistedx' (Twisted X, account 4829859) or 'dutyman' (Dutyman, account 8055418). Default: twistedx",
+      "required": false,
+      "default": "twistedx"
+    },
+    "netsuite_environment": {
+      "type": "string",
+      "title": "NetSuite Environment",
+      "description": "Environment: 'production', 'sandbox', or 'sandbox2'. Dutyman only supports production and sandbox. Default: production",
+      "required": false,
+      "default": "production"
+    }
+  },
+  "tools": [
+    { "name": "netsuite_run_suiteql", "description": "Execute a raw SuiteQL SELECT query against NetSuite. Always describe the table first to verify column names." },
+    { "name": "netsuite_describe_table", "description": "Show all columns, data types, FK relationships, and custom field labels for a NetSuite table. Use BEFORE writing any query." },
+    { "name": "netsuite_search_schema", "description": "Search all NetSuite table and column names for a keyword pattern. Use when unsure which table contains your data." },
+    { "name": "netsuite_list_tables", "description": "List NetSuite SuiteQL tables matching a glob pattern (e.g. 'custom*', 'Transaction*', '*edi*')." },
+    { "name": "netsuite_show_relationships", "description": "Show foreign key relationships for a table — which tables it references and which reference it. Use to plan JOINs." },
+    { "name": "netsuite_refresh_custom_schema", "description": "Refresh the custom records and custom fields cache from NetSuite via the gateway. Run when new custom record types have been added." },
+    { "name": "netsuite_query_examples", "description": "Search the built-in query pattern library for examples matching a keyword (e.g. 'customer', 'transaction', 'inventory')." }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

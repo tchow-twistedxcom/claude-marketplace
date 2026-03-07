@@ -1,0 +1,164 @@
+{
+  "name": "Celigo: Get Integration Summary",
+  "nodes": [
+    {
+      "id": "mcp-trigger",
+      "name": "MCP Trigger",
+      "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "toolName": "get_integration_summary",
+        "toolDescription": "Get a comprehensive summary of a Celigo integration: its details, all flows (active/disabled counts), connections, and error counts in a single call. Use when someone asks 'tell me about integration X' or 'what does integration X contain?'",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "integration_id": {
+              "type": "string",
+              "description": "The Celigo integration ID"
+            }
+          },
+          "required": ["integration_id"]
+        }
+      }
+    },
+    {
+      "id": "fetch-integration",
+      "name": "Fetch Integration",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.integrator.io/v1/integrations/{{ $json.integration_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "CELIGO_CREDENTIAL_ID", "name": "Celigo API Key" }
+      }
+    },
+    {
+      "id": "fetch-flows",
+      "name": "Fetch Flows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [580, 200],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.integrator.io/v1/flows",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "_integrationId", "value": "={{ $('MCP Trigger').first().json.integration_id }}" },
+            { "name": "per_page", "value": "200" }
+          ]
+        },
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "CELIGO_CREDENTIAL_ID", "name": "Celigo API Key" }
+      }
+    },
+    {
+      "id": "fetch-errors",
+      "name": "Fetch Errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [580, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.integrator.io/v1/integrations/{{ $('MCP Trigger').first().json.integration_id }}/errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "CELIGO_CREDENTIAL_ID", "name": "Celigo API Key" }
+      }
+    },
+    {
+      "id": "fetch-connections",
+      "name": "Fetch Connections",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [580, 400],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.integrator.io/v1/connections",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "_integrationId", "value": "={{ $('MCP Trigger').first().json.integration_id }}" }
+          ]
+        },
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "CELIGO_CREDENTIAL_ID", "name": "Celigo API Key" }
+      }
+    },
+    {
+      "id": "merge-results",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [820, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Merge results from 3 parallel HTTP calls + integration details\n// Items arrive in order: flows response, errors response, connections response\n// Integration data came from Fetch Integration node before branching\n\n// Gather all inputs\nconst items = $input.all();\n\n// Node outputs are collected by the merge node in the order connections arrive\n// We identify them by structure\nlet flowsData, errorsData, connectionsData;\nfor (const item of items) {\n  const d = item.json;\n  // Flows: array with items having 'disabled' field\n  if (Array.isArray(d) && d.length > 0 && 'disabled' in d[0]) {\n    flowsData = d;\n  }\n  // Errors: array with items having 'numError' field, OR wrapper object\n  else if (Array.isArray(d) && d.length > 0 && 'numError' in d[0]) {\n    errorsData = d;\n  }\n  // Connections: array with items having 'type' and 'offline' fields\n  else if (Array.isArray(d) && d.length > 0 && 'type' in d[0] && 'offline' in d[0]) {\n    connectionsData = d;\n  }\n  // Connections: could also be empty array\n  else if (Array.isArray(d) && d.length === 0 && !flowsData) {\n    // ambiguous empty — skip\n  }\n  // Errors wrapper object\n  else if (!Array.isArray(d) && Array.isArray(d.errors)) {\n    errorsData = d.errors;\n  }\n}\n\nflowsData = flowsData || [];\nerrorsData = errorsData || [];\nconnectionsData = connectionsData || [];\n\n// Get integration detail from Fetch Integration node\nconst integration = $('Fetch Integration').first().json;\n\n// Slim integration fields\nconst integrationSlim = {\n  _id: integration._id,\n  name: integration.name,\n  description: integration.description,\n  sandbox: integration.sandbox,\n  lastModified: integration.lastModified,\n  createdAt: integration.createdAt,\n};\n\n// Slim flows\nconst FLOW_KEEP = ['_id', 'name', 'disabled', 'lastModified', 'lastExecutedAt', 'free'];\nconst flows = flowsData.map(f => {\n  const out = {};\n  for (const k of FLOW_KEEP) if (k in f) out[k] = f[k];\n  return out;\n});\nconst activeFlows = flows.filter(f => !f.disabled);\nconst disabledFlows = flows.filter(f => f.disabled);\n\n// Slim connections\nconst CONN_KEEP = ['_id', 'name', 'type', 'offline', 'sandbox'];\nconst connections = connectionsData.map(c => {\n  const out = {};\n  for (const k of CONN_KEEP) if (k in c) out[k] = c[k];\n  return out;\n});\n\n// Compute total errors\nconst totalErrors = errorsData.reduce((sum, e) => sum + (e.numError || 0), 0);\n\nconst result = {\n  integration: integrationSlim,\n  summary: {\n    total_flows: flows.length,\n    active_flows: activeFlows.length,\n    disabled_flows: disabledFlows.length,\n    total_errors: totalErrors,\n    total_connections: connections.length,\n    offline_connections: connections.filter(c => c.offline).length,\n  },\n  flows,\n  connections,\n  error_summary: errorsData,\n};\n\nreturn [{ json: result }];"
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1060, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    }
+  ],
+  "connections": {
+    "MCP Trigger": {
+      "main": [[
+        { "node": "Fetch Integration", "type": "main", "index": 0 }
+      ]]
+    },
+    "Fetch Integration": {
+      "main": [[
+        { "node": "Fetch Flows", "type": "main", "index": 0 },
+        { "node": "Fetch Errors", "type": "main", "index": 0 },
+        { "node": "Fetch Connections", "type": "main", "index": 0 }
+      ]]
+    },
+    "Fetch Flows": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 0 }]]
+    },
+    "Fetch Errors": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 1 }]]
+    },
+    "Fetch Connections": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 2 }]]
+    },
+    "Merge Results": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_meta": {
+    "description": "Wave 0 prototype — composite 4-API-call tool. Validates parallel HTTP calls and Code node result merging.",
+    "note_on_credentials": "Create an n8n credential of type 'Header Auth' with Name='Authorization' and Value='Bearer YOUR_CELIGO_API_KEY'. Replace CELIGO_CREDENTIAL_ID in all 3 HTTP nodes.",
+    "note_on_parallel": "Fetch Flows, Fetch Errors, Fetch Connections run in parallel (fan-out from Fetch Integration). Merge Results Code node receives all 3 responses and merges them. n8n runs fan-out branches sequentially but it's still faster than sequential individual calls.",
+    "note_on_data_flow": "MCP Trigger input is referenced with $('MCP Trigger').first().json in downstream nodes since the input is not forwarded through Fetch Integration automatically."
+  }
+}

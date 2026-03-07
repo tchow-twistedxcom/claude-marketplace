@@ -1,0 +1,156 @@
+{
+  "name": "Celigo: Get EDI Health Dashboard",
+  "nodes": [
+    {
+      "id": "mcp-trigger",
+      "name": "MCP Trigger",
+      "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "toolName": "get_edi_health_dashboard",
+        "toolDescription": "Get a high-level health dashboard across ALL active EDI trading partners. Shows error counts, active/disabled flow counts, network type (VAN/SPS/direct), and EDI document types per partner. Partners sorted by error count (most problematic first). No parameters needed.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "include_staging": {
+              "type": "boolean",
+              "description": "Include staging copies of EDI integrations (default: false)"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "id": "fetch-all-integrations",
+      "name": "Fetch All Integrations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.integrator.io/v1/integrations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "per_page", "value": "300" }
+          ]
+        },
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "CELIGO_CREDENTIAL_ID", "name": "Celigo API Key" }
+      }
+    },
+    {
+      "id": "filter-edi-integrations",
+      "name": "Filter EDI Integrations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, 300],
+      "parameters": {
+        "jsCode": "// Parse EDI integration names and filter to active EDI integrations\n// Ported from extensions/celigo/src/server.py:_parse_edi_integration() and _is_edi_integration()\n\nconst includeStaging = $('MCP Trigger').first().json.include_staging || false;\n\nfunction parseEdiIntegration(name) {\n  // Detect staging: ends with (MM/DD/YYYY)\n  const stagingMatch = name.match(/\\((\\d{1,2}\\/\\d{1,2}\\/\\d{4})\\)\\s*$/);\n  const isStaging = stagingMatch !== null;\n  const clean = name.replace(/\\s*\\(\\d{1,2}\\/\\d{1,2}\\/\\d{4}\\)\\s*$/, '').trim();\n\n  let network = 'direct';\n  let partner = clean;\n  if (clean.startsWith('EDI - VAN - ')) {\n    network = 'VAN';\n    partner = clean.slice('EDI - VAN - '.length);\n  } else if (clean.startsWith('EDI - SPS - ')) {\n    network = 'SPS';\n    partner = clean.slice('EDI - SPS - '.length);\n  } else if (clean.startsWith('EDI - ')) {\n    partner = clean.slice('EDI - '.length);\n  }\n\n  return { partner, network, staging: isStaging, stagingDate: stagingMatch ? stagingMatch[1] : null };\n}\n\nconst integrations = Array.isArray($input.first().json) \n  ? $input.first().json \n  : ($input.first().json.data || []);\n\nconst ediIntegrations = integrations\n  .filter(i => i.name && i.name.startsWith('EDI'))\n  .map(i => ({ ...parseEdiIntegration(i.name), _id: i._id, name: i.name, sandbox: i.sandbox, lastModified: i.lastModified }))\n  .filter(i => includeStaging || !i.staging);\n\nreturn ediIntegrations.map(i => ({ json: i }));"
+      }
+    },
+    {
+      "id": "fetch-all-flows",
+      "name": "Fetch All Flows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [580, 450],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.integrator.io/v1/flows",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "per_page", "value": "1000" }
+          ]
+        },
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "CELIGO_CREDENTIAL_ID", "name": "Celigo API Key" }
+      }
+    },
+    {
+      "id": "fetch-errors-per-partner",
+      "name": "Fetch Errors Per Partner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [820, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.integrator.io/v1/integrations/{{ $json._id }}/errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "response": { "response": { "responseFormat": "json" } } }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "id": "CELIGO_CREDENTIAL_ID", "name": "Celigo API Key" }
+      }
+    },
+    {
+      "id": "build-dashboard",
+      "name": "Build Dashboard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 380],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Build the EDI health dashboard by combining:\n// - EDI partner metadata (from Filter EDI Integrations)\n// - Error counts (from Fetch Errors Per Partner — one item per partner)\n// - Flow data (from Fetch All Flows — all flows in one response)\n// Ported from extensions/celigo/src/server.py:celigo_get_edi_health_dashboard()\n\nconst DOC_TYPES = {\n  '850': 'Purchase Order', '855': 'PO Acknowledgment', '856': 'ASN',\n  '810': 'Invoice', '860': 'PO Change', '865': 'PO Change Ack',\n  '997': 'Functional Ack', '940': 'Warehouse Shipping Order', \n  '945': 'Warehouse Shipping Advice',\n};\n\nfunction extractDocType(flowName) {\n  const match = flowName.match(/\\b(8[0-9]{2}|9[0-9]{2}|7[0-9]{2})\\b/);\n  return match ? match[1] : 'other';\n}\n\nconst items = $input.all();\n\n// Separate items: error responses have _flowId arrays, flow data has 'disabled'\n// Partner metadata items were the input to Fetch Errors Per Partner\n// Each item from Fetch Errors Per Partner has the partner's error array\n// We need to reconstruct associations\n\n// Get all flows from Fetch All Flows node\nconst allFlowsRaw = $('Fetch All Flows').first().json;\nconst allFlows = Array.isArray(allFlowsRaw) ? allFlowsRaw : (allFlowsRaw.data || []);\n\n// Get EDI partner list from Filter EDI Integrations\nconst ediPartners = $('Filter EDI Integrations').all().map(i => i.json);\n\n// items from current node are one per partner (error responses), in same order as ediPartners\n// Build result by zipping partners with their error responses\nconst partnerRows = ediPartners.map((partner, idx) => {\n  const errorResponse = items[idx] ? items[idx].json : [];\n  const errors = Array.isArray(errorResponse) ? errorResponse : [];\n  const totalErrors = errors.reduce((sum, e) => sum + (e.numError || 0), 0);\n\n  // Get this partner's flows\n  const partnerFlows = allFlows.filter(f => f._integrationId === partner._id);\n  const activeFlows = partnerFlows.filter(f => !f.disabled);\n  const disabledFlows = partnerFlows.filter(f => f.disabled);\n\n  // Extract EDI doc types from flow names\n  const docTypeSet = new Set();\n  for (const f of partnerFlows) {\n    const dt = extractDocType(f.name || '');\n    if (dt !== 'other') docTypeSet.add(dt);\n  }\n  const docTypes = [...docTypeSet].sort();\n  const docTypeLabels = docTypes.map(dt => DOC_TYPES[dt] ? `${dt} (${DOC_TYPES[dt]})` : dt);\n\n  return {\n    _id: partner._id,\n    partner: partner.partner,\n    network: partner.network,\n    sandbox: partner.sandbox || false,\n    total_flows: partnerFlows.length,\n    active_flows: activeFlows.length,\n    disabled_flows: disabledFlows.length,\n    total_errors: totalErrors,\n    doc_types: docTypeLabels,\n  };\n});\n\n// Sort by errors desc, then partner name\npartnerRows.sort((a, b) => {\n  if (b.total_errors !== a.total_errors) return b.total_errors - a.total_errors;\n  return a.partner.localeCompare(b.partner);\n});\n\n// Summary stats\nconst totalErrors = partnerRows.reduce((sum, p) => sum + p.total_errors, 0);\nconst partnersWithErrors = partnerRows.filter(p => p.total_errors > 0).length;\nconst totalActiveFlows = partnerRows.reduce((sum, p) => sum + p.active_flows, 0);\n\nconst result = {\n  summary: {\n    active_partners: partnerRows.length,\n    partners_with_errors: partnersWithErrors,\n    total_errors: totalErrors,\n    total_active_flows: totalActiveFlows,\n    generated_at: new Date().toISOString(),\n  },\n  partners: partnerRows,\n};\n\n// Byte safety — truncate if too large\nconst json = JSON.stringify(result);\nif (json.length > 90000) {\n  result.partners = result.partners.slice(0, 20);\n  result.summary.truncated = true;\n  result.summary.shown = result.partners.length;\n}\n\nreturn [{ json: result }];"
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1300, 380],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    }
+  ],
+  "connections": {
+    "MCP Trigger": {
+      "main": [[
+        { "node": "Fetch All Integrations", "type": "main", "index": 0 }
+      ]]
+    },
+    "Fetch All Integrations": {
+      "main": [[
+        { "node": "Filter EDI Integrations", "type": "main", "index": 0 },
+        { "node": "Fetch All Flows", "type": "main", "index": 0 }
+      ]]
+    },
+    "Filter EDI Integrations": {
+      "main": [[{ "node": "Fetch Errors Per Partner", "type": "main", "index": 0 }]]
+    },
+    "Fetch Errors Per Partner": {
+      "main": [[{ "node": "Build Dashboard", "type": "main", "index": 0 }]]
+    },
+    "Fetch All Flows": {
+      "main": [[{ "node": "Build Dashboard", "type": "main", "index": 1 }]]
+    },
+    "Build Dashboard": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_meta": {
+    "description": "Wave 0 prototype — stress test: N+2 API calls (1 integrations + 1 flows + N partner error calls), EDI regex parsing in JS, response merging. Validates that n8n can handle the full EDI health dashboard use case.",
+    "note_on_credentials": "Create an n8n credential of type 'Header Auth' with Name='Authorization' and Value='Bearer YOUR_CELIGO_API_KEY'. Replace CELIGO_CREDENTIAL_ID in all HTTP nodes.",
+    "note_on_performance": "Fetch Errors Per Partner runs once per EDI partner (~25 partners = 25 sequential HTTP calls). This is the latency bottleneck. If too slow, consider adding a gateway endpoint at /api/celigo/edi-health that does this server-side.",
+    "note_on_flow_data": "Fetch All Flows fetches all flows in one call. This works because n8n doesn't have the 25MB response size limit that Celigo's PP does. Celigo's GET /v1/flows returns all flows for the account.",
+    "note_on_code_porting": "Filter EDI Integrations Code node ports _parse_edi_integration() from extensions/celigo/src/server.py:519-538. Build Dashboard ports _extract_doc_type() from :541-545 and the dashboard aggregation logic."
+  }
+}

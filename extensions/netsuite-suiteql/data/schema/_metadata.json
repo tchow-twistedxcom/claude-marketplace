@@ -1,0 +1,15 @@
+{
+  "account": "twistedx",
+  "environment": "production",
+  "odbc_refresh": {
+    "timestamp": "2026-03-07T01:05:10Z",
+    "tables_count": 2042,
+    "columns_count": 19363,
+    "fkeys_count": 6313
+  },
+  "custom_refresh": {
+    "timestamp": "2026-03-07T01:06:36Z",
+    "custom_record_types_count": 621,
+    "custom_fields_count": 4879
+  }
+}

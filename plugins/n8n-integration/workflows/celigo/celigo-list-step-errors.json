@@ -1,0 +1,106 @@
+{
+  "name": "Celigo: List Step Errors",
+  "nodes": [
+    {
+      "id": "mcp-trigger",
+      "name": "MCP Trigger",
+      "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "parameters": {
+        "toolName": "list_step_errors",
+        "toolDescription": "List error records for a specific export or import step in a Celigo flow. Returns error messages, codes, timestamps, and retry data keys. Use flow_id and step_id from get_flow_error_counts.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "flow_id": {
+              "type": "string",
+              "description": "The Celigo flow ID (e.g. 698b4a31ae386aee54914746)"
+            },
+            "step_id": {
+              "type": "string",
+              "description": "The export or import step ID. Get from get_flow_error_counts."
+            }
+          },
+          "required": ["flow_id", "step_id"]
+        }
+      }
+    },
+    {
+      "id": "fetch-errors",
+      "name": "Fetch Step Errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [340, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.integrator.io/v1/flows/{{ $json.flow_id }}/{{ $json.step_id }}/errors",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "per_page",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CELIGO_CREDENTIAL_ID",
+          "name": "Celigo API Key"
+        }
+      }
+    },
+    {
+      "id": "trim-response",
+      "name": "Trim Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, 300],
+      "parameters": {
+        "jsCode": "// Trim heavy fields, cap at 100 errors\nconst BYTE_LIMIT = 90000;\nconst MAX_ERRORS = 100;\n\nconst data = $input.first().json;\nlet errors = Array.isArray(data) ? data : (data.data || []);\n\n// Cap count\nconst total = errors.length;\nerrors = errors.slice(0, MAX_ERRORS);\n\n// Strip heavy fields per error record\nconst KEEP = new Set(['_id', 'code', 'message', 'source', 'classification', \n  'traceKey', 'retryDataKey', 'occurredAt', 'resolved', '_flowJobId']);\nconst trimmed = errors.map(e => {\n  const out = {};\n  for (const [k, v] of Object.entries(e)) {\n    if (KEEP.has(k)) out[k] = v;\n  }\n  return out;\n});\n\nconst result = {\n  errors: trimmed,\n  total_fetched: total,\n  shown: trimmed.length,\n  truncated: total > MAX_ERRORS,\n};\n\n// Safety byte check\nconst json = JSON.stringify(result);\nif (json.length > BYTE_LIMIT) {\n  result.errors = trimmed.slice(0, 10);\n  result.shown = result.errors.length;\n  result.truncated = true;\n  result.hint = 'Response very large — showing first 10 errors only. Retry with a more specific step_id.';\n}\n\nreturn [{ json: result }];"
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [820, 300],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    }
+  ],
+  "connections": {
+    "MCP Trigger": {
+      "main": [[{ "node": "Fetch Step Errors", "type": "main", "index": 0 }]]
+    },
+    "Fetch Step Errors": {
+      "main": [[{ "node": "Trim Response", "type": "main", "index": 0 }]]
+    },
+    "Trim Response": {
+      "main": [[{ "node": "Respond", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_meta": {
+    "description": "Wave 0 prototype — simple single-API-call tool. Validates MCP Server Trigger → HTTP Request → Code → Respond pattern.",
+    "celigo_api_path": "GET /v1/flows/{flowId}/{stepId}/errors",
+    "note_on_credentials": "Create an n8n credential of type 'Header Auth' with Name='Authorization' and Value='Bearer YOUR_CELIGO_API_KEY'. Replace CELIGO_CREDENTIAL_ID with the actual credential ID.",
+    "note_on_errors_path": "Celigo unified errors path is /flows/{flowId}/{stepId}/errors — no /exports/ or /imports/ prefix. Documented in plugins/celigo-integration/skills/celigo-integrator/references/errors.md"
+  }
+}

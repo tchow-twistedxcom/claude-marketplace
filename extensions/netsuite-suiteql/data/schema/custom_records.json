@@ -1,0 +1,3114 @@
+{
+  "_source": "suiteql",
+  "_refreshed_at": "2026-03-07T01:06:36Z",
+  "_account": "twistedx",
+  "_environment": "production",
+  "_record_count": 621,
+  "custom_record_types": [
+    {
+      "id": 3253,
+      "scriptid": "customrecord_8q_card_readers",
+      "name": "8Q Card Readers"
+    },
+    {
+      "id": 4601,
+      "scriptid": "customrecord_8qp_payment_instr",
+      "name": "8Q Payments Payment Instrument "
+    },
+    {
+      "id": 4603,
+      "scriptid": "customrecord_8qp_recon_audit_logs",
+      "name": "8Q Payments Recon Audit Logs"
+    },
+    {
+      "id": 4605,
+      "scriptid": "customrecord_8qpayments_recon_logs",
+      "name": "8Q Payments Recon Logs"
+    },
+    {
+      "id": 4606,
+      "scriptid": "customrecord_8qpayments_settings",
+      "name": "8Q Payments Settings"
+    },
+    {
+      "id": 3254,
+      "scriptid": "customrecord_8q_transactions_to_force",
+      "name": "8Q Transactions To Force"
+    },
+    {
+      "id": 4599,
+      "scriptid": "customrecord_8qp_ach_wallet",
+      "name": "8QP ACH Wallet"
+    },
+    {
+      "id": 4600,
+      "scriptid": "customrecord_8qp_cs_error",
+      "name": "8QP Cash Sale Errors"
+    },
+    {
+      "id": 4602,
+      "scriptid": "customrecord_8qp_payment_postback",
+      "name": "8QP Payment Postback"
+    },
+    {
+      "id": 4798,
+      "scriptid": "customrecord_8qp_term_discounts",
+      "name": "8QP Term Discounts"
+    },
+    {
+      "id": 4604,
+      "scriptid": "customrecord_8qp_terminal_list",
+      "name": "8QP Terminal List"
+    },
+    {
+      "id": 4695,
+      "scriptid": "customrecord_8qp_token_verifications",
+      "name": "8QP Token Verification Attempt"
+    },
+    {
+      "id": 140,
+      "scriptid": "customrecord_psgss_lcv_mr_results",
+      "name": "AFA MR Customer Lifetime Value Results"
+    },
+    {
+      "id": 139,
+      "scriptid": "customrecord_psgss_report_tran_types",
+      "name": "AFA Report Transaction Types"
+    },
+    {
+      "id": 138,
+      "scriptid": "customrecord_psgss_saved_filter_val",
+      "name": "AFA Saved Filter Values"
+    },
+    {
+      "id": 137,
+      "scriptid": "customrecord_psgss_trantype",
+      "name": "AFA Transaction Types"
+    },
+    {
+      "id": 90,
+      "scriptid": "customrecord_advpromo_eligible_customer",
+      "name": "AP Eligible Customer"
+    },
+    {
+      "id": 88,
+      "scriptid": "customrecord_advpromo_eligible_order",
+      "name": "AP Eligible Order"
+    },
+    {
+      "id": 89,
+      "scriptid": "customrecord_advpromo_min_purchase",
+      "name": "AP Minimum Purchase"
+    },
+    {
+      "id": 83,
+      "scriptid": "customrecord_advpromo_discount",
+      "name": "AP Promotion Discount"
+    },
+    {
+      "id": 84,
+      "scriptid": "customrecord_advpromo_shipping_method",
+      "name": "AP Promotion Shipping Method"
+    },
+    {
+      "id": 85,
+      "scriptid": "customrecord_advpromo_shipping_price",
+      "name": "AP Promotion Shipping Price"
+    },
+    {
+      "id": 87,
+      "scriptid": "customrecord_advpromo_tier",
+      "name": "AP Promotion Tier"
+    },
+    {
+      "id": 91,
+      "scriptid": "customrecord_advpromo_promotional_offer",
+      "name": "AP Promotional Offer"
+    },
+    {
+      "id": 86,
+      "scriptid": "customrecord_advpromo_ssearch_select",
+      "name": "AP Saved Search Select Setup"
+    },
+    {
+      "id": 2244,
+      "scriptid": "customrecord_twx_ats_status",
+      "name": "ATS Status"
+    },
+    {
+      "id": 223,
+      "scriptid": "customrecord_ns_ibe_accnt_config_types",
+      "name": "Account Configuration Types"
+    },
+    {
+      "id": 218,
+      "scriptid": "customrecord_ns_ibe_account_environment",
+      "name": "Account Environment"
+    },
+    {
+      "id": 3499,
+      "scriptid": "customrecord_twx_add_by_style",
+      "name": "Add/Update by Style Record Type"
+    },
+    {
+      "id": 182,
+      "scriptid": "customrecord_10782_cntryfmts_by_edition",
+      "name": "Allowed Country Formats By Edition"
+    },
+    {
+      "id": 129,
+      "scriptid": "customrecord_gridoe_prodcategorymapping",
+      "name": "Apply Attribute"
+    },
+    {
+      "id": 183,
+      "scriptid": "customrecord_2663_approval_routing",
+      "name": "Approval Routing"
+    },
+    {
+      "id": 2327,
+      "scriptid": "customrecord_audit_min_total",
+      "name": "Audit_min_total"
+    },
+    {
+      "id": 3180,
+      "scriptid": "customrecord_bsp_config_csv",
+      "name": "BSP CSV Parser Configuration"
+    },
+    {
+      "id": 3179,
+      "scriptid": "customrecord_bsp_configuration_value",
+      "name": "BSP Configuration Value"
+    },
+    {
+      "id": 2101,
+      "scriptid": "customrecord_ef_bs_config",
+      "name": "Back In Stock Config"
+    },
+    {
+      "id": 2099,
+      "scriptid": "customrecord_ef_bs_helper",
+      "name": "Back In Stock Helper"
+    },
+    {
+      "id": 2102,
+      "scriptid": "customrecord_ef_bs_suscription",
+      "name": "Back in Stock Subscription"
+    },
+    {
+      "id": 166,
+      "scriptid": "customrecord_2663_entity_bank_details",
+      "name": "Bank Details"
+    },
+    {
+      "id": 165,
+      "scriptid": "customrecord_2663_batch_details",
+      "name": "Batch Details"
+    },
+    {
+      "id": 167,
+      "scriptid": "customrecord_2663_batch_transaction_info",
+      "name": "Batch Transaction Information"
+    },
+    {
+      "id": 175,
+      "scriptid": "customrecord_2663_bill_eft_details",
+      "name": "Bill EFT Details"
+    },
+    {
+      "id": 171,
+      "scriptid": "customrecord_2663_bill_eft_payment",
+      "name": "Bill EFT Payment Information"
+    },
+    {
+      "id": 502,
+      "scriptid": "customrecord_cseg_twx_brand",
+      "name": "Brand"
+    },
+    {
+      "id": 3140,
+      "scriptid": "customrecord_twx_brand_rep",
+      "name": "Brand Rep"
+    },
+    {
+      "id": 235,
+      "scriptid": "customrecord_ns_req_bug_resolut_statuses",
+      "name": "Bug Resolution Statuses"
+    },
+    {
+      "id": 239,
+      "scriptid": "customrecord_ns_req_bug_severities",
+      "name": "Bug Severities"
+    },
+    {
+      "id": 240,
+      "scriptid": "customrecord_ns_ibe_bug_statuses",
+      "name": "Bug Statuses"
+    },
+    {
+      "id": 2103,
+      "scriptid": "customrecord_cct_displayproductleadtime",
+      "name": "CCT | Display Product Lead Time"
+    },
+    {
+      "id": 2077,
+      "scriptid": "customrecordcms_html",
+      "name": "CMS_HTML"
+    },
+    {
+      "id": 2076,
+      "scriptid": "customrecordcms_image",
+      "name": "CMS_IMAGE"
+    },
+    {
+      "id": 2079,
+      "scriptid": "customrecordcms_merchzone",
+      "name": "CMS_MERCHZONE"
+    },
+    {
+      "id": 2518,
+      "scriptid": "customrecordcms_merchzonetwo",
+      "name": "CMS_MERCHZONETWO"
+    },
+    {
+      "id": 2078,
+      "scriptid": "customrecordcms_text",
+      "name": "CMS_TEXT"
+    },
+    {
+      "id": 2213,
+      "scriptid": "customrecord_stg_integraton_mapping",
+      "name": "CSV Integration Mapping"
+    },
+    {
+      "id": 3188,
+      "scriptid": "customrecord_sss_calendar",
+      "name": "Calendar"
+    },
+    {
+      "id": 3187,
+      "scriptid": "customrecord_sss_calendardates",
+      "name": "Calendar Dates"
+    },
+    {
+      "id": 3556,
+      "scriptid": "customrecord_cash360_account",
+      "name": "Cash 360 Account"
+    },
+    {
+      "id": 3557,
+      "scriptid": "customrecord_cash360_accountcategory",
+      "name": "Cash 360 Account Category"
+    },
+    {
+      "id": 3559,
+      "scriptid": "customrecord_cash360_categorymanager",
+      "name": "Cash 360 Account Category Manager"
+    },
+    {
+      "id": 3558,
+      "scriptid": "customrecord_cash360_adhocmanager",
+      "name": "Cash 360 Adhoc Manager"
+    },
+    {
+      "id": 4496,
+      "scriptid": "customrecord_cash360_entity_data",
+      "name": "Cash 360 Entity"
+    },
+    {
+      "id": 4495,
+      "scriptid": "customrecord_c360_global_config",
+      "name": "Cash 360 Global Configuration"
+    },
+    {
+      "id": 3560,
+      "scriptid": "customrecord_cash360_preference",
+      "name": "Cash 360 Preferences"
+    },
+    {
+      "id": 2045,
+      "scriptid": "customrecord_celigo_batch_data_flow",
+      "name": "Celigo Batch Data Flow"
+    },
+    {
+      "id": 2024,
+      "scriptid": "customrecord_celligo_batch_data_flow_lib",
+      "name": "Celigo Batch Data Flow Library"
+    },
+    {
+      "id": 2225,
+      "scriptid": "customrecord_celigo_sc_setting",
+      "name": "Celigo CENS Batch size Setting Record"
+    },
+    {
+      "id": 2226,
+      "scriptid": "customrecord_celigo_smartclient_meta",
+      "name": "Celigo CENS Metadata Setting Record"
+    },
+    {
+      "id": 2507,
+      "scriptid": "customrecord_celigo_cam_alias",
+      "name": "Celigo Cash App Alias"
+    },
+    {
+      "id": 2512,
+      "scriptid": "customrecord_celigo_cam_batch",
+      "name": "Celigo Cash App Batch"
+    },
+    {
+      "id": 2509,
+      "scriptid": "customrecord_celigo_cam_creditmemo",
+      "name": "Celigo Cash App Credit Memo"
+    },
+    {
+      "id": 2506,
+      "scriptid": "customrecord_celigo_cam_invoice",
+      "name": "Celigo Cash App Invoice"
+    },
+    {
+      "id": 2508,
+      "scriptid": "customrecord_celigo_cam_micrnumber",
+      "name": "Celigo Cash App MICR Number"
+    },
+    {
+      "id": 2514,
+      "scriptid": "customrecord_celigo_cam_rule",
+      "name": "Celigo Cash App Rule"
+    },
+    {
+      "id": 2513,
+      "scriptid": "customrecord_celigo_cam_transaction",
+      "name": "Celigo Cash App Transaction"
+    },
+    {
+      "id": 2511,
+      "scriptid": "customrecord_celigo_cam_r_error_detail",
+      "name": "Celigo CashApp Error Detail"
+    },
+    {
+      "id": 2510,
+      "scriptid": "customrecord_celigo_cam_r_errorlog",
+      "name": "Celigo CashApp Error Logs"
+    },
+    {
+      "id": 2022,
+      "scriptid": "customrecord_celigo_closures",
+      "name": "Celigo Closures"
+    },
+    {
+      "id": 2047,
+      "scriptid": "customrecord_celigo_connection",
+      "name": "Celigo Connection"
+    },
+    {
+      "id": 2025,
+      "scriptid": "customrecord_celigo_connection_type",
+      "name": "Celigo Connection Type"
+    },
+    {
+      "id": 2041,
+      "scriptid": "customrecord_celigo_custom_logic_bs",
+      "name": "Celigo Custom Logic - BS"
+    },
+    {
+      "id": 2017,
+      "scriptid": "customrecord_celigo_data_trans",
+      "name": "Celigo Data Transports"
+    },
+    {
+      "id": 2008,
+      "scriptid": "customrecord_celigo_debug_enablement",
+      "name": "Celigo Debugging Enablement"
+    },
+    {
+      "id": 2003,
+      "scriptid": "customrecord_celigo_enum_cont",
+      "name": "Celigo Enum Container"
+    },
+    {
+      "id": 2010,
+      "scriptid": "customrecord_celigo_environment",
+      "name": "Celigo Environment"
+    },
+    {
+      "id": 3290,
+      "scriptid": "customrecord_celigo_rt2_environment",
+      "name": "Celigo Environment 2"
+    },
+    {
+      "id": 2032,
+      "scriptid": "customrecord_celigo_export_lookup",
+      "name": "Celigo Export Lookup"
+    },
+    {
+      "id": 2035,
+      "scriptid": "customrecord_celigo_rakuten_rec_report",
+      "name": "Celigo Flow Response Log"
+    },
+    {
+      "id": 2029,
+      "scriptid": "customrecord_celigo_global_cache",
+      "name": "Celigo Global Cache"
+    },
+    {
+      "id": 2048,
+      "scriptid": "customrecord_celigo_global_params",
+      "name": "Celigo Global Parameters"
+    },
+    {
+      "id": 2007,
+      "scriptid": "customrecord_celigo_import_lookup",
+      "name": "Celigo Import Lookup"
+    },
+    {
+      "id": 2026,
+      "scriptid": "customrecord_celigo_sdk_included_files",
+      "name": "Celigo Included Files - Integr"
+    },
+    {
+      "id": 2014,
+      "scriptid": "customrecord_celigo_integration",
+      "name": "Celigo Integration"
+    },
+    {
+      "id": 2040,
+      "scriptid": "customrecord_celigo_logger",
+      "name": "Celigo Integration Log"
+    },
+    {
+      "id": 2037,
+      "scriptid": "customrecord_celigo_integration_usecase",
+      "name": "Celigo Integration Use Case"
+    },
+    {
+      "id": 2028,
+      "scriptid": "customrecord_celigo_integrator_ui",
+      "name": "Celigo Integrator UI"
+    },
+    {
+      "id": 2004,
+      "scriptid": "customrecord_celigo_job_batch",
+      "name": "Celigo Job Batch"
+    },
+    {
+      "id": 2030,
+      "scriptid": "customrecord_celigo_job_export",
+      "name": "Celigo Job Export"
+    },
+    {
+      "id": 2049,
+      "scriptid": "customrecord_celigo_job_import",
+      "name": "Celigo Job Import"
+    },
+    {
+      "id": 2009,
+      "scriptid": "customrecord_celigo_job_realtime",
+      "name": "Celigo Job Realtime"
+    },
+    {
+      "id": 2038,
+      "scriptid": "customrecord_celigo_lock",
+      "name": "Celigo Lock"
+    },
+    {
+      "id": 2042,
+      "scriptid": "customrecord_celigo_object_map",
+      "name": "Celigo Object Mapping"
+    },
+    {
+      "id": 2034,
+      "scriptid": "customrecord_celigo_paas_record_types",
+      "name": "Celigo PaaS Object Types"
+    },
+    {
+      "id": 2036,
+      "scriptid": "customrecord_celigo_paas_parent_rec_type",
+      "name": "Celigo PaaS Parent Record Type"
+    },
+    {
+      "id": 2039,
+      "scriptid": "customrecord_celigo_paas_rec_search_meta",
+      "name": "Celigo PaaS Record Search Meta"
+    },
+    {
+      "id": 2023,
+      "scriptid": "customrecord_celigo_paas_ui_component",
+      "name": "Celigo PaaS UI Component"
+    },
+    {
+      "id": 2012,
+      "scriptid": "customrecord_celigo_paas_ui_element",
+      "name": "Celigo PaaS UI Element"
+    },
+    {
+      "id": 2006,
+      "scriptid": "customrecord_celigo_message_queue",
+      "name": "Celigo Queued Message"
+    },
+    {
+      "id": 3292,
+      "scriptid": "customrecord_celigo_rt2_message_queue",
+      "name": "Celigo Queued Message 2"
+    },
+    {
+      "id": 2016,
+      "scriptid": "customrecord_celigo_rt_export_flow_lib",
+      "name": "Celigo RT Export Flow Lib"
+    },
+    {
+      "id": 2043,
+      "scriptid": "customrecord_celigo_rt_import_flow_lib",
+      "name": "Celigo RT Import Flow Lib"
+    },
+    {
+      "id": 2027,
+      "scriptid": "customrecord_celigo_realtime_export",
+      "name": "Celigo Realtime Export (v1)"
+    },
+    {
+      "id": 2018,
+      "scriptid": "customrecord_celigo_rt_export_flow",
+      "name": "Celigo Realtime Export Flow"
+    },
+    {
+      "id": 3291,
+      "scriptid": "customrecord_celigo_rt2_export_flow",
+      "name": "Celigo Realtime Export Flow 2.0"
+    },
+    {
+      "id": 2046,
+      "scriptid": "customrecord_celigo_rt_import_flow",
+      "name": "Celigo Realtime Import Flow"
+    },
+    {
+      "id": 2031,
+      "scriptid": "customrecord_celigo_sobject_metadata",
+      "name": "Celigo SObject Metadata"
+    },
+    {
+      "id": 2109,
+      "scriptid": "customrecord_celigo_shopify_shpfnsidmap",
+      "name": "Celigo Shopify Customer Id Map"
+    },
+    {
+      "id": 2111,
+      "scriptid": "customrecord_celigo_shopify_shpfitem_map",
+      "name": "Celigo Shopify Item Id Map"
+    },
+    {
+      "id": 2290,
+      "scriptid": "customrecord_celigo_shopify_payout",
+      "name": "Celigo Shopify Payout"
+    },
+    {
+      "id": 2108,
+      "scriptid": "customrecord_celigo_shopify_store_info",
+      "name": "Celigo Shopify Store Info"
+    },
+    {
+      "id": 2110,
+      "scriptid": "customrecord_celigo_shopify_variation_th",
+      "name": "Celigo Shopify Variation Themes"
+    },
+    {
+      "id": 2044,
+      "scriptid": "customrecord_celigo_supported_field",
+      "name": "Celigo Supported Field Type"
+    },
+    {
+      "id": 2021,
+      "scriptid": "customrecord_celigo_supported_list",
+      "name": "Celigo Supported List Type"
+    },
+    {
+      "id": 2005,
+      "scriptid": "customrecord_celigo_supported_object",
+      "name": "Celigo Supported Object Type"
+    },
+    {
+      "id": 2020,
+      "scriptid": "customrecord_celigo_tf_tracked",
+      "name": "Celigo TF Test Trace"
+    },
+    {
+      "id": 2015,
+      "scriptid": "customrecord_celigo_tf_test",
+      "name": "Celigo Test"
+    },
+    {
+      "id": 2033,
+      "scriptid": "customrecord_celigo_tf_lib",
+      "name": "Celigo Test Library"
+    },
+    {
+      "id": 2011,
+      "scriptid": "customrecord_celigo_tf_result",
+      "name": "Celigo Test Result"
+    },
+    {
+      "id": 2013,
+      "scriptid": "customrecord_unique_test_rec",
+      "name": "Celigo Unique Test"
+    },
+    {
+      "id": 2019,
+      "scriptid": "customrecord_celigo_user_event_scripts",
+      "name": "Celigo User Event Script"
+    },
+    {
+      "id": 4284,
+      "scriptid": "customrecord_celigo_wlmrt_account_info",
+      "name": "Celigo Walmart Account"
+    },
+    {
+      "id": 2106,
+      "scriptid": "customrecord_celigo_etail_channel",
+      "name": "Celigo eTail Channels"
+    },
+    {
+      "id": 2107,
+      "scriptid": "customrecord_celigo_etail_odr_trnsaction",
+      "name": "Celigo eTail Order Transactions"
+    },
+    {
+      "id": 214,
+      "scriptid": "customrecord_ns_ibe_req_channel_or_area",
+      "name": "Channel/Area"
+    },
+    {
+      "id": 2105,
+      "scriptid": "customrecord_commcat_import",
+      "name": "Commerce Category Import"
+    },
+    {
+      "id": 2229,
+      "scriptid": "customrecord_twx_commissions",
+      "name": "Commissions"
+    },
+    {
+      "id": 184,
+      "scriptid": "customrecord_2663_bank_details",
+      "name": "Company Bank Details"
+    },
+    {
+      "id": 2475,
+      "scriptid": "customrecord_tc_connector",
+      "name": "Connector"
+    },
+    {
+      "id": 112,
+      "scriptid": "customrecord_scm_customerpartnumber",
+      "name": "Customer Part Number"
+    },
+    {
+      "id": 3249,
+      "scriptid": "customrecord_twx_dash",
+      "name": "Dashboard"
+    },
+    {
+      "id": 13,
+      "scriptid": "customrecord_dt_tile",
+      "name": "Dashboard Tile"
+    },
+    {
+      "id": 2234,
+      "scriptid": "customrecord_dt_translations",
+      "name": "Dashboard Tile Translations"
+    },
+    {
+      "id": 2350,
+      "scriptid": "customrecord_deleted_record",
+      "name": "Deleted Records (Satori)"
+    },
+    {
+      "id": 209,
+      "scriptid": "customrecord_ns_ibe_act_conf_deply_type",
+      "name": "Deployment Type"
+    },
+    {
+      "id": 169,
+      "scriptid": "customrecord_8391_dd_format_spcfc_types",
+      "name": "Direct Debit File Format Specific Types"
+    },
+    {
+      "id": 4281,
+      "scriptid": "customrecord_dad_file",
+      "name": "DnD File"
+    },
+    {
+      "id": 4279,
+      "scriptid": "customrecord_dad_file_html",
+      "name": "DnD File Html"
+    },
+    {
+      "id": 294,
+      "scriptid": "customrecord_scm_ecn_implement_eco_log",
+      "name": "ECO Implementation Log"
+    },
+    {
+      "id": 4310,
+      "scriptid": "customrecord_twx_edi_document",
+      "name": "EDI Document"
+    },
+    {
+      "id": 3210,
+      "scriptid": "customrecord_twx_edi_id",
+      "name": "EDI IDs"
+    },
+    {
+      "id": 4302,
+      "scriptid": "customrecord_twx_edi_tp",
+      "name": "EDI Trading Partner"
+    },
+    {
+      "id": 2288,
+      "scriptid": "customrecord_twx_edi_history",
+      "name": "EDI Transaction History"
+    },
+    {
+      "id": 4282,
+      "scriptid": "customrecord_twx_edi_workflow",
+      "name": "EDI Workflow"
+    },
+    {
+      "id": 2231,
+      "scriptid": "customrecord_ep_company_information",
+      "name": "EP Company Information"
+    },
+    {
+      "id": 168,
+      "scriptid": "customrecord_2663_dummy_list",
+      "name": "EP Dummy List"
+    },
+    {
+      "id": 180,
+      "scriptid": "customrecord_2663_execution_log",
+      "name": "EP Execution Log"
+    },
+    {
+      "id": 179,
+      "scriptid": "customrecord_2663_queue_settings",
+      "name": "EP Queue Settings"
+    },
+    {
+      "id": 177,
+      "scriptid": "customrecord_ep_proc_results",
+      "name": "EP Thread Processing Results"
+    },
+    {
+      "id": 3198,
+      "scriptid": "customrecord_8q_api_endpoint",
+      "name": "EQ API Endpoint"
+    },
+    {
+      "id": 3196,
+      "scriptid": "customrecord_8q_cardholderinfo",
+      "name": "EQ CardHolderInfo"
+    },
+    {
+      "id": 3202,
+      "scriptid": "customrecord_eq_creditcard",
+      "name": "EQ Credit Card"
+    },
+    {
+      "id": 3194,
+      "scriptid": "customrecord_8q_payment_credentials",
+      "name": "EQ Payment Credentials"
+    },
+    {
+      "id": 3197,
+      "scriptid": "customrecord_8q_pay_event",
+      "name": "EQ Payment Event"
+    },
+    {
+      "id": 3195,
+      "scriptid": "customrecord_8q_payment_preferences",
+      "name": "EQ Payment Preferences"
+    },
+    {
+      "id": 3200,
+      "scriptid": "customrecord_8q_payment_sources",
+      "name": "EQ Payment Sources"
+    },
+    {
+      "id": 3192,
+      "scriptid": "customrecord_eq_processinginfo",
+      "name": "EQ Processing Info"
+    },
+    {
+      "id": 3191,
+      "scriptid": "customrecord_8q_refund_queue",
+      "name": "EQ Refund Queue"
+    },
+    {
+      "id": 3199,
+      "scriptid": "customrecord_8q_statement",
+      "name": "EQ Statement"
+    },
+    {
+      "id": 3201,
+      "scriptid": "customrecord_8q_subsidiary_preferences",
+      "name": "EQ Subsidiary Preferences"
+    },
+    {
+      "id": 3193,
+      "scriptid": "customrecord_8q_vaulted_shopper",
+      "name": "EQ Vaulted Shopper"
+    },
+    {
+      "id": 3497,
+      "scriptid": "customrecord_15906_ep_logs",
+      "name": "Electronic Payments Logs"
+    },
+    {
+      "id": 176,
+      "scriptid": "customrecord_ep_preference",
+      "name": "Electronic Payments Preference"
+    },
+    {
+      "id": 2526,
+      "scriptid": "customrecord_encryption_details",
+      "name": "Encryption Details"
+    },
+    {
+      "id": 55,
+      "scriptid": "customrecord_engine_sequence",
+      "name": "Engine Sequence"
+    },
+    {
+      "id": 298,
+      "scriptid": "customrecord_scm_ecn_engr_change_order",
+      "name": "Engineering Change Order"
+    },
+    {
+      "id": 295,
+      "scriptid": "customrecord_scm_eco_detail",
+      "name": "Engineering Change Order Detail"
+    },
+    {
+      "id": 297,
+      "scriptid": "customrecord_scm_ecn_eco_type",
+      "name": "Engineering Change Order Type"
+    },
+    {
+      "id": 3215,
+      "scriptid": "customrecord_env_batch_inv_sync",
+      "name": "Envoy | Batch Inventory Sync"
+    },
+    {
+      "id": 2488,
+      "scriptid": "customrecord_env_connector_error_record",
+      "name": "Envoy | Connector Error Record"
+    },
+    {
+      "id": 2485,
+      "scriptid": "customrecord_env_connector_log",
+      "name": "Envoy | Connector Logs"
+    },
+    {
+      "id": 2484,
+      "scriptid": "customrecord_env_deleted_records",
+      "name": "Envoy | Deleted Records"
+    },
+    {
+      "id": 2486,
+      "scriptid": "customrecord_env_integration_config",
+      "name": "Envoy | Integration Configuration"
+    },
+    {
+      "id": 2487,
+      "scriptid": "customrecord_env_subsidiary_mappings",
+      "name": "Envoy | Subsidiary Mappings"
+    },
+    {
+      "id": 2372,
+      "scriptid": "customrecord_est",
+      "name": "Estimate"
+    },
+    {
+      "id": 2373,
+      "scriptid": "customrecord_est_spl",
+      "name": "Estimated Special Costs"
+    },
+    {
+      "id": 2242,
+      "scriptid": "customrecord_twx_exclusivity",
+      "name": "Exclusivity"
+    },
+    {
+      "id": 3209,
+      "scriptid": "customrecord_tc_export_batch",
+      "name": "Export Batch"
+    },
+    {
+      "id": 3208,
+      "scriptid": "customrecord_tc_export_details",
+      "name": "Export Details"
+    },
+    {
+      "id": 3207,
+      "scriptid": "customrecord_tc_export_request",
+      "name": "Export Request"
+    },
+    {
+      "id": 4494,
+      "scriptid": "customrecord_twx_feed_closure_log",
+      "name": "Feed Closure Log"
+    },
+    {
+      "id": 4280,
+      "scriptid": "customrecord_dad_enabled_record_type",
+      "name": "File Drag and Drop Record Type"
+    },
+    {
+      "id": 174,
+      "scriptid": "customrecord_2663_format_details",
+      "name": "Format Details"
+    },
+    {
+      "id": 3396,
+      "scriptid": "customrecord_twx_freight_mapping",
+      "name": "Freight Billing Mapping"
+    },
+    {
+      "id": 122,
+      "scriptid": "customrecord_gridoe_pgrowcolitems",
+      "name": "GOE - Grid Item"
+    },
+    {
+      "id": 127,
+      "scriptid": "customrecord_gridoe_productgroup",
+      "name": "GOE - Grid Item Template"
+    },
+    {
+      "id": 116,
+      "scriptid": "customrecord_gridoe_matrixrowcolitems",
+      "name": "GOE - Grid Matrix"
+    },
+    {
+      "id": 130,
+      "scriptid": "customrecord_gridoe_matrixitemtemplate",
+      "name": "GOE - Grid Matrix Template"
+    },
+    {
+      "id": 131,
+      "scriptid": "customrecord_gridoe_sopgrowcolitems",
+      "name": "GOE - Grid Order Item"
+    },
+    {
+      "id": 128,
+      "scriptid": "customrecord_gridoe_sopgdetail",
+      "name": "GOE - Grid Order Template"
+    },
+    {
+      "id": 118,
+      "scriptid": "customrecord_wd_gridoe_preferences",
+      "name": "GOE - Preferences"
+    },
+    {
+      "id": 115,
+      "scriptid": "customrecord_gom_applyattributelog",
+      "name": "GOM Apply Attribute Log"
+    },
+    {
+      "id": 125,
+      "scriptid": "customrecord_gom_backprocessreqlog",
+      "name": "GOM Background Process Request Log"
+    },
+    {
+      "id": 124,
+      "scriptid": "customrecord_gom_bulkgridprint_printed",
+      "name": "GOM Bulk Grid Printing Is Printed"
+    },
+    {
+      "id": 117,
+      "scriptid": "customrecord_gom_bulkgridprint_statuslog",
+      "name": "GOM Bulk Grid Printing Log"
+    },
+    {
+      "id": 120,
+      "scriptid": "customrecord_gom_bulkgridprint_to_delete",
+      "name": "GOM Bulk Grid Printing To Be Deleted"
+    },
+    {
+      "id": 121,
+      "scriptid": "customrecord_gom_bulkgridprint_to_print",
+      "name": "GOM Bulk Grid Printing To Be Printed"
+    },
+    {
+      "id": 243,
+      "scriptid": "customrecord_ns_ibe_gap_types",
+      "name": "Gap Types"
+    },
+    {
+      "id": 123,
+      "scriptid": "customrecord_gridoe_prodgroupcategory",
+      "name": "Grid Attribute"
+    },
+    {
+      "id": 119,
+      "scriptid": "customrecord_gridoe_prodcategoryval",
+      "name": "Grid Attribute - Value"
+    },
+    {
+      "id": 126,
+      "scriptid": "customrecord_gridoe_pgtemplate",
+      "name": "Grid Template"
+    },
+    {
+      "id": 4898,
+      "scriptid": "customrecord_twx_hp_notif",
+      "name": "Homepage Notification"
+    },
+    {
+      "id": 4900,
+      "scriptid": "customrecord_twx_hp_ops_kpi",
+      "name": "Homepage Ops KPI"
+    },
+    {
+      "id": 4901,
+      "scriptid": "customrecord_twx_hp_ptp",
+      "name": "Homepage Promise to Pay"
+    },
+    {
+      "id": 35,
+      "scriptid": "customrecord_statistical_procedure",
+      "name": "ITR Statistical Procedure"
+    },
+    {
+      "id": 2240,
+      "scriptid": "customrecord_ns_item_location_child",
+      "name": "Item ATS/ATP"
+    },
+    {
+      "id": 2239,
+      "scriptid": "customrecord_ns_item_location",
+      "name": "Item ATS/ATP Location"
+    },
+    {
+      "id": 2100,
+      "scriptid": "customrecord_ef_item_badges",
+      "name": "Item Badges"
+    },
+    {
+      "id": 296,
+      "scriptid": "customrecord_scm_item_substitute",
+      "name": "Item Substitute"
+    },
+    {
+      "id": 109,
+      "scriptid": "customrecord_scm_lc_profile",
+      "name": "Landed Cost Template"
+    },
+    {
+      "id": 105,
+      "scriptid": "customrecord_scm_lc_profile_detail",
+      "name": "Landed Cost Template Detail"
+    },
+    {
+      "id": 110,
+      "scriptid": "customrecord_scm_lc_mapping",
+      "name": "Landed Cost Template Mapping"
+    },
+    {
+      "id": 219,
+      "scriptid": "customrecord_ns_ibe_linkage_types",
+      "name": "Linkage types"
+    },
+    {
+      "id": 4289,
+      "scriptid": "customrecord_celigo_silverpop_medium",
+      "name": "Medium (2)"
+    },
+    {
+      "id": 2095,
+      "scriptid": "customrecord_merch_rule",
+      "name": "Merchandising Rule"
+    },
+    {
+      "id": 2094,
+      "scriptid": "customrecord_merch_rule_exclude",
+      "name": "Merchandising Rule Exclude"
+    },
+    {
+      "id": 2091,
+      "scriptid": "customrecord_merch_rule_filter",
+      "name": "Merchandising Rule Filter"
+    },
+    {
+      "id": 2096,
+      "scriptid": "customrecord_merch_rule_sort",
+      "name": "Merchandising Rule Sort"
+    },
+    {
+      "id": 224,
+      "scriptid": "customrecord_ns_ibe_migration_bundle",
+      "name": "Migration Bundle"
+    },
+    {
+      "id": 225,
+      "scriptid": "customrecord_ns_imp_req_module",
+      "name": "Module"
+    },
+    {
+      "id": 12,
+      "scriptid": "customrecord_wd_naw_workflow_excep",
+      "name": "NAW workflow exceptions"
+    },
+    {
+      "id": 2839,
+      "scriptid": "customrecord_nsapm_pts_setupsummary",
+      "name": "NSAPM PTS Set Up Summary"
+    },
+    {
+      "id": 2840,
+      "scriptid": "customrecord_nsapm_rpm_setup_date_range",
+      "name": "NSAPM RPM SetUp Date Range"
+    },
+    {
+      "id": 2842,
+      "scriptid": "customrecord_nsapm_rpm_setup_recordpages",
+      "name": "NSAPM RPM SetUp Record Pages"
+    },
+    {
+      "id": 2841,
+      "scriptid": "customrecord_nsapm_rpm_setup_general",
+      "name": "NSAPM RPM Setup General"
+    },
+    {
+      "id": 2843,
+      "scriptid": "customrecord_nsapm_setup_employee_access",
+      "name": "NSAPM Setup Employees Access"
+    },
+    {
+      "id": 2844,
+      "scriptid": "customrecord_nsapm_setup_parent",
+      "name": "NSAPM Setup Parent"
+    },
+    {
+      "id": 2845,
+      "scriptid": "customrecord_nsapm_setup_roles_access",
+      "name": "NSAPM Setup Roles Access"
+    },
+    {
+      "id": 3772,
+      "scriptid": "customrecord_nsar_config",
+      "name": "NSAR | Config"
+    },
+    {
+      "id": 3773,
+      "scriptid": "customrecord_nsar_data_source_setting",
+      "name": "NSAR | Data Source Settings"
+    },
+    {
+      "id": 3774,
+      "scriptid": "customrecord_nsar_event_log",
+      "name": "NSAR | Event Logs"
+    },
+    {
+      "id": 3776,
+      "scriptid": "customrecord_nsar_job_execution",
+      "name": "NSAR | Job Execution Logs"
+    },
+    {
+      "id": 3775,
+      "scriptid": "customrecord_nsar_job",
+      "name": "NSAR | Jobs"
+    },
+    {
+      "id": 3777,
+      "scriptid": "customrecord_nsar_oauth_setting",
+      "name": "NSAR | Oauth Setting"
+    },
+    {
+      "id": 3672,
+      "scriptid": "customrecord_nsepm_config",
+      "name": "NSEPM | Config"
+    },
+    {
+      "id": 3673,
+      "scriptid": "customrecord_nsepm_datasource_allowlist",
+      "name": "NSEPM | Data Source Allow List"
+    },
+    {
+      "id": 3674,
+      "scriptid": "customrecord_nsepm_search_activity_log",
+      "name": "NSEPM | Search Activity Log"
+    },
+    {
+      "id": 3675,
+      "scriptid": "customrecord_nsepm_search_request",
+      "name": "NSEPM | Search Request"
+    },
+    {
+      "id": 3676,
+      "scriptid": "customrecord_nsepm_search_request_delta",
+      "name": "NSEPM | Search Request Delta"
+    },
+    {
+      "id": 3677,
+      "scriptid": "customrecord_nsepm_search_request_file",
+      "name": "NSEPM | Search Request File"
+    },
+    {
+      "id": 3678,
+      "scriptid": "customrecord_nsepm_server_connection",
+      "name": "NSEPM |Server Connection"
+    },
+    {
+      "id": 2345,
+      "scriptid": "customrecord_twx_national_regions",
+      "name": "National Regions"
+    },
+    {
+      "id": 19,
+      "scriptid": "customrecord_nav_category",
+      "name": "Navigation Category"
+    },
+    {
+      "id": 18,
+      "scriptid": "customrecord_nav_shortcut",
+      "name": "Navigation Shortcut"
+    },
+    {
+      "id": 16,
+      "scriptid": "customrecord_nav_shortcutgroup",
+      "name": "Navigation Shortcut Group"
+    },
+    {
+      "id": 17,
+      "scriptid": "customrecord_nav_shortcut_tooltip",
+      "name": "Navigation Shortcut Tooltip"
+    },
+    {
+      "id": 222,
+      "scriptid": "customrecord_ns_pm_key_milestones",
+      "name": "NetSuite Key Milestones"
+    },
+    {
+      "id": 220,
+      "scriptid": "customrecord_ns_ibe_account_config",
+      "name": "NetSuite One Account Configuration"
+    },
+    {
+      "id": 212,
+      "scriptid": "customrecord_ns_ps_mfg_action_items",
+      "name": "NetSuite One Action Items"
+    },
+    {
+      "id": 241,
+      "scriptid": "customrecord_ns_one_change_log",
+      "name": "NetSuite One Change Log"
+    },
+    {
+      "id": 231,
+      "scriptid": "customrecord_ns_ps_cutov_detail",
+      "name": "NetSuite One Cutover Details"
+    },
+    {
+      "id": 232,
+      "scriptid": "customrecord_ns_ps_mfg_cutover_items",
+      "name": "NetSuite One Cutover Items"
+    },
+    {
+      "id": 233,
+      "scriptid": "customrecord_ns_ibe_project",
+      "name": "NetSuite One Engagement"
+    },
+    {
+      "id": 226,
+      "scriptid": "customrecord_ns_imp_gap",
+      "name": "NetSuite One Gap"
+    },
+    {
+      "id": 237,
+      "scriptid": "customrecord_ns_pm_issues",
+      "name": "NetSuite One Project Issues"
+    },
+    {
+      "id": 236,
+      "scriptid": "customrecord_ns_pm_project_risks",
+      "name": "NetSuite One Project Risks"
+    },
+    {
+      "id": 242,
+      "scriptid": "customrecord_ns_one_pm_summary",
+      "name": "NetSuite One Project Summary"
+    },
+    {
+      "id": 210,
+      "scriptid": "customrecord_ns_ibe_requirement",
+      "name": "NetSuite One Requirements"
+    },
+    {
+      "id": 217,
+      "scriptid": "customrecord_ns_ps_meeting_notes",
+      "name": "NetSuite PS Meeting Notes"
+    },
+    {
+      "id": 215,
+      "scriptid": "customrecord_ns_ts_issue_statuses",
+      "name": "NetSuite TS Issue Statuses"
+    },
+    {
+      "id": 216,
+      "scriptid": "customrecord_ns_ps_mfg_uat_template",
+      "name": "NetSuite Test Cases"
+    },
+    {
+      "id": 238,
+      "scriptid": "customrecord_ns_ts_test_issue",
+      "name": "NetSuite Test Issues"
+    },
+    {
+      "id": 4903,
+      "scriptid": "customrecord_twx_notification_channel",
+      "name": "Notification Channel"
+    },
+    {
+      "id": 4904,
+      "scriptid": "customrecord_twx_notification_history",
+      "name": "Notification History"
+    },
+    {
+      "id": 4905,
+      "scriptid": "customrecord_twx_notification_rule",
+      "name": "Notification Rule"
+    },
+    {
+      "id": 4906,
+      "scriptid": "customrecord_twx_notification_template",
+      "name": "Notification Template"
+    },
+    {
+      "id": 2122,
+      "scriptid": "customrecord_hj_tc_poack_record",
+      "name": "PO Acknowledgement Record"
+    },
+    {
+      "id": 2305,
+      "scriptid": "customrecord_pri_rest_log",
+      "name": "PRI API REST Log"
+    },
+    {
+      "id": 2304,
+      "scriptid": "customrecord_pri_app_list",
+      "name": "PRI App List"
+    },
+    {
+      "id": 2303,
+      "scriptid": "customrecord_pri_app_setting",
+      "name": "PRI App Setting"
+    },
+    {
+      "id": 3212,
+      "scriptid": "customrecord_pri_bpa_co_header",
+      "name": "PRI BPA Change Order"
+    },
+    {
+      "id": 3211,
+      "scriptid": "customrecord_pri_bpa_co_line",
+      "name": "PRI BPA Change Order Line"
+    },
+    {
+      "id": 2370,
+      "scriptid": "customrecord_pri_bpa_contact_role_link",
+      "name": "PRI BPA Entity Contact Role Linkage"
+    },
+    {
+      "id": 2361,
+      "scriptid": "customrecord_pri_cre_country",
+      "name": "PRI CRE Country Codes"
+    },
+    {
+      "id": 2354,
+      "scriptid": "customrecord_pri_cre_language",
+      "name": "PRI CRE Language Codes"
+    },
+    {
+      "id": 2351,
+      "scriptid": "customrecord_pri_cre_locale_codes",
+      "name": "PRI CRE Locale Codes"
+    },
+    {
+      "id": 2360,
+      "scriptid": "customrecord_pri_cre_locale_el",
+      "name": "PRI CRE Locale Elements"
+    },
+    {
+      "id": 2353,
+      "scriptid": "customrecord_pri_cre_locales_available",
+      "name": "PRI CRE Locales Available"
+    },
+    {
+      "id": 2363,
+      "scriptid": "customrecord_pri_cre_profile",
+      "name": "PRI CRE Profile"
+    },
+    {
+      "id": 2358,
+      "scriptid": "customrecord_pri_cre_profile_line",
+      "name": "PRI CRE Profile Line"
+    },
+    {
+      "id": 2362,
+      "scriptid": "customrecord_pri_cre_rectype_map",
+      "name": "PRI CRE Recordtype Map"
+    },
+    {
+      "id": 2355,
+      "scriptid": "customrecord_pri_cre_request_detail",
+      "name": "PRI CRE Request Input Detail"
+    },
+    {
+      "id": 2359,
+      "scriptid": "customrecord_pri_cre_request_http",
+      "name": "PRI CRE Request Input HTTP"
+    },
+    {
+      "id": 2357,
+      "scriptid": "customrecord_pri_cre_request_header",
+      "name": "PRI CRE Request Input Header"
+    },
+    {
+      "id": 2356,
+      "scriptid": "customrecord_pri_cre_request_option_grp",
+      "name": "PRI CRE Request Option Group"
+    },
+    {
+      "id": 2352,
+      "scriptid": "customrecord_pri_cre_request_options",
+      "name": "PRI CRE Request Options"
+    },
+    {
+      "id": 3206,
+      "scriptid": "customrecord_pri_cre2_profile",
+      "name": "PRI CRE2 Profile"
+    },
+    {
+      "id": 3205,
+      "scriptid": "customrecord_pri_cre2_query",
+      "name": "PRI CRE2 Profile Query"
+    },
+    {
+      "id": 3229,
+      "scriptid": "customrecord_pri_frgt_cnt",
+      "name": "PRI Container"
+    },
+    {
+      "id": 3221,
+      "scriptid": "customrecord_pri_frgt_cnt_carrier",
+      "name": "PRI Container Carrier"
+    },
+    {
+      "id": 3224,
+      "scriptid": "customrecord_pri_frgt_cnt_dm",
+      "name": "PRI Container Distribution Management"
+    },
+    {
+      "id": 3225,
+      "scriptid": "customrecord_pri_frgt_cnt_l",
+      "name": "PRI Container IR to TO Linker"
+    },
+    {
+      "id": 3219,
+      "scriptid": "customrecord_pri_frgt_cnt_pm",
+      "name": "PRI Container Production Management Line"
+    },
+    {
+      "id": 3223,
+      "scriptid": "customrecord_pri_frgt_cnt_pm_po",
+      "name": "PRI Container Production Management PO"
+    },
+    {
+      "id": 3218,
+      "scriptid": "customrecord_pri_frgt_cnt_vsl",
+      "name": "PRI Container Vessel"
+    },
+    {
+      "id": 3532,
+      "scriptid": "customrecord_pri_util_environment",
+      "name": "PRI Environment"
+    },
+    {
+      "id": 3550,
+      "scriptid": "customrecord_pri_util_evt_application",
+      "name": "PRI Event Application"
+    },
+    {
+      "id": 3548,
+      "scriptid": "customrecord_pri_util_evt_schedule",
+      "name": "PRI Event Schedule"
+    },
+    {
+      "id": 3549,
+      "scriptid": "customrecord_pri_util_evt_schedule_log",
+      "name": "PRI Event Schedule Log"
+    },
+    {
+      "id": 2301,
+      "scriptid": "customrecord_pri_fmapping",
+      "name": "PRI Field Mapping"
+    },
+    {
+      "id": 3228,
+      "scriptid": "customrecord_pri_inv_count_prd_sum",
+      "name": "PRI Inventory Count Period Summary"
+    },
+    {
+      "id": 3217,
+      "scriptid": "customrecord_pri_lc_iv",
+      "name": "PRI Item Version"
+    },
+    {
+      "id": 3222,
+      "scriptid": "customrecord_pri_lc_alloc",
+      "name": "PRI Landed Cost Allocation"
+    },
+    {
+      "id": 3652,
+      "scriptid": "customrecord_pri_lc_cost_calc",
+      "name": "PRI Landed Cost Calculation"
+    },
+    {
+      "id": 3654,
+      "scriptid": "customrecord_pri_lc_cost_calc_hts_code",
+      "name": "PRI Landed Cost Calculation HTS Code"
+    },
+    {
+      "id": 3653,
+      "scriptid": "customrecord_pri_lc_estimate",
+      "name": "PRI Landed Cost Estimate"
+    },
+    {
+      "id": 3226,
+      "scriptid": "customrecord_pri_lc_lct",
+      "name": "PRI Landed Cost Template"
+    },
+    {
+      "id": 3220,
+      "scriptid": "customrecord_pri_lc_lctd",
+      "name": "PRI Landed Cost Template Detail"
+    },
+    {
+      "id": 3270,
+      "scriptid": "customrecord_pri_linked_transactions",
+      "name": "PRI Linked Transactions"
+    },
+    {
+      "id": 2300,
+      "scriptid": "customrecord_pri_mr_script_deploy_cache",
+      "name": "PRI Map/Reduce Script Deployment Cache"
+    },
+    {
+      "id": 3238,
+      "scriptid": "customrecord_pri_qt_query",
+      "name": "PRI QR Query"
+    },
+    {
+      "id": 3240,
+      "scriptid": "customrecord_pri_qt_query_column",
+      "name": "PRI QR Query Column"
+    },
+    {
+      "id": 3239,
+      "scriptid": "customrecord_pri_qt_query_exec_history",
+      "name": "PRI QR Query Execution History"
+    },
+    {
+      "id": 3241,
+      "scriptid": "customrecord_pri_qt_query_filter",
+      "name": "PRI QR Query Filter"
+    },
+    {
+      "id": 3237,
+      "scriptid": "customrecord_pri_qt_query_highlighting",
+      "name": "PRI QR Query Highlighting"
+    },
+    {
+      "id": 3242,
+      "scriptid": "customrecord_pri_qt_query_render",
+      "name": "PRI QR Query Render"
+    },
+    {
+      "id": 2299,
+      "scriptid": "customrecord_pri_qm_queue",
+      "name": "PRI Queue Manager Q"
+    },
+    {
+      "id": 2298,
+      "scriptid": "customrecord_pri_qm_queue_batch",
+      "name": "PRI Queue Manager Q Batch"
+    },
+    {
+      "id": 3537,
+      "scriptid": "customrecord_pri_riem_imp_staging",
+      "name": "PRI RIEM Import Staging"
+    },
+    {
+      "id": 3536,
+      "scriptid": "customrecord_pri_riem_job",
+      "name": "PRI RIEM Job"
+    },
+    {
+      "id": 3534,
+      "scriptid": "customrecord_pri_riem_job_type",
+      "name": "PRI RIEM Job Type"
+    },
+    {
+      "id": 3538,
+      "scriptid": "customrecord_pri_riem_sce_log",
+      "name": "PRI RIEM Schedule Log"
+    },
+    {
+      "id": 2629,
+      "scriptid": "customrecord_pri_rsm_rectype",
+      "name": "PRI RSM Record Type"
+    },
+    {
+      "id": 2630,
+      "scriptid": "customrecord_pri_rsm_rule",
+      "name": "PRI RSM Rule"
+    },
+    {
+      "id": 2627,
+      "scriptid": "customrecord_pri_rsm_rule_evaluation",
+      "name": "PRI RSM Rule Evaluation"
+    },
+    {
+      "id": 2628,
+      "scriptid": "customrecord_pri_rsm_rule_instance",
+      "name": "PRI RSM Rule Instance"
+    },
+    {
+      "id": 2297,
+      "scriptid": "customrecord_pri_rec_version",
+      "name": "PRI Record Version"
+    },
+    {
+      "id": 2296,
+      "scriptid": "customrecord_pri_rec_vers_header",
+      "name": "PRI Record Version Header"
+    },
+    {
+      "id": 3227,
+      "scriptid": "customrecord_pri_frgt_cnt_transit_time_m",
+      "name": "PRI Transit Time Mapping"
+    },
+    {
+      "id": 3216,
+      "scriptid": "customrecord_pri_frgt_cnt_ownership",
+      "name": "PRI Type of Ownership"
+    },
+    {
+      "id": 2489,
+      "scriptid": "customrecord_pri_util_record_retention",
+      "name": "PRI UTIL Record Retention"
+    },
+    {
+      "id": 3392,
+      "scriptid": "customrecord_pacejet_asd_attribute",
+      "name": "Pacejet Advanced Custom Field"
+    },
+    {
+      "id": 3391,
+      "scriptid": "customrecord_pacejet_asd_package",
+      "name": "Pacejet Advanced Package"
+    },
+    {
+      "id": 3388,
+      "scriptid": "customrecord_pacejet_asd_package_itm",
+      "name": "Pacejet Advanced Package Item"
+    },
+    {
+      "id": 3395,
+      "scriptid": "customrecord_pacejet_asd_itmlot",
+      "name": "Pacejet Advanced Package Lot"
+    },
+    {
+      "id": 3393,
+      "scriptid": "customrecord_pacejet_asd_itmserial",
+      "name": "Pacejet Advanced Package Serial"
+    },
+    {
+      "id": 3394,
+      "scriptid": "customrecord_pacejet_asd_shipment",
+      "name": "Pacejet Advanced Shipment"
+    },
+    {
+      "id": 3389,
+      "scriptid": "customrecord_pacejet_asd_shipmentmsg",
+      "name": "Pacejet Advanced Shipment Messages"
+    },
+    {
+      "id": 3390,
+      "scriptid": "customrecord_pacejet_asd_services",
+      "name": "Pacejet Advanced Shipment Services"
+    },
+    {
+      "id": 3281,
+      "scriptid": "customrecord_pacejet_cosxref",
+      "name": "Pacejet Class of Service XRef"
+    },
+    {
+      "id": 3279,
+      "scriptid": "customrecord_pacejet_container_profile",
+      "name": "Pacejet Container Profile"
+    },
+    {
+      "id": 3275,
+      "scriptid": "customrecord_pacejet_package_info",
+      "name": "Pacejet Package Info"
+    },
+    {
+      "id": 3280,
+      "scriptid": "customrecord_pacejet_package_item_info",
+      "name": "Pacejet Package Item Info"
+    },
+    {
+      "id": 3278,
+      "scriptid": "customrecord_pacejet_queue",
+      "name": "Pacejet Queue Handler"
+    },
+    {
+      "id": 3277,
+      "scriptid": "customrecord_pacejet_settings",
+      "name": "Pacejet Settings"
+    },
+    {
+      "id": 3276,
+      "scriptid": "customrecord_pacejet_thirdparty",
+      "name": "Pacejet Third Party Accounts"
+    },
+    {
+      "id": 2117,
+      "scriptid": "customrecordhj_tc_package_contents",
+      "name": "Package Contents"
+    },
+    {
+      "id": 2120,
+      "scriptid": "customrecordhj_tc_pkgcontentslineitem",
+      "name": "Package Contents Line Item"
+    },
+    {
+      "id": 178,
+      "scriptid": "customrecord_2663_payment_aggregation",
+      "name": "Payment Aggregation"
+    },
+    {
+      "id": 172,
+      "scriptid": "customrecord_2663_batch",
+      "name": "Payment Batch"
+    },
+    {
+      "id": 181,
+      "scriptid": "customrecord_2663_file_admin",
+      "name": "Payment File Administration"
+    },
+    {
+      "id": 170,
+      "scriptid": "customrecord_2663_payment_file_format",
+      "name": "Payment File Format"
+    },
+    {
+      "id": 2205,
+      "scriptid": "customrecord_12194_file_template_request",
+      "name": "Payment File Template Request"
+    },
+    {
+      "id": 173,
+      "scriptid": "customrecord_2663_payment_schedule",
+      "name": "Payment Schedule"
+    },
+    {
+      "id": 4307,
+      "scriptid": "customrecord_twx_perf_log",
+      "name": "Performance Log"
+    },
+    {
+      "id": 221,
+      "scriptid": "customrecord_ns_ibe_req_plan_statuses",
+      "name": "Planning Statuses"
+    },
+    {
+      "id": 227,
+      "scriptid": "customrecord_ns_imp_process",
+      "name": "Process"
+    },
+    {
+      "id": 2081,
+      "scriptid": "customrecord_ns_pl_productlist",
+      "name": "Product Lists"
+    },
+    {
+      "id": 2080,
+      "scriptid": "customrecord_ns_pl_productlistitem",
+      "name": "Product Lists Items"
+    },
+    {
+      "id": 2082,
+      "scriptid": "customrecord_ns_pl_pli_priority",
+      "name": "Product Lists Items Priority"
+    },
+    {
+      "id": 2087,
+      "scriptid": "customrecord_ns_pr_review",
+      "name": "Product Reviews"
+    },
+    {
+      "id": 2086,
+      "scriptid": "customrecord_ns_pr_attribute_rating",
+      "name": "Product Reviews Attr. Rating"
+    },
+    {
+      "id": 2085,
+      "scriptid": "customrecord_ns_pr_image",
+      "name": "Product Reviews Images"
+    },
+    {
+      "id": 501,
+      "scriptid": "customrecord_twx_product_sub_categories",
+      "name": "Product Sub Categories"
+    },
+    {
+      "id": 3535,
+      "scriptid": "customrecord_pri_riem_sce_profile",
+      "name": "Profile"
+    },
+    {
+      "id": 228,
+      "scriptid": "customrecord_ns_ibe_project_statuses",
+      "name": "Project Statuses"
+    },
+    {
+      "id": 4326,
+      "scriptid": "customrecord_rfs_bcp",
+      "name": "RF-SMART Barcode Parsing"
+    },
+    {
+      "id": 4335,
+      "scriptid": "customrecord_rfs_bcp_definition",
+      "name": "RF-SMART Barcode Parsing Definition"
+    },
+    {
+      "id": 4485,
+      "scriptid": "customrecord_rfs_wmd_base_dashboard_cfg",
+      "name": "RF-SMART Base Dashboard Config"
+    },
+    {
+      "id": 4343,
+      "scriptid": "customrecord_rfs_container_configuration",
+      "name": "RF-SMART Bin Configuration"
+    },
+    {
+      "id": 4358,
+      "scriptid": "customrecord_rfs_bin_counting_group",
+      "name": "RF-SMART Bin Counting Group"
+    },
+    {
+      "id": 4323,
+      "scriptid": "customrecord_rfs_bin_exclusion",
+      "name": "RF-SMART Bin Exclusion"
+    },
+    {
+      "id": 4362,
+      "scriptid": "customrecord_rfs_bulkupdate",
+      "name": "RF-SMART Bulk Update"
+    },
+    {
+      "id": 4430,
+      "scriptid": "customrecord_rfs_cntr_dimensions",
+      "name": "RF-SMART Container Dimensions"
+    },
+    {
+      "id": 4404,
+      "scriptid": "customrecord_rfs_cntrname_config",
+      "name": "RF-SMART Container Name Configuration"
+    },
+    {
+      "id": 4412,
+      "scriptid": "customrecord_rfs_container_reuse",
+      "name": "RF-SMART Container Reuse"
+    },
+    {
+      "id": 4422,
+      "scriptid": "customrecord_rfs_container_reuse_history",
+      "name": "RF-SMART Container Reuse History"
+    },
+    {
+      "id": 4417,
+      "scriptid": "customrecord_rfs_container_type",
+      "name": "RF-SMART Container Type"
+    },
+    {
+      "id": 4399,
+      "scriptid": "customrecord_rfs_cntr_length_units",
+      "name": "RF-SMART Container Units of Length"
+    },
+    {
+      "id": 4416,
+      "scriptid": "customrecord_rfs_cntr_mass_units",
+      "name": "RF-SMART Container Units of Mass"
+    },
+    {
+      "id": 4397,
+      "scriptid": "customrecord_rfs_cntr_volume_units",
+      "name": "RF-SMART Container Units of Volume"
+    },
+    {
+      "id": 4421,
+      "scriptid": "customrecord_rfs_cntrname_vdnfrmt",
+      "name": "RF-SMART Container Validation Format"
+    },
+    {
+      "id": 4402,
+      "scriptid": "customrecord_rfs_cntrname_vdnfrmtdtl",
+      "name": "RF-SMART Container Validation Format Dtl"
+    },
+    {
+      "id": 4382,
+      "scriptid": "customrecord_rfs_countfilter",
+      "name": "RF-SMART Count Builder"
+    },
+    {
+      "id": 4387,
+      "scriptid": "customrecord_rfs_countdetail",
+      "name": "RF-SMART Count Detail"
+    },
+    {
+      "id": 4432,
+      "scriptid": "customrecord_rfs_countheader",
+      "name": "RF-SMART Count Header"
+    },
+    {
+      "id": 4424,
+      "scriptid": "customrecord_rfs_count_item_limit",
+      "name": "RF-SMART Count Item Limit"
+    },
+    {
+      "id": 4371,
+      "scriptid": "customrecord_rfs_count_lotserial",
+      "name": "RF-SMART Count Lot/Serial"
+    },
+    {
+      "id": 4384,
+      "scriptid": "customrecord_rfs_customizecountcache",
+      "name": "RF-SMART Customize Count Cache"
+    },
+    {
+      "id": 4475,
+      "scriptid": "customrecord_rfs_deleted_record",
+      "name": "RF-SMART Deleted Record"
+    },
+    {
+      "id": 4419,
+      "scriptid": "customrecord_rfs_emailtemplate",
+      "name": "RF-SMART Email Template"
+    },
+    {
+      "id": 4332,
+      "scriptid": "customrecord_rfs_employee_enhancement",
+      "name": "RF-SMART Employee Preferences"
+    },
+    {
+      "id": 4373,
+      "scriptid": "customrecord_rfs_expectedreceipt",
+      "name": "RF-SMART Expected Receipt"
+    },
+    {
+      "id": 4342,
+      "scriptid": "customrecord_rfs_expectedreceiptlink",
+      "name": "RF-SMART Expected Receipt Link"
+    },
+    {
+      "id": 4333,
+      "scriptid": "customrecord_rfs_field_info_cache",
+      "name": "RF-SMART Field Info Cache"
+    },
+    {
+      "id": 4345,
+      "scriptid": "customrecord_rfs_fulfillment_snapshot",
+      "name": "RF-SMART Fulfillment Snapshot"
+    },
+    {
+      "id": 4392,
+      "scriptid": "customrecord_rfs_fulfillment_state",
+      "name": "RF-SMART Fulfillment State"
+    },
+    {
+      "id": 4425,
+      "scriptid": "customrecord_rfs_imagecapture_details",
+      "name": "RF-SMART Image Capture Details"
+    },
+    {
+      "id": 4354,
+      "scriptid": "customrecord_rfs_internal_configuration",
+      "name": "RF-SMART Internal Configuration"
+    },
+    {
+      "id": 4322,
+      "scriptid": "customrecord_rfs_inv_num_gen",
+      "name": "RF-SMART Inventory Number Generation"
+    },
+    {
+      "id": 4411,
+      "scriptid": "customrecord_rfs_issuingsession",
+      "name": "RF-SMART Issuing Session"
+    },
+    {
+      "id": 4410,
+      "scriptid": "customrecord_rfs_issuingevent",
+      "name": "RF-SMART Issuing Session Event"
+    },
+    {
+      "id": 4365,
+      "scriptid": "customrecord_rfs_issuingsessionproj",
+      "name": "RF-SMART Issuing Session Projection"
+    },
+    {
+      "id": 4426,
+      "scriptid": "customrecord_rfs_replenishment_rule",
+      "name": "RF-SMART Item Bin Enhancement"
+    },
+    {
+      "id": 4355,
+      "scriptid": "customrecord_rfs_item_counting_group",
+      "name": "RF-SMART Item Counting Group"
+    },
+    {
+      "id": 4398,
+      "scriptid": "customrecord_rfs_item_record_type",
+      "name": "RF-SMART Item Record Type"
+    },
+    {
+      "id": 4318,
+      "scriptid": "customrecord_rfs_itemunit",
+      "name": "RF-SMART Item Unit"
+    },
+    {
+      "id": 4360,
+      "scriptid": "customrecord_rfs_itemunit_category",
+      "name": "RF-SMART Item Unit Category"
+    },
+    {
+      "id": 4414,
+      "scriptid": "customrecord_rfs_itemunit_depthunit",
+      "name": "RF-SMART Item Unit Depth Unit"
+    },
+    {
+      "id": 4381,
+      "scriptid": "customrecord_rfs_itemunit_lengthunit",
+      "name": "RF-SMART Item Unit Length Unit"
+    },
+    {
+      "id": 4439,
+      "scriptid": "customrecord_rfs_itemunit_volumeunit",
+      "name": "RF-SMART Item Unit Volume Unit"
+    },
+    {
+      "id": 4361,
+      "scriptid": "customrecord_rfs_itemunit_weightunit",
+      "name": "RF-SMART Item Unit Weight Unit"
+    },
+    {
+      "id": 4435,
+      "scriptid": "customrecord_rfs_jobsequence",
+      "name": "RF-SMART Job Sequence"
+    },
+    {
+      "id": 4483,
+      "scriptid": "customrecord_rfs_kpi_configuration",
+      "name": "RF-SMART KPI Configuration"
+    },
+    {
+      "id": 4484,
+      "scriptid": "customrecord_rfs_kpi_datatile",
+      "name": "RF-SMART KPI Data Tile"
+    },
+    {
+      "id": 4482,
+      "scriptid": "customrecord_rfs_kpi_datatile_filter",
+      "name": "RF-SMART KPI Data Tile Filter"
+    },
+    {
+      "id": 4327,
+      "scriptid": "customrecord_rfs_label",
+      "name": "RF-SMART Label"
+    },
+    {
+      "id": 4364,
+      "scriptid": "customrecord_rfs_label_compliance",
+      "name": "RF-SMART Label Compliance Data"
+    },
+    {
+      "id": 4438,
+      "scriptid": "customrecord_rfs_location_cache",
+      "name": "RF-SMART Location Cache"
+    },
+    {
+      "id": 4359,
+      "scriptid": "customrecord_rfs_location_categories",
+      "name": "RF-SMART Location Size Category"
+    },
+    {
+      "id": 4427,
+      "scriptid": "customrecord_rfs_logged_request",
+      "name": "RF-SMART Logged Request"
+    },
+    {
+      "id": 4357,
+      "scriptid": "customrecord_rfs_mailinglist",
+      "name": "RF-SMART Mailing List"
+    },
+    {
+      "id": 4328,
+      "scriptid": "customrecord_rfs_mass_message",
+      "name": "RF-SMART Mass Message"
+    },
+    {
+      "id": 4401,
+      "scriptid": "customrecord_rfs_menu",
+      "name": "RF-SMART Menu"
+    },
+    {
+      "id": 4376,
+      "scriptid": "customrecord_rfs_menuassignment",
+      "name": "RF-SMART Menu Assignment"
+    },
+    {
+      "id": 4337,
+      "scriptid": "customrecord_rfs_menuitem",
+      "name": "RF-SMART Menu Item"
+    },
+    {
+      "id": 4375,
+      "scriptid": "customrecord_rfs_menuitem_version",
+      "name": "RF-SMART Menu Item Version"
+    },
+    {
+      "id": 4324,
+      "scriptid": "customrecord_rfs_message",
+      "name": "RF-SMART Message"
+    },
+    {
+      "id": 4331,
+      "scriptid": "customrecord_rfs_multiupc",
+      "name": "RF-SMART Multiple UPC"
+    },
+    {
+      "id": 4391,
+      "scriptid": "customrecord_rfs_nextnumber",
+      "name": "RF-SMART Next Number"
+    },
+    {
+      "id": 4366,
+      "scriptid": "customrecord_rfs_notification_detail",
+      "name": "RF-SMART Notification Detail"
+    },
+    {
+      "id": 4339,
+      "scriptid": "customrecord_rfs_notification_rule",
+      "name": "RF-SMART Notification Rule"
+    },
+    {
+      "id": 4420,
+      "scriptid": "customrecord_rfs_operation_session",
+      "name": "RF-SMART Operation Session"
+    },
+    {
+      "id": 4415,
+      "scriptid": "customrecord_rfs_ordergroup",
+      "name": "RF-SMART Order Group"
+    },
+    {
+      "id": 4389,
+      "scriptid": "customrecord_rfs_ordergroup_child",
+      "name": "RF-SMART Order Group Child"
+    },
+    {
+      "id": 4312,
+      "scriptid": "customrecord_rfs_outboundmergezone",
+      "name": "RF-SMART Outbound Merge Zone"
+    },
+    {
+      "id": 4363,
+      "scriptid": "customrecord_rfs_outbound_serials",
+      "name": "RF-SMART Outbound Serials"
+    },
+    {
+      "id": 4353,
+      "scriptid": "customrecord_rfs_pcapproval_line",
+      "name": "RF-SMART PC Approval Line"
+    },
+    {
+      "id": 4341,
+      "scriptid": "customrecord_rfs_pick_state",
+      "name": "RF-SMART Pick State"
+    },
+    {
+      "id": 4350,
+      "scriptid": "customrecord_rfs_pick_state_bin_transfer",
+      "name": "RF-SMART Pick State Bin Xfer"
+    },
+    {
+      "id": 4429,
+      "scriptid": "customrecord_rfs_pick_state_line_detail",
+      "name": "RF-SMART Pick State Detail"
+    },
+    {
+      "id": 4321,
+      "scriptid": "customrecord_rfs_pick_state_line",
+      "name": "RF-SMART Pick State Line"
+    },
+    {
+      "id": 4388,
+      "scriptid": "customrecord_rfs_pickedbindata",
+      "name": "RF-SMART Picked Bin Data"
+    },
+    {
+      "id": 4319,
+      "scriptid": "customrecord_rfs_picking_exception",
+      "name": "RF-SMART Picking Exception"
+    },
+    {
+      "id": 4347,
+      "scriptid": "customrecord_rfs_pickingsession",
+      "name": "RF-SMART Picking Session"
+    },
+    {
+      "id": 4367,
+      "scriptid": "customrecord_rfs_pickingevent",
+      "name": "RF-SMART Picking Session Event"
+    },
+    {
+      "id": 4370,
+      "scriptid": "customrecord_rfs_pickingsessionproj",
+      "name": "RF-SMART Picking Session Projection"
+    },
+    {
+      "id": 4433,
+      "scriptid": "customrecord_rfs_picking_units",
+      "name": "RF-SMART Picking Units"
+    },
+    {
+      "id": 4352,
+      "scriptid": "customrecord_rfs_picking_units_group",
+      "name": "RF-SMART Picking Units Group"
+    },
+    {
+      "id": 4390,
+      "scriptid": "customrecord_rfs_picking_units_grp_item",
+      "name": "RF-SMART Picking Units Group (Item)"
+    },
+    {
+      "id": 4349,
+      "scriptid": "customrecord_rfs_plannedtransfer",
+      "name": "RF-SMART Planned Bin Transfer"
+    },
+    {
+      "id": 4407,
+      "scriptid": "customrecord_rfs_plannedtransferdetail",
+      "name": "RF-SMART Planned Bin Transfer Detail"
+    },
+    {
+      "id": 4428,
+      "scriptid": "customrecord_rfs_preference",
+      "name": "RF-SMART Preference"
+    },
+    {
+      "id": 4374,
+      "scriptid": "customrecord_rfs_preserved_data",
+      "name": "RF-SMART Preserved Data"
+    },
+    {
+      "id": 4314,
+      "scriptid": "customrecord_rfs_print_request",
+      "name": "RF-SMART Print Request"
+    },
+    {
+      "id": 4334,
+      "scriptid": "customrecord_rfs_printer",
+      "name": "RF-SMART Printer"
+    },
+    {
+      "id": 4393,
+      "scriptid": "customrecord_rfs_printer_model",
+      "name": "RF-SMART Printer Model"
+    },
+    {
+      "id": 4418,
+      "scriptid": "customrecord_rfs_prod_staging_config",
+      "name": "RF-SMART Production Staging Config"
+    },
+    {
+      "id": 4408,
+      "scriptid": "customrecord_rfs_map_reduce_queue",
+      "name": "RF-SMART Queued Script"
+    },
+    {
+      "id": 4338,
+      "scriptid": "customrecord_rfs_ranking_configuration",
+      "name": "RF-SMART Ranking Configuration"
+    },
+    {
+      "id": 4346,
+      "scriptid": "customrecord_rfs_rebuild_ful_status",
+      "name": "RF-SMART Rebuild Fulfillment Status"
+    },
+    {
+      "id": 4395,
+      "scriptid": "customrecord_rfs_receivingsession",
+      "name": "RF-SMART Receiving Session"
+    },
+    {
+      "id": 4437,
+      "scriptid": "customrecord_rfs_receivingevent",
+      "name": "RF-SMART Receiving Session Event"
+    },
+    {
+      "id": 4436,
+      "scriptid": "customrecord_rfs_receivingsessionproj",
+      "name": "RF-SMART Receiving Session Projection"
+    },
+    {
+      "id": 4340,
+      "scriptid": "customrecord_rfs_record_lock",
+      "name": "RF-SMART Record Lock"
+    },
+    {
+      "id": 4379,
+      "scriptid": "customrecord_rfs_stockcountschedule",
+      "name": "RF-SMART Recurring Schedule"
+    },
+    {
+      "id": 4368,
+      "scriptid": "customrecord_rfs_replenishmentplan",
+      "name": "RF-SMART Replenishment Plan"
+    },
+    {
+      "id": 4356,
+      "scriptid": "customrecord_rfs_replenishmentzone",
+      "name": "RF-SMART Replenishment Zone"
+    },
+    {
+      "id": 4344,
+      "scriptid": "customrecord_rfs_scriptlock",
+      "name": "RF-SMART Script Lock"
+    },
+    {
+      "id": 4316,
+      "scriptid": "customrecord_rfs_script_scheduler",
+      "name": "RF-SMART Script Scheduler"
+    },
+    {
+      "id": 4405,
+      "scriptid": "customrecord_rfs_shippingdata",
+      "name": "RF-SMART Shipping Data"
+    },
+    {
+      "id": 4317,
+      "scriptid": "customrecord_rfs_smartaction",
+      "name": "RF-SMART Smart Action"
+    },
+    {
+      "id": 4377,
+      "scriptid": "customrecord_rfs_smartactionmenuitemcfg",
+      "name": "RF-SMART Smart Action Menu Item Config"
+    },
+    {
+      "id": 4386,
+      "scriptid": "customrecord_rfs_smartaction_transaction",
+      "name": "RF-SMART Smart Action Transaction"
+    },
+    {
+      "id": 4413,
+      "scriptid": "customrecord_rfs_smartactionversioncfg",
+      "name": "RF-SMART Smart Action Version Config"
+    },
+    {
+      "id": 4329,
+      "scriptid": "customrecord_rfs_smartsearch_datasource",
+      "name": "RF-SMART Smart Search Data Source"
+    },
+    {
+      "id": 4394,
+      "scriptid": "customrecord_rfs_smartsearch_group",
+      "name": "RF-SMART Smart Search Group"
+    },
+    {
+      "id": 4406,
+      "scriptid": "customrecord_rfs_ssgds_assignment",
+      "name": "RF-SMART Smart Search Group Data Source"
+    },
+    {
+      "id": 4400,
+      "scriptid": "customrecord_rfs_stagingsession",
+      "name": "RF-SMART Staging Session"
+    },
+    {
+      "id": 4409,
+      "scriptid": "customrecord_rfs_stagingevent",
+      "name": "RF-SMART Staging Session Event"
+    },
+    {
+      "id": 4385,
+      "scriptid": "customrecord_rfs_stagingsessionproj",
+      "name": "RF-SMART Staging Session Projection"
+    },
+    {
+      "id": 4403,
+      "scriptid": "customrecord_rfs_sc_container_audit",
+      "name": "RF-SMART Stock Count Container Audit"
+    },
+    {
+      "id": 4431,
+      "scriptid": "customrecord_rfs_physicalcountdetail",
+      "name": "RF-SMART Stock Count Detail"
+    },
+    {
+      "id": 4320,
+      "scriptid": "customrecord_rfs_physicalcountfilter",
+      "name": "RF-SMART Stock Count Filter"
+    },
+    {
+      "id": 4336,
+      "scriptid": "customrecord_rfs_physicalcountheader",
+      "name": "RF-SMART Stock Count Header"
+    },
+    {
+      "id": 4369,
+      "scriptid": "customrecord_rfs_stockcounthistory",
+      "name": "RF-SMART Stock Count History"
+    },
+    {
+      "id": 4351,
+      "scriptid": "customrecord_rfs_stockcountplan",
+      "name": "RF-SMART Stock Count Plan"
+    },
+    {
+      "id": 4396,
+      "scriptid": "customrecord_rfs_stockcountplanfilters",
+      "name": "RF-SMART Stock Count Plan Custom Filters"
+    },
+    {
+      "id": 4313,
+      "scriptid": "customrecord_rfs_physicalcountlotserial",
+      "name": "RF-SMART Stock Count Serial"
+    },
+    {
+      "id": 4383,
+      "scriptid": "customrecord_rfs_pcapproval",
+      "name": "RF-SMART Stock Ct Approval"
+    },
+    {
+      "id": 4348,
+      "scriptid": "customrecord_rfs_physicalcountcounter",
+      "name": "RF-SMART Stock Ct Counter"
+    },
+    {
+      "id": 4311,
+      "scriptid": "customrecord_rfs_tlmtryevent",
+      "name": "RF-SMART Telemetry Event"
+    },
+    {
+      "id": 4476,
+      "scriptid": "customrecord_rfs_timetracker",
+      "name": "RF-SMART Time Tracker"
+    },
+    {
+      "id": 4378,
+      "scriptid": "customrecord_rfs_tx",
+      "name": "RF-SMART Transaction"
+    },
+    {
+      "id": 4380,
+      "scriptid": "customrecord_rfs_txqueue",
+      "name": "RF-SMART Transaction Queue"
+    },
+    {
+      "id": 4434,
+      "scriptid": "customrecord_rfs_translation",
+      "name": "RF-SMART Translation"
+    },
+    {
+      "id": 4372,
+      "scriptid": "customrecord_rfs_translation_set",
+      "name": "RF-SMART Translation Set"
+    },
+    {
+      "id": 4325,
+      "scriptid": "customrecord_rfs_uom_cache",
+      "name": "RF-SMART Units of Measure Cache"
+    },
+    {
+      "id": 4330,
+      "scriptid": "customrecord_rfs_workordersession",
+      "name": "RF-SMART Work Order Session"
+    },
+    {
+      "id": 4423,
+      "scriptid": "customrecord_rfs_workorderevent",
+      "name": "RF-SMART Work Order Session Event"
+    },
+    {
+      "id": 4315,
+      "scriptid": "customrecord_rfs_workordersessionproj",
+      "name": "RF-SMART Work Order Session Projection"
+    },
+    {
+      "id": 2477,
+      "scriptid": "customrecord_twx_realtime_ship_map",
+      "name": "Realtime Shipping Mapping"
+    },
+    {
+      "id": 148,
+      "scriptid": "customlist_psgss_reason_return",
+      "name": "Reason For Return"
+    },
+    {
+      "id": 234,
+      "scriptid": "customrecord_ns_ibe_release_version",
+      "name": "Release Version"
+    },
+    {
+      "id": 244,
+      "scriptid": "customrecord_ns_ibe_req_categories",
+      "name": "Requirement Categories"
+    },
+    {
+      "id": 211,
+      "scriptid": "customrecord_ns_ibe_req_linkage",
+      "name": "Requirement Linkage"
+    },
+    {
+      "id": 229,
+      "scriptid": "customrecord_ns_ibe_req_statuses",
+      "name": "Requirement Statuses"
+    },
+    {
+      "id": 230,
+      "scriptid": "customrecord_ns_ibe_req_types",
+      "name": "Requirement Types"
+    },
+    {
+      "id": 2228,
+      "scriptid": "customrecord_twx_routing",
+      "name": "Routing"
+    },
+    {
+      "id": 3500,
+      "scriptid": "customrecord_twx_routing_verification",
+      "name": "Routing Verification"
+    },
+    {
+      "id": 2068,
+      "scriptid": "customrecord_ns_sc_configuration",
+      "name": "SC Configuration"
+    },
+    {
+      "id": 2069,
+      "scriptid": "customrecord_ns_sc_extmech_activation",
+      "name": "SC ExtMech Activation"
+    },
+    {
+      "id": 2071,
+      "scriptid": "customrecord_ns_sc_extmech_custom_skin",
+      "name": "SC ExtMech Custom Skin"
+    },
+    {
+      "id": 2073,
+      "scriptid": "customrecord_ns_sc_extmech_extension",
+      "name": "SC ExtMech Extension"
+    },
+    {
+      "id": 2070,
+      "scriptid": "customrecord_ns_sc_extmech_ext_active",
+      "name": "SC ExtMech Extensions Active"
+    },
+    {
+      "id": 2072,
+      "scriptid": "customrecord_ns_sc_extmech_skin_preset",
+      "name": "SC ExtMech Skin Preset"
+    },
+    {
+      "id": 2329,
+      "scriptid": "customrecord_ns_sc_extmech_skins",
+      "name": "SC ExtMech Skins"
+    },
+    {
+      "id": 2204,
+      "scriptid": "customrecord_ns_sc_extmech_to_process",
+      "name": "SC ExtMech To Process"
+    },
+    {
+      "id": 3669,
+      "scriptid": "customrecord_twx_scac",
+      "name": "SCAC"
+    },
+    {
+      "id": 108,
+      "scriptid": "customrecord_scm_dps_taskview",
+      "name": "SCM DPS Task View"
+    },
+    {
+      "id": 106,
+      "scriptid": "customrecord_scm_dps_userdisplay",
+      "name": "SCM DPS User Display"
+    },
+    {
+      "id": 111,
+      "scriptid": "customrecord_scm_preferences",
+      "name": "SCM Preferences"
+    },
+    {
+      "id": 107,
+      "scriptid": "customrecord_scm_printreportlog",
+      "name": "SCM Print Report Log"
+    },
+    {
+      "id": 2942,
+      "scriptid": "customrecord_ps_sftp_fld_map",
+      "name": "SFTP - Folder Mapping"
+    },
+    {
+      "id": 3041,
+      "scriptid": "customrecord_absi_config_sftp",
+      "name": "SFTP Configuration"
+    },
+    {
+      "id": 3042,
+      "scriptid": "customrecord_absi_file_import_sftp",
+      "name": "SFTP Connectivity File Import"
+    },
+    {
+      "id": 2941,
+      "scriptid": "customrecord_ns_sftp_configuration",
+      "name": "SFTP Connector Configuration Record"
+    },
+    {
+      "id": 68,
+      "scriptid": "customrecord_sii_list_val",
+      "name": "SII List Values"
+    },
+    {
+      "id": 61,
+      "scriptid": "customrecord_sii_reg_error_codes",
+      "name": "SII Registration Error Codes"
+    },
+    {
+      "id": 58,
+      "scriptid": "customrecord_stc_config_fields",
+      "name": "STC Config Fields"
+    },
+    {
+      "id": 57,
+      "scriptid": "customrecord_stc_config_values",
+      "name": "STC Config Values"
+    },
+    {
+      "id": 54,
+      "scriptid": "customrecord_stc_nexus_configuration",
+      "name": "STC Nexus Configuration"
+    },
+    {
+      "id": 56,
+      "scriptid": "customrecord_stc_ppd_queue",
+      "name": "STC Prompt Payment Discount Queue"
+    },
+    {
+      "id": 2837,
+      "scriptid": "customrecord_twx_sales_program",
+      "name": "Sales Programs"
+    },
+    {
+      "id": 293,
+      "scriptid": "customrecord_nsts_sr_account_mapping",
+      "name": "Sales Returns Account Mapping"
+    },
+    {
+      "id": 2330,
+      "scriptid": "customrecord_twx_sales_structure",
+      "name": "Sales Structure"
+    },
+    {
+      "id": 2331,
+      "scriptid": "customrecord_twx_sales_structure_rules",
+      "name": "Sales Structure Rules"
+    },
+    {
+      "id": 2236,
+      "scriptid": "customrecord_sales_team_commission",
+      "name": "Sales Team Commission"
+    },
+    {
+      "id": 2237,
+      "scriptid": "customrecord_commission_line",
+      "name": "Sales Team Commission Line"
+    },
+    {
+      "id": 3189,
+      "scriptid": "customrecord_sss_calendar_pref",
+      "name": "Same-Store Sales Preferences"
+    },
+    {
+      "id": 3190,
+      "scriptid": "customrecord_satori_saved_searches",
+      "name": "Satori Saved Searches"
+    },
+    {
+      "id": 2212,
+      "scriptid": "customrecord_ns_pivotfields",
+      "name": "Search Pivot Field"
+    },
+    {
+      "id": 2211,
+      "scriptid": "customrecord_ns_pivotlayout",
+      "name": "Search Pivot Layout"
+    },
+    {
+      "id": 2367,
+      "scriptid": "customrecord_twx_1c_csv",
+      "name": "Shop One Country CSV"
+    },
+    {
+      "id": 2291,
+      "scriptid": "customrecord_celigo_shpf_payout_var_tran",
+      "name": "Shopify Payout Variance Transaction"
+    },
+    {
+      "id": 3655,
+      "scriptid": "customrecord_twx_cd_sc",
+      "name": "Shortcut"
+    },
+    {
+      "id": 2104,
+      "scriptid": "customrecord_ef_sc_chart_locale",
+      "name": "Size Chart Locale"
+    },
+    {
+      "id": 2098,
+      "scriptid": "customrecord_ef_sc_size_chart",
+      "name": "Size Charts"
+    },
+    {
+      "id": 213,
+      "scriptid": "customrecord_ns_ibe_skill_type",
+      "name": "Skills"
+    },
+    {
+      "id": 3666,
+      "scriptid": "customrecord_hitc_speed_daily_summary",
+      "name": "Speed Optimizer Daily Summary"
+    },
+    {
+      "id": 3667,
+      "scriptid": "customrecord_az_speed_optimizer",
+      "name": "Speed Optimizer Record"
+    },
+    {
+      "id": 3668,
+      "scriptid": "customrecord_hitc_speed_record_load_time",
+      "name": "Speed Optimizer Record Load Time"
+    },
+    {
+      "id": 3658,
+      "scriptid": "customrecord_statecounty",
+      "name": "State-County"
+    },
+    {
+      "id": 2276,
+      "scriptid": "customrecord_stick_sort_filter",
+      "name": "StickyNotes Account Sorting"
+    },
+    {
+      "id": 2270,
+      "scriptid": "customrecord_stick_email_capture",
+      "name": "StickyNotes Email Capture"
+    },
+    {
+      "id": 2267,
+      "scriptid": "customrecord_stick_file_html",
+      "name": "StickyNotes File Html"
+    },
+    {
+      "id": 2279,
+      "scriptid": "customrecord_stick_font_size",
+      "name": "StickyNotes Font Size"
+    },
+    {
+      "id": 2266,
+      "scriptid": "customrecord_stick_note",
+      "name": "StickyNotes Note"
+    },
+    {
+      "id": 2274,
+      "scriptid": "customrecord_stick_note_reply",
+      "name": "StickyNotes Note Reply"
+    },
+    {
+      "id": 2268,
+      "scriptid": "customrecord_stick_note_size",
+      "name": "StickyNotes Note Size"
+    },
+    {
+      "id": 2273,
+      "scriptid": "customrecord_stick_note_category",
+      "name": "StickyNotes Priority"
+    },
+    {
+      "id": 2277,
+      "scriptid": "customrecord_stick_enabled_record_type",
+      "name": "StickyNotes Record Type"
+    },
+    {
+      "id": 2272,
+      "scriptid": "customrecord_stick_record_type_holder",
+      "name": "StickyNotes Record Type Holder"
+    },
+    {
+      "id": 2271,
+      "scriptid": "customrecord_stick_sched_script_queue",
+      "name": "StickyNotes Sched Script Queue"
+    },
+    {
+      "id": 2275,
+      "scriptid": "customrecord_stick_standard_record",
+      "name": "StickyNotes Standard Record"
+    },
+    {
+      "id": 2269,
+      "scriptid": "customrecord_stick_note_user_category",
+      "name": "StickyNotes User Category"
+    },
+    {
+      "id": 2278,
+      "scriptid": "customrecord_stick_user_board_sort",
+      "name": "StickyNotes User Sorting"
+    },
+    {
+      "id": 20,
+      "scriptid": "customrecord_subnav_settings",
+      "name": "SubNav - Settings"
+    },
+    {
+      "id": 2121,
+      "scriptid": "customrecord_hj_tc_autopacktemplate",
+      "name": "TC - Auto-Pack Template"
+    },
+    {
+      "id": 2118,
+      "scriptid": "customrecord_hj_tc_autopacktemplate_item",
+      "name": "TC - Auto-Pack Template Item"
+    },
+    {
+      "id": 2520,
+      "scriptid": "customrecordhj_tc_versioninfo",
+      "name": "TC Version Info"
+    },
+    {
+      "id": 4309,
+      "scriptid": "customrecord_twx_app_settings",
+      "name": "TWX App Settings"
+    },
+    {
+      "id": 2325,
+      "scriptid": "customrecord_twx_linked_invoices",
+      "name": "TWX Linked Invoices"
+    },
+    {
+      "id": 3975,
+      "scriptid": "customrecord_twx_saved_search",
+      "name": "TWX Saved Search"
+    },
+    {
+      "id": 3979,
+      "scriptid": "customrecord_twx_async_display",
+      "name": "TWX | Async Display Setting"
+    },
+    {
+      "id": 4078,
+      "scriptid": "customrecord_twx_field_audit",
+      "name": "TWX | Audit Field Instance"
+    },
+    {
+      "id": 3874,
+      "scriptid": "customrecord_twx_celigo_fl",
+      "name": "TWX | Celigo Flow"
+    },
+    {
+      "id": 3873,
+      "scriptid": "customrecord_twx_default_fields",
+      "name": "TWX | Default Fields"
+    },
+    {
+      "id": 3875,
+      "scriptid": "customrecord_twx_email_query",
+      "name": "TWX | Email Query"
+    },
+    {
+      "id": 4178,
+      "scriptid": "customrecord_twx_hts_item_link",
+      "name": "TWX | HTS Code to Item Linkage"
+    },
+    {
+      "id": 3671,
+      "scriptid": "customrecord_twx_leads",
+      "name": "TWX | Leads"
+    },
+    {
+      "id": 3663,
+      "scriptid": "customrecord_twx_state_county",
+      "name": "TWX | State-County"
+    },
+    {
+      "id": 3660,
+      "scriptid": "customrecord_twx_territory",
+      "name": "TWX | Territory"
+    },
+    {
+      "id": 2480,
+      "scriptid": "customrecord_tx_blanket_po_release_queue",
+      "name": "TX: Blanket PO Release Queue"
+    },
+    {
+      "id": 3656,
+      "scriptid": "customrecord_territory",
+      "name": "Territory"
+    },
+    {
+      "id": 4487,
+      "scriptid": "customrecord_twx_tp_feed_rules",
+      "name": "Trading Partner Feed Rules"
+    },
+    {
+      "id": 4490,
+      "scriptid": "customrecord_twx_tp_sku_catalog",
+      "name": "Trading Partner SKU Catalog"
+    },
+    {
+      "id": 2328,
+      "scriptid": "customrecord_twx_resend_queue",
+      "name": "TrueCommerce Resend Queue"
+    },
+    {
+      "id": 292,
+      "scriptid": "customrecord_nsts_upc_assignmentrecord",
+      "name": "UPC Code Assignment"
+    },
+    {
+      "id": 277,
+      "scriptid": "customrecord_nsts_vp_vendorprepayment",
+      "name": "Vendor Prepayment"
+    },
+    {
+      "id": 278,
+      "scriptid": "customrecord_nsts_vp_vpcreditapplication",
+      "name": "Vendor Prepayment Credit Application"
+    },
+    {
+      "id": 279,
+      "scriptid": "customrecord_nsts_vp_pref",
+      "name": "Vendor Prepayment Preference"
+    },
+    {
+      "id": 93,
+      "scriptid": "customrecord_wrm_warrantyterms",
+      "name": "Warranty Terms"
+    },
+    {
+      "id": 2093,
+      "scriptid": "customrecord_merch_website_fieldsets",
+      "name": "Website Fieldsets"
+    },
+    {
+      "id": 2092,
+      "scriptid": "customrecord_merch_website_filters",
+      "name": "Website Filters"
+    },
+    {
+      "id": 2097,
+      "scriptid": "customrecord_merch_website_sorts",
+      "name": "Website Sorts"
+    },
+    {
+      "id": 2202,
+      "scriptid": "customrecord_11724_bank_fee_sched",
+      "name": "Zengin Bank Fee Schedule"
+    },
+    {
+      "id": 2214,
+      "scriptid": "customrecord_cseg1",
+      "name": "[MH] Brand"
+    },
+    {
+      "id": 2215,
+      "scriptid": "customrecord_cseg2",
+      "name": "[MH] Category"
+    },
+    {
+      "id": 2216,
+      "scriptid": "customrecord_cseg3",
+      "name": "[MH] Gender"
+    },
+    {
+      "id": 2218,
+      "scriptid": "customrecord_cseg4",
+      "name": "[MH] Subcategory"
+    },
+    {
+      "id": 2220,
+      "scriptid": "customrecord_cseg6",
+      "name": "[MH] Type"
+    },
+    {
+      "id": 4287,
+      "scriptid": "customrecord_celigo_ebay_item_condition",
+      "name": "eBay Item Condition"
+    },
+    {
+      "id": 4285,
+      "scriptid": "customrecord_celigo_ebay_item_dispatch_t",
+      "name": "eBay Item Dispatch Max Time"
+    },
+    {
+      "id": 4288,
+      "scriptid": "customrecord_celigo_ebay_item_refund_dur",
+      "name": "eBay Item Refund Duration"
+    },
+    {
+      "id": 4286,
+      "scriptid": "customrecord_celigo_ebay_item_ship_serv",
+      "name": "eBay Item Shipping Service"
+    },
+    {
+      "id": 4293,
+      "scriptid": "customrecord_etail_b2b_catalogs",
+      "name": "eTail Shopify Catalogs"
+    },
+    {
+      "id": 4292,
+      "scriptid": "customrecord_etail_b2b_compare_at_mode",
+      "name": "eTail Shopify Compare At Mode"
+    },
+    {
+      "id": 4291,
+      "scriptid": "customrecord_etail_b2b_locations_map",
+      "name": "eTail Shopify Locations Map"
+    },
+    {
+      "id": 4290,
+      "scriptid": "customrecord_etail_b2b_price_adj_type",
+      "name": "eTail Shopify Price Adjustment Type"
+    },
+    {
+      "id": 4294,
+      "scriptid": "customrecord_etail_b2b_price_lists",
+      "name": "eTail Shopify Price Lists"
+    },
+    {
+      "id": 2241,
+      "scriptid": "customrecord_twx_reallocate_so_lines",
+      "name": "twx_reallocate_so_lines"
+    }
+  ]
+}

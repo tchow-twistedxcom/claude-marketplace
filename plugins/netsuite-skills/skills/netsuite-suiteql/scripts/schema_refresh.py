@@ -7,10 +7,13 @@ Connects to NetSuite SuiteAnalytics Connect via ODBC and dumps full schema
 
 Requires:
   - pyodbc installed: pip3 install --user pyodbc
-  - NetSuite ODBC driver installed (see setup_odbc.sh)
-  - DSNs configured in ~/.odbc.ini (names: netsuite_{account}_{environment})
+  - NetSuite ODBC driver installed (see setup_odbc.py)
+  - DSNs configured in ~/.odbc.ini (run: python3 setup_odbc.py)
   - Credentials via env vars NETSUITE_ODBC_USER + NETSUITE_ODBC_PASSWORD
     or prompts if not set
+
+Accounts and environments are read dynamically from the API gateway.
+Set NETSUITE_GATEWAY_URL to override (default: http://localhost:3001).
 
 Cache location: ~/.cache/netsuite-schema/{account}/{environment}/
 
@@ -25,19 +28,16 @@ import os
 import json
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
+from urllib.request import urlopen
+from urllib.error import URLError
 
 # Cache root
 CACHE_ROOT = os.path.expanduser('~/.cache/netsuite-schema')
 
-ACCOUNT_ALIASES = {
-    'twx': 'twistedx',
-    'twisted': 'twistedx',
-    'twistedx': 'twistedx',
-    'dm': 'dutyman',
-    'duty': 'dutyman',
-    'dutyman': 'dutyman'
-}
+# Gateway URL (override via env var)
+GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'http://localhost:3001')
 
+# Environment aliases — universal NetSuite conventions, not account-specific
 ENV_ALIASES = {
     'prod': 'production',
     'production': 'production',
@@ -48,21 +48,90 @@ ENV_ALIASES = {
     'sandbox2': 'sandbox2'
 }
 
-DEFAULT_ACCOUNT = 'twistedx'
-DEFAULT_ENVIRONMENT = 'sandbox2'
+# Module-level cache for accounts config (fetched once per run)
+_accounts_config: Optional[Dict] = None
 
-ACCOUNT_ENVIRONMENTS = {
-    'twistedx': ['production', 'sandbox', 'sandbox2'],
-    'dutyman': ['production', 'sandbox']
-}
+
+def fetch_accounts_config() -> Dict:
+    """
+    Fetch accounts configuration from the API gateway.
+    Returns dict with 'accounts', 'account_aliases', 'default_account', 'default_environment'.
+    Falls back to empty config on error.
+    """
+    global _accounts_config
+    if _accounts_config is not None:
+        return _accounts_config
+
+    try:
+        with urlopen(f"{GATEWAY_URL}/api/common/accounts", timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        raw_accounts = data.get('data', {}).get('accounts', [])
+
+        accounts = {}
+        account_aliases = {}
+        for acct in raw_accounts:
+            aid = acct['id']
+            accounts[aid] = {
+                'name': acct.get('name', aid),
+                'accountId': acct.get('accountId', ''),
+                'odbc': acct.get('odbc') or {},
+                'environments': [e['id'] for e in acct.get('environments', [])]
+            }
+            for alias in acct.get('aliases', []):
+                account_aliases[alias] = aid
+
+        _accounts_config = {
+            'accounts': accounts,
+            'account_aliases': account_aliases,
+            'default_account': data.get('data', {}).get('defaultAccount', ''),
+            'default_environment': data.get('data', {}).get('defaultEnvironment', '')
+        }
+    except (URLError, Exception) as e:
+        print(f"  WARNING: Could not reach gateway at {GATEWAY_URL}: {e}")
+        print("  Set NETSUITE_GATEWAY_URL or ensure the gateway is running.")
+        _accounts_config = {
+            'accounts': {},
+            'account_aliases': {},
+            'default_account': '',
+            'default_environment': ''
+        }
+
+    return _accounts_config
 
 
 def resolve_account(account: str) -> str:
-    return ACCOUNT_ALIASES.get(account.lower(), account.lower())
+    cfg = fetch_accounts_config()
+    normalized = account.lower()
+    # Try direct match first, then aliases
+    if normalized in cfg['accounts']:
+        return normalized
+    return cfg['account_aliases'].get(normalized, normalized)
 
 
 def resolve_environment(environment: str) -> str:
     return ENV_ALIASES.get(environment.lower(), environment.lower())
+
+
+def get_default_account() -> str:
+    return fetch_accounts_config()['default_account']
+
+
+def get_default_environment() -> str:
+    return fetch_accounts_config()['default_environment']
+
+
+def get_account_environments(account: str) -> List[str]:
+    cfg = fetch_accounts_config()
+    return cfg['accounts'].get(account, {}).get('environments', [])
+
+
+def get_all_account_environments() -> List[Tuple[str, str]]:
+    cfg = fetch_accounts_config()
+    pairs = []
+    for acct, info in cfg['accounts'].items():
+        for env in info.get('environments', []):
+            pairs.append((acct, env))
+    return pairs
 
 
 def get_cache_dir(account: str, environment: str) -> str:
@@ -131,7 +200,6 @@ def get_odbc_credentials(account: str, environment: str) -> Tuple[str, str]:
 
     if not user:
         print(f"  NETSUITE_ODBC_USER not set. Enter credentials for {account}/{environment}:")
-        import getpass
         user = input("  ODBC Username (NetSuite email): ").strip()
 
     if not password:
@@ -153,7 +221,7 @@ def refresh_account_environment(account: str, environment: str,
     try:
         import pyodbc
     except ImportError:
-        return {'error': 'pyodbc not installed. Run: pip3 install --user pyodbc\nThen install ODBC driver: bash setup_odbc.sh'}
+        return {'error': 'pyodbc not installed. Run: pip3 install --user pyodbc\nThen install ODBC driver: python3 setup_odbc.py'}
 
     dsn = get_dsn_name(account, environment)
     if not user or not password:
@@ -273,7 +341,6 @@ def refresh_account_environment(account: str, environment: str,
                             'pk_name': row.pk_name or ''
                         })
                     else:
-                        # Primary key entry (fktable_name is NULL)
                         primary_keys.append({
                             'table_name': row.pktable_name or '',
                             'column_name': row.pkcolumn_name or '',
@@ -294,7 +361,7 @@ def refresh_account_environment(account: str, environment: str,
                 stats['primary_keys_count'] = len(primary_keys)
                 print(f"    {len(foreign_keys)} foreign keys, {len(primary_keys)} primary keys")
             except pyodbc.Error as e:
-                print(f"    WARNING: OA_FKEYS query failed (oa_fkeys may be inaccurate for NetSuite2.com): {e}")
+                print(f"    WARNING: OA_FKEYS query failed: {e}")
                 stats['fkeys_error'] = str(e)
 
     finally:
@@ -322,32 +389,12 @@ def _odbc_type_name(data_type: Optional[int]) -> str:
     if data_type is None:
         return ''
     type_map = {
-        -11: 'GUID',
-        -10: 'WLONGVARCHAR',
-        -9: 'WVARCHAR',
-        -8: 'WCHAR',
-        -7: 'BIT',
-        -6: 'TINYINT',
-        -5: 'BIGINT',
-        -4: 'LONGVARBINARY',
-        -3: 'VARBINARY',
-        -2: 'BINARY',
-        -1: 'LONGVARCHAR',
-        1: 'CHAR',
-        2: 'NUMERIC',
-        3: 'DECIMAL',
-        4: 'INTEGER',
-        5: 'SMALLINT',
-        6: 'FLOAT',
-        7: 'REAL',
-        8: 'DOUBLE',
-        9: 'DATE',
-        10: 'TIME',
-        11: 'TIMESTAMP',
-        12: 'VARCHAR',
-        91: 'DATE',
-        92: 'TIME',
-        93: 'TIMESTAMP'
+        -11: 'GUID', -10: 'WLONGVARCHAR', -9: 'WVARCHAR', -8: 'WCHAR',
+        -7: 'BIT', -6: 'TINYINT', -5: 'BIGINT', -4: 'LONGVARBINARY',
+        -3: 'VARBINARY', -2: 'BINARY', -1: 'LONGVARCHAR', 1: 'CHAR',
+        2: 'NUMERIC', 3: 'DECIMAL', 4: 'INTEGER', 5: 'SMALLINT',
+        6: 'FLOAT', 7: 'REAL', 8: 'DOUBLE', 9: 'DATE', 10: 'TIME',
+        11: 'TIMESTAMP', 12: 'VARCHAR', 91: 'DATE', 92: 'TIME', 93: 'TIMESTAMP'
     }
     return type_map.get(data_type, str(data_type))
 
@@ -355,22 +402,25 @@ def _odbc_type_name(data_type: Optional[int]) -> str:
 def show_status() -> None:
     """Show status of all cache directories."""
     print(f"Schema cache root: {CACHE_ROOT}\n")
-    for account, envs in ACCOUNT_ENVIRONMENTS.items():
-        for env in envs:
-            cache_dir = get_cache_dir(account, env)
-            files = ['tables.json', 'columns.json', 'fkeys.json', 'custom_records.json', 'custom_fields.json']
-            print(f"[{account}/{env}]")
-            for fname in files:
-                path = os.path.join(cache_dir, fname)
-                if os.path.exists(path):
-                    import time
-                    age = (time.time() - os.path.getmtime(path)) / 86400
-                    size = os.path.getsize(path) // 1024
-                    warn = ' ⚠️' if age > 90 else ''
-                    print(f"  {fname:<30} {age:.1f}d old, {size}KB{warn}")
-                else:
-                    print(f"  {fname:<30} NOT PRESENT")
-            print()
+    pairs = get_all_account_environments()
+    if not pairs:
+        print("  No accounts found. Is the gateway running?")
+        return
+    for account, env in pairs:
+        cache_dir = get_cache_dir(account, env)
+        files = ['tables.json', 'columns.json', 'fkeys.json', 'custom_records.json', 'custom_fields.json']
+        print(f"[{account}/{env}]")
+        for fname in files:
+            path = os.path.join(cache_dir, fname)
+            if os.path.exists(path):
+                import time
+                age = (time.time() - os.path.getmtime(path)) / 86400
+                size = os.path.getsize(path) // 1024
+                warn = ' ⚠️' if age > 90 else ''
+                print(f"  {fname:<30} {age:.1f}d old, {size}KB{warn}")
+            else:
+                print(f"  {fname:<30} NOT PRESENT")
+        print()
 
 
 def main():
@@ -391,8 +441,11 @@ def main():
     fkeys_only = '--fkeys-only' in argv
 
     # Parse account and environment
-    account = DEFAULT_ACCOUNT
-    environment = DEFAULT_ENVIRONMENT
+    default_account = get_default_account()
+    default_environment = get_default_environment()
+    account = default_account
+    environment = default_environment
+
     i = 0
     while i < len(argv):
         if argv[i] == '--account' and i + 1 < len(argv):
@@ -410,7 +463,7 @@ def main():
     except ImportError:
         print("ERROR: pyodbc is not installed.")
         print("Install it: pip3 install --user pyodbc")
-        print("You also need the NetSuite ODBC driver: bash setup_odbc.sh")
+        print("Then set up the ODBC driver: python3 setup_odbc.py")
         sys.exit(1)
 
     # Get credentials once for all refreshes
@@ -427,22 +480,26 @@ def main():
     # Build list of (account, environment) pairs to refresh
     pairs = []
     if all_accounts and all_environments:
-        for acct, envs in ACCOUNT_ENVIRONMENTS.items():
-            for env in envs:
-                pairs.append((acct, env))
+        pairs = get_all_account_environments()
     elif all_accounts:
-        for acct in ACCOUNT_ENVIRONMENTS:
-            if environment in ACCOUNT_ENVIRONMENTS.get(acct, []):
+        for acct in fetch_accounts_config()['accounts']:
+            if environment in get_account_environments(acct):
                 pairs.append((acct, environment))
     elif all_environments:
-        for env in ACCOUNT_ENVIRONMENTS.get(account, []):
+        for env in get_account_environments(account):
             pairs.append((account, env))
     else:
-        if environment not in ACCOUNT_ENVIRONMENTS.get(account, []):
+        envs = get_account_environments(account)
+        if environment not in envs:
             print(f"ERROR: {account} does not support {environment}")
-            print(f"Valid environments for {account}: {ACCOUNT_ENVIRONMENTS.get(account, [])}")
+            print(f"Valid environments for {account}: {envs}")
             sys.exit(1)
         pairs.append((account, environment))
+
+    if not pairs:
+        print("ERROR: No accounts found. Is the gateway running?")
+        print(f"Gateway URL: {GATEWAY_URL}")
+        sys.exit(1)
 
     print(f"Refreshing {len(pairs)} account/environment combination(s)...")
 

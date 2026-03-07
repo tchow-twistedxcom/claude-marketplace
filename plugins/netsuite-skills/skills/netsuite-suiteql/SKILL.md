@@ -497,11 +497,17 @@ to get custom record types and custom field labels (no ODBC required).
 ODBC-based full schema dump tool. Connects to NetSuite SuiteAnalytics Connect and
 writes OA_TABLES, OA_COLUMNS, OA_FKEYS to JSON cache files.
 Requires pyodbc and the NetSuite ODBC driver. Run quarterly or after NetSuite releases.
-Uses DSNs named `netsuite_{account}_{environment}` (configured by setup_odbc.sh).
+Reads account list, environments, and ODBC connection details (serviceHost, port, roleId)
+dynamically from the API gateway — no hardcoded account values.
+Uses DSNs named `netsuite_{account}_{environment}` (configured by setup_odbc.py).
 
-### scripts/setup_odbc.sh
-One-time setup script for the NetSuite ODBC driver, unixODBC, pyodbc, and DSN configuration.
-Run once per machine before using schema_refresh.py.
+### scripts/setup_odbc.py
+Portable one-time setup script for the NetSuite ODBC driver, unixODBC, pyodbc, and DSN
+configuration. Reads all account and connection details from the API gateway automatically.
+Run once per machine before using schema_refresh.py. Supports:
+- `--check` to verify current setup status
+- `--dsns-only` to regenerate DSNs without reinstalling the driver
+- `--driver-zip` / `--cert-zip` for non-interactive use
 
 ### scripts/update_record.py
 Executable Python script for record CRUD operations. Handles:
@@ -630,8 +636,13 @@ Queries `CustomRecordType` and `CustomField` via the API gateway. Covers all cus
 
 **Full schema (requires ODBC setup, run quarterly):**
 ```bash
-# One-time ODBC setup
-bash scripts/setup_odbc.sh
+# One-time ODBC setup (reads all account/connection details from gateway automatically)
+python3 scripts/setup_odbc.py \
+  --driver-zip ~/Downloads/NetSuiteODBCDrivers_Linux64bit.zip \
+  --cert-zip ~/Downloads/Certificates.zip
+
+# Reload shell env
+source ~/.bashrc
 
 # Refresh all accounts/environments
 export NETSUITE_ODBC_USER='your@email.com'
@@ -639,6 +650,18 @@ export NETSUITE_ODBC_PASSWORD='yourpassword'
 python3 scripts/schema_refresh.py --all-accounts --all-environments
 ```
 Queries `OA_TABLES`, `OA_COLUMNS`, `OA_FKEYS` via SuiteAnalytics Connect ODBC. Covers all standard tables, all custom tables, column types/lengths, and FK relationships.
+
+Download the driver from: NetSuite > Setup > Company > SuiteAnalytics Connect > Set Up SuiteAnalytics Connect (Linux 64-bit ODBC driver + Certificate Authority Certificates).
+
+**Check setup status on any machine:**
+```bash
+python3 scripts/setup_odbc.py --check
+```
+
+**Regenerate DSNs after adding a new account to the gateway:**
+```bash
+python3 scripts/setup_odbc.py --dsns-only
+```
 
 ### Fallback Behavior
 

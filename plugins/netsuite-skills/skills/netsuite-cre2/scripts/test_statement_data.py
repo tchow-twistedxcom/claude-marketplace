@@ -871,7 +871,14 @@ Full-coverage mode (tests ALL statement-eligible customers):
             }
             for future in as_completed(future_to_cid):
                 cid, category = future_to_cid[future]
-                compare_result = future.result()
+                try:
+                    compare_result = future.result()
+                except Exception as exc:
+                    compare_result = {
+                        'status': 'ERROR',
+                        'detail': f'unhandled exception in compare thread: {exc}',
+                        'report': '',
+                    }
                 all_results.append(_customer_result_from_compare(cid, category, compare_result))
                 completed_cmp += 1
 
@@ -892,7 +899,7 @@ Full-coverage mode (tests ALL statement-eligible customers):
         )
 
         # Sort results by customer_id for consistent output
-        all_results.sort(key=lambda r: r['customer_id'])
+        all_results.sort(key=lambda r: r.get('customer_id', 0))
 
         if is_table:
             for res in all_results:

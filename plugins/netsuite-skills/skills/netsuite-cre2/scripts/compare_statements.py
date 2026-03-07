@@ -217,15 +217,18 @@ def _find_amounts(text: str) -> List[float]:
 
 
 def _parse_single_amount(s: str) -> Optional[float]:
-    """Parse a single amount token: ($123.45), $-123.45, $123.45, or bare 123.45."""
+    """Parse a single amount token: ($123.45), ($66.5), $-123.45, $123.45, or bare 123.45.
+
+    Accepts 1-2 decimal digits to handle native PDFs that emit ($66.5) instead of ($66.50).
+    """
     s = s.strip()
-    m = re.match(r'^\(\$?([\d,]+(?:\.\d{2})?)\)$', s)
+    m = re.match(r'^\(\$?([\d,]+(?:\.\d{1,2})?)\)$', s)
     if m:
         return -float(m.group(1).replace(',', ''))
-    m = re.match(r'^\$?-([\d,]+(?:\.\d{2})?)$', s)
+    m = re.match(r'^\$?-([\d,]+(?:\.\d{1,2})?)$', s)
     if m:
         return -float(m.group(1).replace(',', ''))
-    m = re.match(r'^\$?([\d,]+(?:\.\d{2})?)$', s)
+    m = re.match(r'^\$?([\d,]+(?:\.\d{1,2})?)$', s)
     if m:
         return float(m.group(1).replace(',', ''))
     return None
@@ -283,24 +286,28 @@ def _parse_transaction_ids(text: str) -> List[str]:
     return sorted(ids)
 
 
-def _parse_transaction_amounts(text: str, source: str) -> Dict[str, Optional[float]]:
-    """Extract per-transaction remaining balance amounts.
+def _parse_transaction_amounts(text: str, source: str) -> Dict[str, Dict[str, Optional[float]]]:
+    """Extract per-transaction original and remaining balance amounts.
 
-    Native PDF format (source='native'):
-      DATE TRANID [DUEDATE] [CUSTOMER] [TERMS] STATUS $ORIGINAL ($APPLIED) $REMAINING
-      → last dollar amount on the line = remaining balance
+    Native PDF columns: ... Credit | Applied | Remaining
+      tokens[0] = original invoice/credit amount (the "Credit" column in native)
+      tokens[-1] = remaining balance
 
-    CRE2 PDF format (source='cre2'):
-      DATE TRANID [DUEDATE] PO# TERMS STATUS $INVOICE ($CREDIT) $DISCOUNT $APPLIED $REMAINING
-      → last dollar amount on the line = amountremaining (same as native)
+    CRE2 PDF columns: ... Invoice | Credit | Discount | Applied | Remain.
+      tokens[0] = original invoice/credit amount
+      tokens[-1] = remaining balance
 
-    Uses $ as a required prefix to avoid matching reference numbers (e.g. 10.14.24).
-    Returns dict: {tranid.upper(): amount}
+    Both sources expose the same two key values at token positions [0] and [-1].
+    When only one token is present (no amounts on line), both are set to None.
+
+    Accepts 1-2 decimal digits in amount tokens (some native PDFs emit e.g. ($66.5)).
+
+    Returns dict: {tranid.upper(): {'invoice': amount, 'remaining': amount}}
     """
-    amounts: Dict[str, Optional[float]] = {}
+    result: Dict[str, Dict[str, Optional[float]]] = {}
     tran_pat = re.compile(r'\b((?:INV|CM|CR|SO|PO|BILL|PMT)\d{4,})\b', re.IGNORECASE)
-    # Require $ for non-parenthesized amounts so dates/ref-numbers don't match
-    amt_pat = re.compile(r'\(\$?[\d,]+(?:\.\d{2})?\)|\$-?[\d,]+(?:\.\d{2})?')
+    # Allow 1-2 decimal digits; require $ prefix for non-parenthesized amounts
+    amt_pat = re.compile(r'\(\$?[\d,]+(?:\.\d{1,2})?\)|\$-?[\d,]+(?:\.\d{1,2})?')
 
     for line in text.splitlines():
         m_tran = tran_pat.search(line)
@@ -309,12 +316,13 @@ def _parse_transaction_amounts(text: str, source: str) -> Dict[str, Optional[flo
         tranid = m_tran.group(1).upper()
         tokens = amt_pat.findall(line)
         if not tokens:
-            amounts[tranid] = None
+            result[tranid] = {'invoice': None, 'remaining': None}
             continue
-        raw = tokens[-1]
-        amounts[tranid] = _parse_single_amount(raw)
+        invoice   = _parse_single_amount(tokens[0])
+        remaining = _parse_single_amount(tokens[-1])
+        result[tranid] = {'invoice': invoice, 'remaining': remaining}
 
-    return amounts
+    return result
 
 
 def _parse_aging(text: str) -> Dict[str, Optional[float]]:
@@ -712,38 +720,51 @@ def compare(
             status_sym = '  ' if n_mark == c_mark else '⚠ '
             print(f"  {status_sym}  {tid:<20} native={n_mark}  CRE2={c_mark}", file=out)
 
-    # Per-transaction amounts
+    # Per-transaction amounts — compare both invoice (original) and remaining balance.
+    # native columns: Credit (=invoice) | Applied (=payments) | Remaining
+    # CRE2  columns: Invoice | Credit | Discount | Applied | Remain.
+    # tokens[0] maps to the original document amount in both layouts.
+    # tokens[-1] maps to the remaining balance in both layouts.
     all_tran_ids = sorted(set(native_tran_amts) | set(cre2_tran_amts))
-    tran_amt_fails = []
+    tran_amt_fails: List[Tuple[str, str, Optional[float], Optional[float]]] = []
     for tid in all_tran_ids:
-        n_amt = native_tran_amts.get(tid)
-        c_amt = cre2_tran_amts.get(tid)
-        if n_amt is not None and c_amt is not None and abs(n_amt - c_amt) > 0.01:
-            tran_amt_fails.append((tid, n_amt, c_amt))
+        n_data = native_tran_amts.get(tid) or {}
+        c_data = cre2_tran_amts.get(tid) or {}
+        for col in ('invoice', 'remaining'):
+            n_val = n_data.get(col)
+            c_val = c_data.get(col)
+            if n_val is not None and c_val is not None and abs(n_val - c_val) > 0.01:
+                tran_amt_fails.append((tid, col, n_val, c_val))
 
-    matched = len(all_tran_ids) - len(tran_amt_fails)
+    fail_tids = {f[0] for f in tran_amt_fails}
+    matched = len(all_tran_ids) - len(fail_tids)
     if tran_amt_fails:
         all_pass = False
         _print_row(FAIL, 'Tran amounts',
                    f'{matched}/{len(all_tran_ids)} match',
-                   f'{len(tran_amt_fails)} mismatch', output=out)
-        for tid, n_amt, c_amt in tran_amt_fails:
-            print(f"       ⚠ {tid:<20} native={_fmt_amt(n_amt)}  CRE2={_fmt_amt(c_amt)}", file=out)
+                   f'{len(fail_tids)} mismatch', output=out)
+        for tid, col, n_val, c_val in tran_amt_fails:
+            print(f"       ⚠ {tid:<20} [{col}] native={_fmt_amt(n_val)}  CRE2={_fmt_amt(c_val)}", file=out)
     else:
         _print_row(PASS, 'Tran amounts', f'{matched} matched', '✓', output=out)
 
     if verbose and all_tran_ids:
         print(file=out)
-        print("  Per-Transaction Amounts (remaining balance):", file=out)
+        print("  Per-Transaction Amounts (invoice & remaining):", file=out)
         for tid in all_tran_ids:
-            n_amt = native_tran_amts.get(tid)
-            c_amt = cre2_tran_amts.get(tid)
-            if n_amt is not None and c_amt is not None:
-                ok = abs(n_amt - c_amt) <= 0.01
-            else:
-                ok = n_amt is None and c_amt is None
-            sym = '✓' if ok else '⚠'
-            print(f"  {sym}  {tid:<20} native={_fmt_amt(n_amt):<14}  CRE2={_fmt_amt(c_amt)}", file=out)
+            n_data = native_tran_amts.get(tid) or {}
+            c_data = cre2_tran_amts.get(tid) or {}
+            n_inv  = n_data.get('invoice')
+            c_inv  = c_data.get('invoice')
+            n_rem  = n_data.get('remaining')
+            c_rem  = c_data.get('remaining')
+            inv_ok = (n_inv is None and c_inv is None) or (
+                n_inv is not None and c_inv is not None and abs(n_inv - c_inv) <= 0.01)
+            rem_ok = (n_rem is None and c_rem is None) or (
+                n_rem is not None and c_rem is not None and abs(n_rem - c_rem) <= 0.01)
+            sym = '✓' if (inv_ok and rem_ok) else '⚠'
+            print(f"  {sym}  {tid:<20} invoice: native={_fmt_amt(n_inv):<14} CRE2={_fmt_amt(c_inv)}", file=out)
+            print(f"         {'':20} remain:  native={_fmt_amt(n_rem):<14} CRE2={_fmt_amt(c_rem)}", file=out)
 
     print('─' * 70, file=out)
     overall = PASS if all_pass else FAIL

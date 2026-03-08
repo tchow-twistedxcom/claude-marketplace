@@ -180,6 +180,7 @@ build_structure:
 
 ```yaml
 create_workflow:
+  # IMPORTANT: Do NOT include 'active' in POST body — it is read-only
   tool: n8n_create_workflow
   params:
     name: "Workflow Name"
@@ -189,8 +190,21 @@ create_workflow:
 
   post_creation:
     - Workflow created inactive
-    - Provide activation instructions
+    - Activate via API: POST /api/v1/workflows/{id}/activate
+    - Or via CLI: python3 scripts/n8n_api.py workflows activate <id>
     - Share webhook URL if applicable
+```
+
+#### Activation via CLI
+```bash
+# Create workflow (returns workflow ID)
+WF_ID=$(python3 scripts/n8n_api.py workflows create --file workflow.json --json | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+
+# Activate immediately after creation
+python3 scripts/n8n_api.py workflows activate $WF_ID
+
+# Verify active status
+python3 scripts/n8n_api.py workflows get $WF_ID --json | python3 -c "import sys,json; d=json.load(sys.stdin); print('active:', d.get('active'))"
 ```
 
 ## Node Structure Reference
@@ -406,15 +420,18 @@ template_workflow:
 activation:
   note: |
     Workflows are created INACTIVE.
-    API cannot activate workflows.
-    Manual activation required in n8n UI.
+    Activate via REST API — no manual UI step needed.
 
-  instructions:
-    1. Open n8n UI
-    2. Navigate to the new workflow
-    3. Configure any credentials
-    4. Toggle "Active" switch to ON
-    5. Test with sample data
+  api_method: POST /api/v1/workflows/{id}/activate
+  cli_method: python3 scripts/n8n_api.py workflows activate <id>
+
+  important:
+    - 'active' field is READ-ONLY in POST/PUT body — setting it there is silently ignored
+    - Must call the /activate endpoint separately after creation
+    - Deactivate with: POST /api/v1/workflows/{id}/deactivate
+
+  verify:
+    - GET /api/v1/workflows/{id} → check "active": true
 ```
 
 ### Webhook URL Retrieval
@@ -426,6 +443,102 @@ webhook_url:
   note: |
     Production URL only works when workflow is active.
     Test URL works for manual testing.
+```
+
+## MCP Server Trigger (Expose Workflows as MCP Tools)
+
+Use the MCP Server Trigger to expose n8n workflows as tools callable by Claude Desktop or any MCP client.
+
+### Node Structure
+```json
+{
+  "id": "<uuid>",
+  "name": "MCP Server Trigger",
+  "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+  "typeVersion": 1,
+  "position": [0, 0],
+  "webhookId": "<uuid>",
+  "parameters": {
+    "authentication": "none",
+    "path": "my-tool-path"
+  }
+}
+```
+
+**Required parameters** (only these two exist on this node):
+- `path` (string, required) — unique path for the MCP endpoint (e.g. `celigo-list-errors`)
+- `authentication` — `"none"` or `"basicAuth"`
+
+**DO NOT** include `toolDescription`, `inputSchema`, or other parameters — they don't exist and will cause "Missing or invalid required parameters" errors.
+
+### Workflow Settings for MCP
+```json
+{
+  "executionOrder": "v1",
+  "availableInMCP": true
+}
+```
+
+`availableInMCP: true` is required in workflow settings for the workflow to be exposed via the n8n MCP server endpoint.
+
+### MCP Tool Pattern (Full Workflow)
+```yaml
+mcp_tool_workflow:
+  1. MCP Server Trigger (path: "my-tool-name")
+  2. HTTP Request (call external API)
+  3. Code node (transform/filter response)
+  4. Respond to Webhook (return data)
+
+  settings:
+    availableInMCP: true
+    executionOrder: "v1"
+```
+
+### Creating an MCP Tool Workflow via API
+```python
+import uuid
+
+workflow = {
+    "name": "My MCP Tool",
+    "settings": {"executionOrder": "v1", "availableInMCP": True},
+    "nodes": [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "MCP Server Trigger",
+            "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
+            "typeVersion": 1,
+            "position": [0, 0],
+            "webhookId": str(uuid.uuid4()),
+            "parameters": {"authentication": "none", "path": "my-tool-path"}
+        },
+        # ... additional nodes
+    ],
+    "connections": {...}
+}
+
+# Create (no 'active' in body)
+result = n8n_api("POST", "/workflows", workflow)
+wf_id = result["id"]
+
+# Activate separately
+n8n_api("POST", f"/workflows/{wf_id}/activate")
+```
+
+### Claude Desktop MCP Config
+```json
+{
+  "mcpServers": {
+    "n8n": {
+      "command": "npx",
+      "args": ["n8n-mcp"],
+      "env": {
+        "N8N_API_URL": "https://your-n8n.com",
+        "N8N_API_KEY": "your-api-key",
+        "MCP_MODE": "stdio"
+      }
+    }
+  }
+}
 ```
 
 ## Best Practices

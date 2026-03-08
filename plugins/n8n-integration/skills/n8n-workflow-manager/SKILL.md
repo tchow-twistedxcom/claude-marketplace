@@ -50,6 +50,8 @@ Comprehensive skill for managing existing n8n workflows through the n8n MCP serv
 | `scripts/n8n_api.py workflows create` | Create | Create new workflow |
 | `scripts/n8n_api.py workflows update <id>` | Update | Modify workflow |
 | `scripts/n8n_api.py workflows delete <id>` | Delete | Remove workflow |
+| `scripts/n8n_api.py workflows activate <id>` | Activate | Activate workflow via API |
+| `scripts/n8n_api.py workflows deactivate <id>` | Deactivate | Deactivate workflow via API |
 | `scripts/n8n_api.py workflows add-node <id>` | Update | Add node to workflow |
 | `scripts/n8n_api.py executions list` | List | Execution history |
 | `scripts/n8n_api.py health` | Check | Instance status |
@@ -328,15 +330,29 @@ safe_update:
 ## Limitations
 
 ### Cannot Do via API
-- Activate/deactivate workflows (manual UI only)
 - Execute workflows directly (webhook only)
 - Manage credentials
 - Stop running executions
 
+### Activation / Deactivation
+Workflows can be activated and deactivated via API:
+```bash
+# Activate
+python3 scripts/n8n_api.py workflows activate <id>
+# Or direct API call:
+POST /api/v1/workflows/{id}/activate
+
+# Deactivate
+python3 scripts/n8n_api.py workflows deactivate <id>
+# Or direct API call:
+POST /api/v1/workflows/{id}/deactivate
+```
+
+**Important**: The `active` field in PUT/POST body is READ-ONLY — it is silently ignored. Always use the `/activate` and `/deactivate` endpoints.
+
 ### Workarounds
-- **Activation**: Document requirement for manual activation
 - **Execution**: Ensure webhook nodes exist for triggering
-- **Credentials**: Provide credential setup instructions
+- **Credentials**: Provide credential setup instructions via UI
 
 ## Related Skills
 

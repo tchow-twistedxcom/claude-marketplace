@@ -24,6 +24,7 @@ from n8n_config import get_api_credentials, get_default_account_id
 
 # Common locations for n8n-mcp binary
 N8N_MCP_PATHS = [
+    Path.home() / ".npm-global" / "bin" / "n8n-mcp",
     Path.home() / ".local" / "bin" / "n8n-mcp",
     Path.home() / ".local" / "lib" / "node_modules" / ".bin" / "n8n-mcp",
     Path.home() / ".local" / "lib" / "node_modules" / "n8n-mcp" / "dist" / "mcp" / "index.js",
@@ -67,9 +68,18 @@ def main():
         # Config error - already printed
         sys.exit(1)
 
+    # n8n-mcp expects the base URL without /api/v1
+    base_url = url.rstrip("/")
+    if base_url.endswith("/api/v1"):
+        base_url = base_url[:-len("/api/v1")]
+
     # Set environment variables for n8n-mcp
-    os.environ["N8N_API_URL"] = url
+    os.environ["N8N_API_URL"] = base_url
     os.environ["N8N_API_KEY"] = api_key
+    # Required by n8n-mcp for Claude Desktop / stdio MCP mode
+    os.environ.setdefault("MCP_MODE", "stdio")
+    os.environ.setdefault("LOG_LEVEL", "error")
+    os.environ.setdefault("DISABLE_CONSOLE_OUTPUT", "true")
 
     # Find n8n-mcp binary
     n8n_mcp_path = find_n8n_mcp()

@@ -481,39 +481,109 @@ Use the MCP Server Trigger to expose n8n workflows as tools callable by Claude D
 
 `availableInMCP: true` is required in workflow settings for the workflow to be exposed via the n8n MCP server endpoint.
 
-### MCP Tool Pattern (Full Workflow)
+### Critical Architecture — Tools Connect INTO the Trigger
+
+**WRONG** (webhook-style, doesn't work):
+```
+MCP Server Trigger → HTTP Request → Code → Respond to Webhook
+```
+
+**CORRECT** (tool-based, required by n8n):
+```
+toolHttpRequest/toolCode → [ai_tool output] → MCP Server Trigger [ai_tool input]
+```
+
+The MCP Server Trigger has:
+- **Input**: `ai_tool` connection type — accepts tool nodes
+- **Output**: none
+
+Each tool node connected to the trigger is exposed as a separate MCP tool. When an MCP client calls `tools/list`, it gets back the connected tools.
+
+### MCP Tool Pattern (Correct)
 ```yaml
 mcp_tool_workflow:
-  1. MCP Server Trigger (path: "my-tool-name")
-  2. HTTP Request (call external API)
-  3. Code node (transform/filter response)
-  4. Respond to Webhook (return data)
+  Nodes:
+    1. toolHttpRequest or toolCode (position: [-200, 0])
+       - Outputs via ai_tool connection type
+    2. MCP Server Trigger (path: "my-tool-name")
+       - Has ai_tool INPUT (not output)
 
-  settings:
-    availableInMCP: true
+  Connections:
+    "Tool Node Name":
+      ai_tool: [[{node: "MCP Server Trigger", type: "ai_tool", index: 0}]]
+
+  Settings:
+    availableInMCP: true  # required
     executionOrder: "v1"
+
+  SSE Endpoint (typeVersion 1):
+    GET  /mcp/{path}/sse       → SSE setup (persistent connection)
+    POST /mcp/{path}/messages  → send MCP messages (with ?sessionId=)
 ```
+
+### toolHttpRequest — Correct Header Configuration
+
+**WRONG** (uses `headerParameters.parameters` — wrong field, creates empty toolParameter):
+```json
+{
+  "sendHeaders": true,
+  "headerParameters": {"parameters": [{"name": "Authorization", "value": "Bearer ..."}]}
+}
+```
+
+**CORRECT** (use `specifyHeaders: "json"` with `jsonHeaders`):
+```json
+{
+  "sendHeaders": true,
+  "specifyHeaders": "json",
+  "jsonHeaders": "{\"Authorization\": \"Bearer YOUR_API_KEY\"}"
+}
+```
+
+**Why**: `headerParameters` is for the regular HTTP Request node. `toolHttpRequest` uses `parametersHeaders.values` (keypair) or `jsonHeaders` (json). The default `parametersHeaders` has `{values: [{name: ""}]}` which creates a spurious empty-string toolParameter and causes ZodErrors when the tool is called.
 
 ### Creating an MCP Tool Workflow via API
 ```python
-import uuid
+import uuid, json
+
+api_key = "your_api_key"
+tool_id = str(uuid.uuid4())
+trigger_id = str(uuid.uuid4())
 
 workflow = {
     "name": "My MCP Tool",
     "settings": {"executionOrder": "v1", "availableInMCP": True},
     "nodes": [
         {
-            "id": str(uuid.uuid4()),
+            "id": tool_id,
+            "name": "My Tool",
+            "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+            "typeVersion": 1.1,
+            "position": [-200, 0],
+            "parameters": {
+                "toolDescription": "What this tool does. No input parameters needed.",
+                "method": "GET",
+                "url": "https://api.example.com/endpoint",
+                "sendHeaders": True,
+                "specifyHeaders": "json",
+                "jsonHeaders": json.dumps({"Authorization": f"Bearer {api_key}"})
+            }
+        },
+        {
+            "id": trigger_id,
             "name": "MCP Server Trigger",
             "type": "@n8n/n8n-nodes-langchain.mcpTrigger",
             "typeVersion": 1,
             "position": [0, 0],
             "webhookId": str(uuid.uuid4()),
             "parameters": {"authentication": "none", "path": "my-tool-path"}
-        },
-        # ... additional nodes
+        }
     ],
-    "connections": {...}
+    "connections": {
+        "My Tool": {
+            "ai_tool": [[{"node": "MCP Server Trigger", "type": "ai_tool", "index": 0}]]
+        }
+    }
 }
 
 # Create (no 'active' in body)

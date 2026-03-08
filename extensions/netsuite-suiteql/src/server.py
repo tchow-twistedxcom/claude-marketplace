@@ -86,7 +86,7 @@ BYTE_HARD_LIMIT = 900_000  # Claude Desktop 1MB limit safety buffer
 
 mcp = FastMCP("netsuite_suiteql", instructions=SYSTEM_PROMPT)
 
-GATEWAY_URL = os.environ.get("NETSUITE_GATEWAY_URL", "https://api.twistedx.com")
+GATEWAY_URL = os.environ.get("NETSUITE_GATEWAY_URL", "https://nsapi.twistedx.tech")
 GATEWAY_API_KEY = os.environ.get("NETSUITE_API_KEY", "")
 DEFAULT_ACCOUNT = os.environ.get("NETSUITE_ACCOUNT", "twistedx")
 DEFAULT_ENVIRONMENT = os.environ.get("NETSUITE_ENVIRONMENT", "production")

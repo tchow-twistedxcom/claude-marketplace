@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "netsuite-suiteql",
   "display_name": "NetSuite SuiteQL",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Schema-aware NetSuite SuiteQL querying via the API Gateway. Includes full table/column/FK schema (2042 tables, 19363 columns) and reference docs. Ask natural language questions about NetSuite data — Claude automatically looks up the schema and generates correct SuiteQL.",
   "author": {
     "name": "tchow"
@@ -17,12 +17,9 @@
     "type": "python",
     "entry_point": "src/server.py",
     "mcp_config": {
-      "command": "uv",
+      "command": "node",
       "args": [
-        "run",
-        "--with", "mcp>=1.0.0",
-        "--with", "httpx>=0.27.0",
-        "${__dirname}/src/server.py"
+        "${__dirname}/launcher.cjs"
       ],
       "env": {
         "NETSUITE_GATEWAY_URL": "${user_config.gateway_url}",
@@ -50,14 +47,14 @@
     "netsuite_account": {
       "type": "string",
       "title": "NetSuite Account",
-      "description": "Account to query: 'twistedx' (Twisted X, account 4829859) or 'dutyman' (Dutyman, account 8055418). Default: twistedx",
+      "description": "Account to query (e.g. 'twistedx'). Default: twistedx",
       "required": false,
       "default": "twistedx"
     },
     "netsuite_environment": {
       "type": "string",
       "title": "NetSuite Environment",
-      "description": "Environment: 'production', 'sandbox', or 'sandbox2'. Dutyman only supports production and sandbox. Default: production",
+      "description": "Environment: 'production', 'sandbox', or 'sandbox2'. Default: production",
       "required": false,
       "default": "production"
     }

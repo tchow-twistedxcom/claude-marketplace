@@ -692,6 +692,90 @@ class AtlassianClient:
         url = self.jira_url(f'/issue/{issue_key}/comment/{comment_id}')
         return self._request('DELETE', url)
 
+    def jira_upload_attachment(self, issue_key, file_path):
+        """
+        Upload a file as attachment to a Jira issue.
+
+        Returns list of attachment objects with numeric IDs.
+        Use jira_get_attachment_media_id() to get the media UUID needed for
+        ADF mediaSingle inline images (type='file').
+        """
+        import mimetypes
+        import uuid as _uuid
+
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise Exception(f"File not found: {file_path}")
+
+        filename = file_path.name
+        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+
+        boundary = f'----WebKitFormBoundary{_uuid.uuid4().hex[:16]}'
+        body_parts = []
+        body_parts.append(f'--{boundary}'.encode())
+        body_parts.append(f'Content-Disposition: form-data; name="file"; filename="{filename}"'.encode())
+        body_parts.append(f'Content-Type: {content_type}'.encode())
+        body_parts.append(b'')
+        body_parts.append(file_content)
+        body_parts.append(f'--{boundary}--'.encode())
+        body_parts.append(b'')
+
+        body = b'\r\n'.join(body_parts)
+        url = self.jira_url(f'/issue/{issue_key}/attachments')
+        headers = self.auth.get_headers(self.site)
+        headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
+        headers['X-Atlassian-Token'] = 'no-check'
+
+        req = Request(url, data=body, headers=headers, method='POST')
+        try:
+            with urlopen(req, timeout=self.timeout) as response:
+                return json.loads(response.read().decode('utf-8'))
+        except HTTPError as e:
+            error_body = e.read().decode('utf-8')
+            raise Exception(f"HTTP {e.code}: {error_body[:500]}")
+
+    def jira_get_attachment_media_id(self, attachment_id):
+        """
+        Get the Atlassian Media Service UUID for a Jira attachment.
+
+        The numeric attachment ID returned by upload is NOT usable in ADF mediaSingle.
+        The actual media UUID must be discovered by following the thumbnail redirect:
+          GET /rest/api/3/attachment/thumbnail/{id}
+          → 302 → https://api.media.atlassian.com/file/{UUID}/image?token=...
+
+        Returns: media UUID string (e.g. '3875eea6-a94c-4bb9-b7ad-079c3f4768d4')
+        """
+        import re as _re
+        import urllib.request
+        import urllib.error
+
+        url = self.jira_url(f'/attachment/thumbnail/{attachment_id}')
+        headers = self.auth.get_headers(self.site)
+
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, hdrs, newurl):
+                raise urllib.error.HTTPError(newurl, code, msg, hdrs, fp)
+
+        opener = urllib.request.build_opener(_NoRedirect)
+        req = urllib.request.Request(url, headers=headers, method='GET')
+        try:
+            opener.open(req, timeout=self.timeout)
+            raise Exception(f"Expected redirect for attachment {attachment_id}, got 200")
+        except urllib.error.HTTPError as e:
+            if e.code in (301, 302, 303, 307, 308):
+                location = e.headers.get('Location', '')
+                match = _re.search(
+                    r'/file/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/',
+                    location
+                )
+                if match:
+                    return match.group(1)
+                raise Exception(f"Could not extract UUID from redirect URL: {location}")
+            raise Exception(f"HTTP {e.code}: {e.read().decode('utf-8')[:500]}")
+
     def jira_edit_comment(self, issue_key, comment_id, body, internal=False, visibility_value=None, use_markdown=False):
         """
         Edit an existing comment on a Jira issue.
@@ -988,8 +1072,8 @@ def cmd_jira_add_comment(client, args):
     if args.mention:
         mention_users = [u.strip() for u in args.mention.split(',')]
 
-    # Determine if using markdown format
-    use_markdown = getattr(args, 'markdown', False)
+    # Always use ADF markdown formatting (--markdown flag kept for backwards compat)
+    use_markdown = True
 
     result = client.jira_add_comment(
         args.issue_key,
@@ -1022,8 +1106,8 @@ def cmd_jira_delete_comment(client, args):
 
 def cmd_jira_edit_comment(client, args):
     """Handle: --jira edit-comment"""
-    # Determine if using markdown format
-    use_markdown = getattr(args, 'markdown', False)
+    # Always use ADF markdown formatting (--markdown flag kept for backwards compat)
+    use_markdown = True
 
     result = client.jira_edit_comment(
         args.issue_key,
@@ -1044,6 +1128,39 @@ def cmd_jira_edit_comment(client, args):
 
     return format_success(f"Comment {args.comment_id} updated on {args.issue_key}{visibility}", {
         'id': result.get('id')
+    })
+
+
+def cmd_jira_upload_attachment(client, args):
+    """Handle: --jira upload-attachment"""
+    results = client.jira_upload_attachment(args.issue_key, args.file)
+    if not isinstance(results, list):
+        results = [results]
+    lines = [f"Uploaded {len(results)} attachment(s) to {args.issue_key}:"]
+    for att in results:
+        att_id = att.get('id')
+        filename = att.get('filename', 'unknown')
+        lines.append(f"  ID: {att_id}  File: {filename}")
+        if getattr(args, 'get_media_id', False) and att_id:
+            try:
+                media_uuid = client.jira_get_attachment_media_id(att_id)
+                lines.append(f"  Media UUID: {media_uuid}")
+            except Exception as e:
+                lines.append(f"  (Could not get media UUID: {e})")
+    return '\n'.join(lines)
+
+
+def cmd_jira_get_media_id(client, args):
+    """Handle: --jira get-media-id"""
+    media_uuid = client.jira_get_attachment_media_id(args.attachment_id)
+    return format_success(f"Media UUID for attachment {args.attachment_id}", {
+        'attachment_id': args.attachment_id,
+        'media_uuid': media_uuid,
+        'adf_node': json.dumps({
+            'type': 'mediaSingle',
+            'attrs': {'layout': 'center'},
+            'content': [{'type': 'media', 'attrs': {'id': media_uuid, 'type': 'file', 'collection': ''}}]
+        })
     })
 
 
@@ -1177,7 +1294,9 @@ Examples:
     jira_group = parser.add_argument_group('Jira')
     jira_group.add_argument('--jira', metavar='COMMAND',
                            choices=['search', 'get-issue', 'create-issue', 'update-issue', 'add-comment',
-                                    'edit-comment', 'delete-comment', 'transition', 'transitions', 'list-projects', 'list-issue-types'],
+                                    'edit-comment', 'delete-comment', 'transition', 'transitions',
+                                    'list-projects', 'list-issue-types',
+                                    'upload-attachment', 'get-media-id'],
                            help='Jira command')
 
     # Jira arguments
@@ -1195,6 +1314,9 @@ Examples:
     parser.add_argument('--markdown', action='store_true', help='Parse comment body as markdown and convert to rich ADF format (for add-comment)')
     parser.add_argument('--comment-id', help='Comment ID (for delete-comment)')
     parser.add_argument('--to', help='Target status/transition (for transition)')
+    parser.add_argument('--attachment-id', help='Numeric attachment ID (for get-media-id)')
+    parser.add_argument('--get-media-id', action='store_true',
+                       help='Also fetch media UUID after upload (for upload-attachment)')
 
     args = parser.parse_args()
 
@@ -1322,6 +1444,14 @@ Examples:
                 result = cmd_jira_list_projects(client, args)
             elif args.jira == 'list-issue-types':
                 result = cmd_jira_list_issue_types(client, args)
+            elif args.jira == 'upload-attachment':
+                if not args.issue_key or not args.file:
+                    raise Exception("--issue-key and --file required for upload-attachment")
+                result = cmd_jira_upload_attachment(client, args)
+            elif args.jira == 'get-media-id':
+                if not args.attachment_id:
+                    raise Exception("--attachment-id required for get-media-id")
+                result = cmd_jira_get_media_id(client, args)
 
         print(result)
         return 0

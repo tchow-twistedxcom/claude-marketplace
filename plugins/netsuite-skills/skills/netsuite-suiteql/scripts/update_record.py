@@ -126,13 +126,14 @@ def update_record(
     try:
         # Prepare request to gateway
         data = json.dumps(payload).encode('utf-8')
+        _api_key = os.environ.get('NETSUITE_API_KEY', '')
         req = urllib.request.Request(
             GATEWAY_URL,
             data=data,
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': _gw_base  # Required by gateway CORS validation
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': _gw_base}),
             }
         )
 

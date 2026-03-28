@@ -5,8 +5,8 @@
     "url": "https://github.com/tchow-twistedxcom"
   },
   "metadata": {
-    "description": "Comprehensive plugin marketplace: Personal framework (behavioral rules, engineering principles, 14 specialist agents, 5 MCPs) + ClaudeKit skills (35+ skills) + Enterprise integrations (NetSuite/SDF, Celigo iPaaS, Shopify, Atlassian, Plytix PIM, NinjaOne RMM, M365/Azure AD, Amazon SP-API, Mimecast)",
-    "version": "2.0.0",
+    "description": "Comprehensive plugin marketplace: Personal framework (behavioral rules, 14 specialist agents, MCP configs) + ClaudeKit skills (35+ skills) + Custom skills (1Password, Airbyte, SEO, web design, etc.) + Enterprise integrations (NetSuite/SDF, Celigo iPaaS, Shopify, Atlassian, Plytix PIM, NinjaOne RMM, M365/Azure AD, Amazon SP-API, Mimecast, Slack, Meraki, n8n, MongoDB Atlas) + Infrastructure skills + EDI/PDF specialist + Google Analytics",
+    "version": "2.1.0",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "license": "MIT"
@@ -17,119 +17,315 @@
       "source": "./plugins/personal-framework",
       "description": "Lean behavioral rules, engineering principles, 14 specialist agents, and MCP server configs (Context7, Sequential, Magic, Serena, Morphllm)",
       "version": "1.0.0",
-      "keywords": ["framework", "rules", "agents", "mcp"]
+      "keywords": [
+        "framework",
+        "rules",
+        "agents",
+        "mcp"
+      ]
     },
     {
       "name": "celigo-integration",
       "source": "./plugins/celigo-integration",
       "description": "Celigo iPaaS integration via Python CLI - ~160 operations across 20 resource types with full REST API coverage",
       "version": "3.0.0",
-      "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "iPaaS"]
+      "keywords": [
+        "celigo",
+        "integration",
+        "etl",
+        "data-sync",
+        "workflow",
+        "iPaaS"
+      ]
     },
     {
       "name": "claudekit-skills",
       "source": "./plugins/claudekit-skills",
       "description": "Curated collection of 35+ specialized skills: Claude Code mastery, Next.js, Tailwind CSS, shadcn-ui, FFmpeg, ImageMagick, better-auth, MCP builder, debugging, document processing, Google ADK, and more",
       "version": "1.0.0",
-      "keywords": ["nextjs", "tailwindcss", "shadcn-ui", "ffmpeg", "imagemagick", "mcp", "better-auth", "debugging", "documents", "claude-code"]
+      "keywords": [
+        "nextjs",
+        "tailwindcss",
+        "shadcn-ui",
+        "ffmpeg",
+        "imagemagick",
+        "mcp",
+        "better-auth",
+        "debugging",
+        "documents",
+        "claude-code"
+      ]
     },
     {
       "name": "netsuite-skills",
       "source": "./plugins/netsuite-skills",
       "description": "NetSuite expertise skills: PRI Container Tracking, SDF deployment, SuiteQL queries, File Cabinet, CRE 2.0, Script Execution Logs, API Toolkit, PRI Query Renderer, and NetSuite debugger",
       "version": "1.8.0",
-      "keywords": ["netsuite", "erp", "suitescript", "sdf", "suitecloud", "deployment", "suiteql", "cre2", "prolecto"]
+      "keywords": [
+        "netsuite",
+        "erp",
+        "suitescript",
+        "sdf",
+        "suitecloud",
+        "deployment",
+        "suiteql",
+        "cre2",
+        "prolecto"
+      ]
     },
     {
       "name": "shopify-workflows",
       "source": "./plugins/shopify-workflows",
       "description": "Shopify Admin API workflow automation with 5 specialized skills for content creation, merchant operations, marketing campaigns, developer integrations, and analytics",
       "version": "1.0.0",
-      "keywords": ["shopify", "ecommerce", "graphql", "admin-api", "automation"]
+      "keywords": [
+        "shopify",
+        "ecommerce",
+        "graphql",
+        "admin-api",
+        "automation"
+      ]
     },
     {
       "name": "atlassian-skills",
       "source": "./plugins/atlassian-skills",
       "description": "Atlassian Confluence and Jira operations via REST API. Includes page creation/update/archive, search, attachments, markdown-to-Confluence conversion with Mermaid diagram support, Jira issue management, JQL queries, and transitions",
       "version": "1.2.0",
-      "keywords": ["atlassian", "confluence", "jira", "documentation", "wiki", "issue-tracking"]
+      "keywords": [
+        "atlassian",
+        "confluence",
+        "jira",
+        "documentation",
+        "wiki",
+        "issue-tracking"
+      ]
     },
     {
       "name": "plytix-skills",
       "source": "./plugins/plytix-skills",
       "description": "Plytix PIM operations via REST API. Includes product management, digital asset handling, category organization, variant creation, and attribute schema management",
       "version": "1.0.0",
-      "keywords": ["plytix", "pim", "product-information-management", "dam", "ecommerce"]
+      "keywords": [
+        "plytix",
+        "pim",
+        "product-information-management",
+        "dam",
+        "ecommerce"
+      ]
     },
     {
       "name": "ninjaone-skills",
       "source": "./plugins/ninjaone-skills",
       "description": "NinjaOne RMM API integration for device monitoring, management, ticketing, and reporting. Full coverage of 70+ endpoints with OAuth 2.0 authentication",
       "version": "1.0.0",
-      "keywords": ["ninjaone", "ninjarmm", "rmm", "remote-monitoring", "msp", "device-management"]
+      "keywords": [
+        "ninjaone",
+        "ninjarmm",
+        "rmm",
+        "remote-monitoring",
+        "msp",
+        "device-management"
+      ]
     },
     {
       "name": "m365-skills",
       "source": "./plugins/m365-skills",
       "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, and directory management",
       "version": "1.0.0",
-      "keywords": ["microsoft-365", "m365", "azure-ad", "entra-id", "graph-api"]
+      "keywords": [
+        "microsoft-365",
+        "m365",
+        "azure-ad",
+        "entra-id",
+        "graph-api"
+      ]
     },
     {
       "name": "amazon-spapi",
       "source": "./plugins/amazon-spapi",
       "description": "Amazon Selling Partner API integration via Python CLI. Full coverage for Vendor (1P) and Seller operations including POs, shipments, invoices, orders, catalog, inventory, reports, feeds, pricing, finances, and notifications",
       "version": "1.0.0",
-      "keywords": ["amazon", "sp-api", "selling-partner", "vendor", "seller", "ecommerce"]
+      "keywords": [
+        "amazon",
+        "sp-api",
+        "selling-partner",
+        "vendor",
+        "seller",
+        "ecommerce"
+      ]
     },
     {
       "name": "mimecast-skills",
       "source": "./plugins/mimecast-skills",
       "description": "Mimecast email security integration via Python CLI. 28 operations for TTP URL/attachment protection, held messages, user/group management, policies, audit logs, and SIEM integration",
       "version": "1.0.0",
-      "keywords": ["mimecast", "email-security", "ttp", "anti-phishing", "user-management"]
+      "keywords": [
+        "mimecast",
+        "email-security",
+        "ttp",
+        "anti-phishing",
+        "user-management"
+      ]
     },
     {
       "name": "portable-setup",
       "source": "./plugins/portable-setup",
       "description": "Portable Claude Code configuration system - export, transfer, install, and synchronize your setup across all servers via git",
       "version": "1.0.5",
-      "keywords": ["portability", "configuration", "setup", "export", "dotfiles", "synchronization"]
+      "keywords": [
+        "portability",
+        "configuration",
+        "setup",
+        "export",
+        "dotfiles",
+        "synchronization"
+      ]
     },
     {
       "name": "n8n-integration",
       "source": "./plugins/n8n-integration",
       "description": "n8n workflow automation via MCP - 38 tools for workflow management, node discovery, validation, templates, execution monitoring, AI agent patterns, and integration best practices",
       "version": "2.0.0",
-      "keywords": ["n8n", "workflow", "automation", "integration", "ai-agents", "mcp"]
+      "keywords": [
+        "n8n",
+        "workflow",
+        "automation",
+        "integration",
+        "ai-agents",
+        "mcp"
+      ]
     },
     {
       "name": "adventurelog-skills",
       "source": "./plugins/adventurelog-skills",
       "description": "AdventureLog trip planning skill for creating rich, fully-detailed trips via the REST API. Covers collections, locations, transportation, lodging, notes, checklists, itinerary days, and scheduling",
       "version": "1.0.0",
-      "keywords": ["adventurelog", "trip-planner", "travel", "itinerary", "vacation", "lodging"]
+      "keywords": [
+        "adventurelog",
+        "trip-planner",
+        "travel",
+        "itinerary",
+        "vacation",
+        "lodging"
+      ]
     },
     {
       "name": "compound-engineering",
       "source": "./plugins/compound-engineering",
-      "description": "Compound engineering workflow pipeline: brainstorm → plan → work → review → compound. 29 agents, 22 commands, 19 skills for multi-agent parallel code review, knowledge compounding, swarm orchestration, and autonomous workflows (lfg/slfg)",
+      "description": "Compound engineering workflow pipeline: brainstorm \u2192 plan \u2192 work \u2192 review \u2192 compound. 29 agents, 22 commands, 19 skills for multi-agent parallel code review, knowledge compounding, swarm orchestration, and autonomous workflows (lfg/slfg)",
       "version": "2.33.1",
-      "keywords": ["workflow", "code-review", "agents", "swarm", "knowledge-management", "planning", "compound"]
+      "keywords": [
+        "workflow",
+        "code-review",
+        "agents",
+        "swarm",
+        "knowledge-management",
+        "planning",
+        "compound"
+      ]
     },
     {
       "name": "meraki-skills",
       "source": "./plugins/meraki-skills",
       "description": "Cisco Meraki Dashboard API integration for network monitoring and management. Covers organizations, networks, devices, wireless, switches, MX appliances, and cameras.",
       "version": "1.0.0",
-      "keywords": ["meraki", "cisco", "networking", "wireless", "switch", "mx"]
+      "keywords": [
+        "meraki",
+        "cisco",
+        "networking",
+        "wireless",
+        "switch",
+        "mx"
+      ]
     },
     {
       "name": "slack-skills",
       "source": "./plugins/slack-skills",
       "description": "Official Slack MCP integration. Search messages/files/channels, send messages and drafts, create canvases, and manage user profiles. 5 commands, 3 skills.",
       "version": "2.0.0",
-      "keywords": ["slack", "messaging", "notifications", "mcp", "channels", "threads"]
+      "keywords": [
+        "slack",
+        "messaging",
+        "notifications",
+        "mcp",
+        "channels",
+        "threads"
+      ]
+    },
+    {
+      "name": "infra-skills",
+      "source": "./plugins/infra-skills",
+      "description": "Infrastructure management skills for tchow homelab \u2014 health monitoring and deployments across Tailscale (12 servers), NinjaOne RMM, and Portainer Docker environments",
+      "version": "1.0.0",
+      "keywords": [
+        "infrastructure",
+        "homelab",
+        "docker",
+        "tailscale",
+        "ninjaone",
+        "portainer",
+        "monitoring",
+        "deployment"
+      ]
+    },
+    {
+      "name": "google-analytics",
+      "source": "./plugins/google-analytics",
+      "description": "Google Analytics 4 and Search Console integration for SEO optimization, conversion attribution, multi-account property management, and revenue attribution workflows",
+      "version": "1.0.0",
+      "keywords": [
+        "google-analytics",
+        "ga4",
+        "search-console",
+        "seo",
+        "ecommerce",
+        "conversion"
+      ]
+    },
+    {
+      "name": "edi-document-specialist",
+      "source": "./plugins/edi-document-specialist",
+      "description": "EDI document mapping, PDF template generation, and notification specialist for B2B Dashboard. X12 EDI segments (810, 850, 855, 856, 860), BFO PDF rendering, and CRE2 template patterns",
+      "version": "1.0.0",
+      "keywords": [
+        "edi",
+        "x12",
+        "pdf",
+        "cre2",
+        "bfo",
+        "netsuite",
+        "freemarker"
+      ]
+    },
+    {
+      "name": "mongodb-atlas-skills",
+      "source": "./plugins/mongodb-atlas-skills",
+      "description": "MongoDB Atlas API skills for monitoring alerts, clusters, and performance metrics via the Atlas Admin API v2",
+      "version": "1.0.0",
+      "keywords": [
+        "mongodb",
+        "atlas",
+        "monitoring",
+        "alerts",
+        "clusters",
+        "database",
+        "devops"
+      ]
+    },
+    {
+      "name": "custom-skills",
+      "source": "./plugins/custom-skills",
+      "description": "Personal custom skills: 1Password credential lookup, Airbyte integration, Beads design system, BubbleTea TUI, copy editing, find-skills discovery, screenshots, SEO audit, user guide creation, Vercel React best practices, and web design guidelines",
+      "version": "1.0.0",
+      "keywords": [
+        "1password",
+        "airbyte",
+        "seo",
+        "web-design",
+        "vercel",
+        "react",
+        "skills"
+      ]
     }
   ]
 }

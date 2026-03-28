@@ -1,6 +1,6 @@
 {
   "name": "n8n-integration",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "n8n workflow automation via Python CLI and MCP - workflows, executions, webhooks, and multi-account support",
   "author": {
     "name": "tchow",
@@ -23,6 +23,18 @@
     "n8n": {
       "command": "python3",
       "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/n8n_mcp_wrapper.py"]
+    },
+    "celigo-tools": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/celigo_mcp_bridge.py"]
+    },
+    "edi-ops": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/edi_ops_mcp_bridge.py"]
+    },
+    "amazon-tools": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/amazon_mcp_bridge.py"]
     }
   },
   "commands": [

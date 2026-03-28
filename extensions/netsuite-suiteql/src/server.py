@@ -18,10 +18,8 @@ Schema resolution order (for each tool call):
 
 Supported accounts:
   twistedx (twx): Twisted X, OAuth 1.0a TBA, account 4829859
-  dutyman (dm): Dutyman, OAuth 2.0 M2M, account 8055418
 
 Supported environments: production, sandbox, sandbox2
-  (Dutyman: production and sandbox only)
 """
 
 import fnmatch
@@ -73,7 +71,6 @@ Custom records: query netsuite_list_tables("customrecord*") for full list
 | Account   | Alias | Environments          | Auth     |
 |-----------|-------|-----------------------|----------|
 | twistedx  | twx   | production, sandbox, sandbox2 | OAuth 1.0a |
-| dutyman   | dm    | production, sandbox   | OAuth 2.0 |
 
 Default: twistedx / production
 """
@@ -93,7 +90,6 @@ DEFAULT_ENVIRONMENT = os.environ.get("NETSUITE_ENVIRONMENT", "production")
 
 ACCOUNT_ALIASES = {
     "twx": "twistedx", "twisted": "twistedx", "twistedx": "twistedx",
-    "dm": "dutyman", "duty": "dutyman", "dutyman": "dutyman",
 }
 
 ENV_ALIASES = {
@@ -277,7 +273,7 @@ async def netsuite_run_suiteql(
     Args:
         query: SuiteQL SELECT statement. Use ROWNUM (not LIMIT): WHERE ROWNUM <= 100.
         params: Optional list of ? parameter values for parameterized queries.
-        account: 'twistedx' (twx) or 'dutyman' (dm). Default from config.
+        account: 'twistedx' (twx). Default from config.
         environment: 'production', 'sandbox', or 'sandbox2'. Default from config.
         return_all_rows: Fetch all paginated results. Default False.
 
@@ -317,7 +313,7 @@ def netsuite_describe_table(
     Args:
         table_name: Exact or case-insensitive table name (e.g. 'Transaction', 'Customer',
                     'customrecord_pri_frgt_cnt').
-        account: 'twistedx' or 'dutyman'. Default from config.
+        account: 'twistedx'. Default from config.
         environment: 'production', 'sandbox', or 'sandbox2'. Default from config.
 
     Returns:
@@ -462,7 +458,7 @@ def netsuite_search_schema(
     Args:
         pattern: Search keyword or glob. Substring match by default.
                  Use * for wildcards: 'edi*', '*shipping*', 'custrecord_twx*'.
-        account: 'twistedx' or 'dutyman'. Default from config.
+        account: 'twistedx'. Default from config.
         environment: 'production', 'sandbox', or 'sandbox2'. Default from config.
 
     Returns:
@@ -559,7 +555,7 @@ def netsuite_list_tables(
     Args:
         pattern: Optional glob or substring filter. Examples: 'custom*', 'Transaction*',
                  '*shipment*', 'customrecord_twx*'. Without a pattern, returns first 200 tables.
-        account: 'twistedx' or 'dutyman'. Default from config.
+        account: 'twistedx'. Default from config.
         environment: 'production', 'sandbox', or 'sandbox2'. Default from config.
         limit: Maximum tables to return. Default 200.
 
@@ -637,7 +633,7 @@ def netsuite_show_relationships(
 
     Args:
         table_name: Table name to get relationships for (e.g. 'Transaction', 'TransactionLine').
-        account: 'twistedx' or 'dutyman'. Default from config.
+        account: 'twistedx'. Default from config.
         environment: 'production', 'sandbox', or 'sandbox2'. Default from config.
 
     Returns:
@@ -725,7 +721,7 @@ async def netsuite_refresh_custom_schema(
     For full schema refresh (standard tables), contact the NetSuite admin.
 
     Args:
-        account: 'twistedx' or 'dutyman'. Default from config.
+        account: 'twistedx'. Default from config.
         environment: 'production', 'sandbox', or 'sandbox2'. Default from config.
 
     Returns:

@@ -51,14 +51,14 @@
     "netsuite_account": {
       "type": "string",
       "title": "NetSuite Account",
-      "description": "Account to query: 'twistedx' (Twisted X, OAuth 1.0a, account 4138030) or 'dutyman' (Dutyman, OAuth 2.0, account 8055418). Default: twistedx",
+      "description": "Account to query (e.g. 'twistedx'). Default: twistedx",
       "required": false,
       "default": "twistedx"
     },
     "netsuite_environment": {
       "type": "string",
       "title": "NetSuite Environment",
-      "description": "Environment to query: 'production', 'sandbox', or 'sandbox2'. Dutyman only supports production and sandbox. Default: production",
+      "description": "Environment to query: 'production', 'sandbox', or 'sandbox2'. Default: production",
       "required": false,
       "default": "production"
     }

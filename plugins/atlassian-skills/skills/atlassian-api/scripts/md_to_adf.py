@@ -134,6 +134,22 @@ def md_to_adf(markdown_text):
                 content.append(make_table(header_row, table_rows))
             continue
 
+        # Block-level image: line is ONLY ![alt](url) — becomes ADF mediaSingle
+        # For inline images within text, they'll be handled by parse_inline() in paragraphs.
+        img_match = re.match(r'^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$', line)
+        if img_match:
+            img_url = img_match.group(2)
+            content.append({
+                'type': 'mediaSingle',
+                'attrs': {'layout': 'center'},
+                'content': [{
+                    'type': 'media',
+                    'attrs': {'type': 'external', 'url': img_url}
+                }]
+            })
+            i += 1
+            continue
+
         # Regular paragraph (may span multiple lines)
         paragraph_lines = [line]
         i += 1
@@ -159,7 +175,9 @@ def is_block_start(line):
         re.match(r'^\s*[-*+]\s+', line),
         re.match(r'^\s*\d+\.\s+', line),
         re.match(r'^[-*_]{3,}\s*$', line),
-        is_table_row(line)
+        is_table_row(line),
+        # Block-level image on its own line
+        bool(re.match(r'^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$', line)),
     ])
 
 

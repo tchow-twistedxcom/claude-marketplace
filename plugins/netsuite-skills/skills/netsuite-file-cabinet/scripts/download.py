@@ -303,6 +303,46 @@ def collect_files_hierarchical(
 # Download Functions
 # =============================================================================
 
+def decode_file_content(content_b64: str) -> bytes:
+    """Decode file content from gateway, handling double-base64 encoding.
+
+    The NetSuite API gateway double-encodes binary file content:
+      RESTlet returns base64(pdf_bytes) → gateway wraps → base64(base64(pdf_bytes))
+    A single b64decode produces a base64 string, not actual binary.
+    This function detects and removes both layers.
+
+    Proven pattern from compare_statements.py:174-183.
+    """
+    first_decoded = base64.b64decode(content_b64)
+    try:
+        # If first decode is valid UTF-8, it may be a second base64 layer
+        intermediate = first_decoded.decode('utf-8')
+        return base64.b64decode(intermediate)
+    except (UnicodeDecodeError, Exception):
+        # Not double-encoded (or second decode invalid) — first decode is raw bytes
+        return first_decoded
+
+
+def validate_file_content(content: bytes, name: str) -> Optional[str]:
+    """Validate file content integrity. Returns warning string or None if OK."""
+    if not content:
+        return None
+    ext = name.lower().rsplit('.', 1)[-1] if '.' in name else ''
+    if ext == 'pdf':
+        if not content[:5] == b'%PDF-':
+            preview = content[:20]
+            try:
+                preview_str = preview.decode('ascii', errors='replace')
+            except Exception:
+                preview_str = repr(preview)
+            return f"PDF lacks %PDF- header (got: {preview_str!r})"
+    elif ext in ('png', 'jpg', 'jpeg', 'gif', 'zip'):
+        # Binary files shouldn't be all-ASCII printable
+        if content[:256].replace(b'\n', b'').replace(b'\r', b'').replace(b' ', b'').isascii():
+            return f"Binary {ext.upper()} appears to be ASCII text (likely still base64)"
+    return None
+
+
 def download_file_content(file_id: int, account: str, environment: str) -> Optional[bytes]:
     """Download file content via gateway fileGet procedure."""
     resolved_account = resolve_account(account)
@@ -332,25 +372,36 @@ def download_file_content(file_id: int, account: str, environment: str) -> Optio
         with urllib.request.urlopen(req, timeout=120) as response:
             result = json.loads(response.read().decode('utf-8'))
 
-            file_data = None
-            if result.get('success') and result.get('data'):
-                file_data = result.get('data', {})
-                content = file_data.get('content', '')
-                encoding = file_data.get('encoding', 'UTF-8')
-                if encoding == 'BASE64' or file_data.get('isBase64'):
-                    return base64.b64decode(content)
+            if not result.get('success'):
+                error = result.get('error', 'unknown error')
+                print(f"  Gateway error for file {file_id}: {error}", file=sys.stderr)
+                return None
+
+            data = result.get('data', {})
+
+            # Format B: data.file.content (confirmed gateway format)
+            if isinstance(data, dict) and 'file' in data:
+                file_obj = data['file']
+                if isinstance(file_obj, dict) and file_obj.get('content'):
+                    return decode_file_content(file_obj['content'])
+
+            # Format A: data.content with encoding field
+            if isinstance(data, dict) and data.get('content'):
+                content = data['content']
+                encoding = data.get('encoding', 'UTF-8')
+                if encoding == 'BASE64' or data.get('isBase64'):
+                    return decode_file_content(content)
                 return content.encode('utf-8')
-            elif 'data' in result and 'file' in result['data']:
-                file_data = result['data']['file']
-            elif 'file' in result:
-                file_data = result['file']
 
-            if file_data and 'content' in file_data:
-                return base64.b64decode(file_data['content'])
+            # Fallback: file at top level
+            if isinstance(result.get('file'), dict) and result['file'].get('content'):
+                return decode_file_content(result['file']['content'])
 
+            print(f"  No content in response for file {file_id}: keys={list(data.keys()) if isinstance(data, dict) else type(data).__name__}", file=sys.stderr)
             return None
 
     except Exception as e:
+        print(f"  Download error for file {file_id}: {e}", file=sys.stderr)
         return None
 
 
@@ -390,6 +441,78 @@ def get_last_downloaded_id(manifest: Dict) -> int:
             if file_id > max_id:
                 max_id = file_id
     return max_id
+
+
+# =============================================================================
+# Verify / Fix
+# =============================================================================
+
+def verify_downloads(
+    output_dir: Path,
+    account: str,
+    environment: str,
+    fix: bool = False
+) -> Dict[str, Any]:
+    """Verify downloaded files for corruption. Optionally re-download corrupt ones."""
+    manifest_path = output_dir / '_manifest.json'
+    if not manifest_path.exists():
+        print("ERROR: No manifest found. Run download first.", file=sys.stderr)
+        return {'error': 'no manifest'}
+
+    with open(manifest_path) as fh:
+        manifest = json.load(fh)
+
+    results: Dict[str, int] = {'valid': 0, 'corrupt': 0, 'missing': 0, 'fixed': 0, 'fix_failed': 0}
+
+    files = manifest.get('files', [])
+    total = len([f for f in files if f.get('local_path')])
+    checked = 0
+
+    for file_entry in files:
+        local_path_str = file_entry.get('local_path')
+        if not local_path_str:
+            continue
+
+        checked += 1
+        path = Path(local_path_str)
+        name = file_entry.get('name', path.name)
+        file_id = file_entry.get('id')
+
+        if not path.exists():
+            results['missing'] += 1
+            print(f"  MISSING:  {name}")
+            continue
+
+        with open(path, 'rb') as fh:
+            content = fh.read(1024)
+
+        warning = validate_file_content(content, name)
+        if warning:
+            size = path.stat().st_size
+            results['corrupt'] += 1
+            print(f"  CORRUPT:  {name} ({size:,} bytes) — {warning}")
+
+            if fix and file_id:
+                print(f"    Re-downloading {file_id}... ", end='', flush=True)
+                full_content = download_file_content(file_id, account, environment)
+                if full_content and save_file(full_content, path):
+                    print(f"FIXED ({len(full_content):,} bytes)")
+                    results['fixed'] += 1
+                    file_entry['status'] = 'fixed'
+                else:
+                    print("FAILED")
+                    results['fix_failed'] += 1
+                time.sleep(RATE_LIMIT_DELAY)
+        else:
+            results['valid'] += 1
+            print(f"  VALID:    {name}")
+
+    if fix and results['fixed'] > 0:
+        with open(manifest_path, 'w') as fh:
+            json.dump(manifest, fh, indent=2)
+        print(f"\nManifest updated: {manifest_path}")
+
+    return results
 
 
 # =============================================================================
@@ -434,6 +557,8 @@ Options:
   --limit <n>            Limit number of files
   --strategy <type>      Force strategy: recursive, hierarchical, auto (default: auto)
   --format <fmt>         Output format: table, json (default: table)
+  --verify               Verify existing downloads for corruption (requires --output)
+  --fix-corrupted        Re-download corrupt files found by --verify (requires --output)
 
 Examples:
   # Download a bundle
@@ -447,6 +572,12 @@ Examples:
 
   # Dry run to preview files
   python3 download.py --folder-id 18625 --env prod --dry-run
+
+  # Verify existing downloads for corruption
+  python3 download.py --output ./backup --verify
+
+  # Re-download any corrupt files
+  python3 download.py --output ./backup --env prod --fix-corrupted
 """)
 
 
@@ -467,6 +598,8 @@ def main():
     limit = None
     strategy = 'auto'
     output_format = 'table'
+    verify = False
+    fix_corrupted = False
 
     i = 1
     while i < len(sys.argv):
@@ -504,8 +637,34 @@ def main():
         elif arg == '--format' and i + 1 < len(sys.argv):
             output_format = sys.argv[i + 1]
             i += 2
+        elif arg == '--verify':
+            verify = True
+            i += 1
+        elif arg == '--fix-corrupted':
+            fix_corrupted = True
+            i += 1
         else:
             i += 1
+
+    # Handle verify/fix-corrupted modes early (work from manifest, no folder enumeration needed)
+    if verify or fix_corrupted:
+        if not output_dir:
+            print("ERROR: --output is required for --verify/--fix-corrupted")
+            return
+        mode = 'Verifying and fixing' if fix_corrupted else 'Verifying'
+        print(f"{mode} downloads in: {output_dir}")
+        results = verify_downloads(output_dir, account, environment, fix=fix_corrupted)
+        if 'error' not in results:
+            print(f"\n{'='*50}")
+            print("VERIFY SUMMARY")
+            print(f"{'='*50}")
+            print(f"Valid:      {results.get('valid', 0)}")
+            print(f"Corrupt:    {results.get('corrupt', 0)}")
+            print(f"Missing:    {results.get('missing', 0)}")
+            if fix_corrupted:
+                print(f"Fixed:      {results.get('fixed', 0)}")
+                print(f"Fix failed: {results.get('fix_failed', 0)}")
+        return
 
     if not bundle_number and not folder_id:
         print("ERROR: --bundle or --folder-id is required")
@@ -615,6 +774,7 @@ def main():
     downloaded = 0
     skipped = 0
     failed = 0
+    warnings = 0
 
     for i, f in enumerate(all_files):
         file_id = f.get('id')
@@ -636,6 +796,12 @@ def main():
         content = download_file_content(file_id, account, environment)
 
         if content:
+            # Validate content integrity before saving
+            warning = validate_file_content(content, name)
+            if warning:
+                print(f"WARNING: {warning} ", end='', flush=True)
+                warnings += 1
+
             if save_file(content, output_path):
                 print(f"OK ({len(content):,} bytes)")
                 downloaded += 1
@@ -661,6 +827,8 @@ def main():
     print(f"Downloaded: {downloaded}")
     print(f"Skipped:    {skipped}")
     print(f"Failed:     {failed}")
+    if warnings:
+        print(f"Warnings:   {warnings} (content validation — review output above)")
     print(f"Total:      {len(all_files)}")
     print(f"\nManifest saved to: {manifest_path}")
 

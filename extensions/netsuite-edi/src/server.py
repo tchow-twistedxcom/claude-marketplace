@@ -8,7 +8,6 @@ no credentials needed in this extension.
 
 Supported accounts:
   - twistedx (twx): Twisted X, OAuth 1.0a TBA, account 4138030
-  - dutyman (dm): Dutyman, OAuth 2.0 M2M, account 8055418
 
 Supported environments: production, sandbox, sandbox2
 """
@@ -36,7 +35,6 @@ DEFAULT_ENVIRONMENT = os.environ.get("NETSUITE_ENVIRONMENT", "production")
 
 ACCOUNT_ALIASES = {
     "twx": "twistedx", "twisted": "twistedx", "twistedx": "twistedx",
-    "dm": "dutyman", "duty": "dutyman", "dutyman": "dutyman",
 }
 
 ENV_ALIASES = {
@@ -222,7 +220,7 @@ async def netsuite_run_suiteql(
 
     Args:
         query: SuiteQL SELECT statement. Always include ROWNUM limits (e.g. WHERE ROWNUM <= 100).
-        account: 'twistedx' (twx) or 'dutyman' (dm). Default from config.
+        account: 'twistedx' (twx). Default from config.
         environment: 'production', 'sandbox', or 'sandbox2'. Default from config.
         return_all_rows: Fetch all paginated results if True. Default False.
 

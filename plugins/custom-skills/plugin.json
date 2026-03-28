@@ -1,0 +1,24 @@
+{
+  "name": "custom-skills",
+  "version": "1.0.0",
+  "description": "Personal custom skills collection: 1Password credential lookup, Airbyte integration, Beads design system, BubbleTea TUI, copy editing, find-skills discovery, screenshots, SEO audit, user guide creation, Vercel React best practices, and web design guidelines",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "license": "MIT",
+  "keywords": ["1password", "airbyte", "seo", "web-design", "vercel", "react", "skills", "copy-editing", "screenshots"],
+  "skills": [
+    "./skills/1password",
+    "./skills/airbyte-integration",
+    "./skills/beads",
+    "./skills/bubbletea",
+    "./skills/copy-editing",
+    "./skills/find-skills",
+    "./skills/screenshots",
+    "./skills/seo-audit",
+    "./skills/user-guide-creation",
+    "./skills/vercel-react-best-practices",
+    "./skills/web-design-guidelines"
+  ]
+}

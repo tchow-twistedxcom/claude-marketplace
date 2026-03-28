@@ -1,0 +1,13 @@
+{
+  "name": "infra-skills",
+  "version": "1.0.0",
+  "description": "Infrastructure management skills for tchow homelab — health monitoring, deployments, and container lifecycle across Tailscale, NinjaOne, and Portainer",
+  "skills": [
+    "./skills/infra-health",
+    "./skills/infra-deploy",
+    "./skills/infra-maintenance"
+  ],
+  "commands": [],
+  "mcpServers": [],
+  "globalInstructions": []
+}

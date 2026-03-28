@@ -112,14 +112,11 @@ class AtlassianAuth:
 
     def _save_persistent_config(self, config):
         """Save config to the persistent location outside plugin cache."""
-        try:
-            PERSISTENT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-            temp_path = PERSISTENT_CONFIG_PATH.with_suffix('.tmp')
-            with open(temp_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            temp_path.replace(PERSISTENT_CONFIG_PATH)
-        except (IOError, OSError) as e:
-            print(f"Warning: Could not save persistent config: {e}")
+        PERSISTENT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        temp_path = PERSISTENT_CONFIG_PATH.with_suffix('.tmp')
+        with open(temp_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        temp_path.replace(PERSISTENT_CONFIG_PATH)
 
     def _sync_to_bundled(self, config):
         """Best-effort sync persistent config back to bundled location."""
@@ -393,6 +390,26 @@ class AtlassianAuth:
 
         # Best-effort sync to bundled config
         self._sync_to_bundled(self.config)
+
+        # Best-effort sync to GitHub Actions variable so CI runs stay valid
+        self._sync_token_to_github(new_token)
+
+    def _sync_token_to_github(self, token):
+        """
+        Sync rotated refresh token to GitHub Actions variable JIRA_REFRESH_TOKEN.
+        This keeps CI runs from failing when the token is rotated locally.
+        """
+        import subprocess
+        try:
+            result = subprocess.run(
+                ['gh', 'variable', 'set', 'JIRA_REFRESH_TOKEN', '--body', token],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                pass  # Silent success — happens on every API call, keep output clean
+            # Silent failure is acceptable — CI will fail and user can re-sync manually
+        except Exception:
+            pass  # gh not available or other error — non-fatal
 
     def get_headers(self, site_alias=None):
         """

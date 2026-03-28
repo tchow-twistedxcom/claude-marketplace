@@ -1,0 +1,18 @@
+{
+  "name": "edi-document-specialist",
+  "version": "1.0.0",
+  "description": "EDI document mapping, PDF template generation, and notification specialist for B2B Dashboard. X12 EDI segments (810, 850, 855, 856, 860), BFO PDF rendering compatibility, and CRE2 template patterns.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "license": "MIT",
+  "keywords": ["edi", "x12", "pdf", "cre2", "bfo", "freemarker", "netsuite"],
+  "skills": [
+    "./skills/edi-mapping",
+    "./skills/pdf-templates"
+  ],
+  "agents": [
+    "./agents/edi-document-agent.yaml"
+  ]
+}

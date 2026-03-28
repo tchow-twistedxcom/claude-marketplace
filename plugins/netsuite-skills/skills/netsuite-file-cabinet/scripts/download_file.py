@@ -193,6 +193,24 @@ def get_file_info(
     }
 
 
+def decode_file_content(content_b64: str) -> bytes:
+    """Decode file content from gateway, handling double-base64 encoding.
+
+    The NetSuite API gateway double-encodes binary file content:
+      RESTlet returns base64(pdf_bytes) → gateway wraps → base64(base64(pdf_bytes))
+    A single b64decode produces a base64 string, not actual binary.
+    This function detects and removes both layers.
+
+    Proven pattern from compare_statements.py:174-183.
+    """
+    first_decoded = base64.b64decode(content_b64)
+    try:
+        intermediate = first_decoded.decode('utf-8')
+        return base64.b64decode(intermediate)
+    except (UnicodeDecodeError, Exception):
+        return first_decoded
+
+
 def get_file_content(
     file_id: int,
     account: str = DEFAULT_ACCOUNT,
@@ -246,12 +264,13 @@ def get_file_content(
             if not content_b64:
                 return {'error': 'No content returned from gateway'}
 
-            # Decode base64 content
+            # Decode content (handles double-base64 encoding from gateway)
+            content = decode_file_content(content_b64)
+            # Determine if binary by attempting UTF-8 decode
             try:
-                content = base64.b64decode(content_b64).decode('utf-8')
-            except UnicodeDecodeError:
-                # Binary file - return as bytes
-                content = base64.b64decode(content_b64)
+                content = content.decode('utf-8')
+            except (UnicodeDecodeError, AttributeError):
+                pass  # Leave as bytes (binary file)
 
             return {
                 'success': True,

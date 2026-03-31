@@ -3,7 +3,7 @@
   "name": "plytix-mcp",
   "display_name": "Plytix PIM",
   "version": "1.0.0",
-  "description": "Full Plytix PIM API coverage via MCP. 63 tools across products, assets, categories, variants, attributes, relationships, families, and accounts.",
+  "description": "Full Plytix PIM API coverage via MCP. 64 tools across products, assets, categories, variants, attributes, relationships, families, and accounts.",
   "author": {
     "name": "tchow"
   },
@@ -78,6 +78,7 @@
     { "name": "plytix_search_products", "description": "Search products with filters and attribute selection" },
     { "name": "plytix_bulk_update_products", "description": "Bulk update multiple products in one request" },
     { "name": "plytix_find_products_by_attribute", "description": "Find products by custom attribute value (client-side filtering)" },
+    { "name": "plytix_export_products", "description": "Bulk export products to CSV or JSON file with auto-pagination (fast path: search API; full path: get_product)" },
     { "name": "plytix_add_product_assets", "description": "Link assets to a product via a media gallery attribute" },
     { "name": "plytix_remove_product_assets", "description": "Unlink assets from a product" },
     { "name": "plytix_add_product_categories", "description": "Add a product to categories" },

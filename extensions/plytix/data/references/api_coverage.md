@@ -1,6 +1,6 @@
 # Plytix MCP — API Coverage Map
 
-**MCP Tools**: 63 total (30 read-only, 33 write)
+**MCP Tools**: 64 total (31 read-only, 33 write)
 
 ---
 
@@ -11,6 +11,7 @@
 | `plytix_search_products` | POST | /products/search |
 | `plytix_get_product` | GET | /products/{id} |
 | `plytix_find_products_by_attribute` | client-side | /products/search (iterates pages) |
+| `plytix_export_products` | client-side | /products/search + /products/{id} (auto-paginates, writes /tmp file) |
 | `plytix_create_product` | POST | /products |
 | `plytix_update_product` | PATCH | /products/{id} |
 | `plytix_delete_product` | DELETE | /products/{id} |

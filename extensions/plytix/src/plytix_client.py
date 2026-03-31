@@ -188,19 +188,22 @@ _LIST_KEEP: dict[str, set] = {
 }
 
 
-def _slim(item: dict, resource: str) -> dict:
+def _slim(item: dict, resource: str, extra_keep: set | None = None) -> dict:
     keep = _LIST_KEEP.get(resource)
     if keep:
-        return {k: v for k, v in item.items() if k in keep}
-    # Fallback: strip known heavy fields
+        effective = keep | extra_keep if extra_keep else keep
+        return {k: v for k, v in item.items() if k in effective}
+    # Fallback: strip known heavy fields (but honour extra_keep)
     heavy = {"attributes", "assets", "categories", "relationships", "variants",
              "options", "mappings", "hooks", "install", "installSteps"}
+    if extra_keep:
+        heavy = heavy - extra_keep
     return {k: v for k, v in item.items() if k not in heavy}
 
 
-def _fmt_list(data: list, resource: str = "") -> str:
+def _fmt_list(data: list, resource: str = "", extra_keep: set | None = None) -> str:
     """Slim list items by resource type, then hard-cap bytes."""
-    items = [_slim(i, resource) if isinstance(i, dict) else i for i in data]
+    items = [_slim(i, resource, extra_keep) if isinstance(i, dict) else i for i in data]
     result = json.dumps(items, indent=2)
     size = len(result.encode("utf-8"))
     if size <= BYTE_HARD_LIMIT:
@@ -216,13 +219,13 @@ def _fmt_list(data: list, resource: str = "") -> str:
     }, indent=2)
 
 
-def fmt(data, resource: str = "") -> str:
+def fmt(data, resource: str = "", extra_keep: set | None = None) -> str:
     """Format any response with hard byte cap."""
     if isinstance(data, list):
-        return _fmt_list(data, resource)
+        return _fmt_list(data, resource, extra_keep)
     # Unwrap Plytix envelope: {'data': [...]} → format the list
     if isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-        list_result = _fmt_list(data["data"], resource)
+        list_result = _fmt_list(data["data"], resource, extra_keep)
         # If there's pagination info, include it
         pagination = data.get("pagination") or data.get("meta")
         if pagination:

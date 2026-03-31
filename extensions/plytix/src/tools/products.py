@@ -1,4 +1,10 @@
 """Product domain MCP tools — CRUD, search, bulk, assets/categories/relationships."""
+import asyncio
+import csv
+import json
+import os
+import time
+import uuid
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from plytix_client import PlytixClient, fmt, handle_error
@@ -80,7 +86,17 @@ def register_product_tools(mcp: FastMCP, client: PlytixClient, read_only: bool =
             if attributes:
                 data["attributes"] = attributes
             result = await client.post("/products/search", data)
-            return fmt(result, "products")
+            # Preserve any attribute/relationship fields the caller explicitly requested
+            extra: set = set()
+            if attributes:
+                for a in attributes:
+                    if a.startswith("attributes."):
+                        extra.add("attributes")
+                    elif a.startswith("relationships."):
+                        extra.add("relationships")
+                    else:
+                        extra.add(a)
+            return fmt(result, "products", extra_keep=extra or None)
         except Exception as e:
             return handle_error(e)
 
@@ -160,7 +176,211 @@ def register_product_tools(mcp: FastMCP, client: PlytixClient, read_only: bool =
                     break
                 page += 1
 
-            return fmt(matching, "products")
+            # Return full product data — no slim, just byte-cap
+            return fmt(matching)
+        except Exception as e:
+            return handle_error(e)
+
+    @mcp.tool(
+        name="plytix_export_products",
+        annotations={"title": "Export Products to File", "readOnlyHint": True, "openWorldHint": True}
+    )
+    async def plytix_export_products(
+        filters: Optional[list] = None,
+        attributes: Optional[list] = None,
+        format: str = "csv",
+        max_products: int = 1000,
+    ) -> str:
+        """Export products to a CSV or JSON file with auto-pagination.
+
+        Handles the N+1 API limitation automatically: uses the fast search path
+        when ≤20 custom attributes are needed, or concurrent get_product calls otherwise.
+
+        Args:
+            filters: List of filter dicts [{field, operator, value}]. Same syntax as
+                     plytix_search_products. Use 'like' for text matching.
+            attributes: List of attribute labels to export, e.g. ['attributes.brand',
+                        'attributes.color']. Max 20 for fast path (search API).
+                        Pass None or >20 to use the full path (all attributes via get_product).
+            format: Output format — 'csv' (default) or 'json'.
+            max_products: Maximum products to export. Default 1000, max 10000.
+
+        Returns:
+            JSON metadata: {file_path, format, product_count, columns (CSV only),
+                            strategy, elapsed_seconds, truncated}.
+
+        Notes:
+            Fast path (≤20 custom attrs): ~10 products/second via search API.
+            Full path (>20 attrs or None): ~5 products/second via get_product calls.
+            The exported file is written to /tmp/ and can be read with standard file tools.
+        """
+        try:
+            import httpx as _httpx
+
+            t_start = time.time()
+            fmt_lower = format.lower()
+            if fmt_lower not in ("csv", "json"):
+                return json.dumps({"error": "format must be 'csv' or 'json'"})
+            max_products = min(max_products, 10_000)
+
+            # Determine strategy
+            custom_attr_count = sum(
+                1 for a in (attributes or []) if a.startswith("attributes.")
+            ) if attributes else 0
+            use_fast_path = attributes is not None and custom_attr_count <= 20
+
+            # ----------------------------------------------------------------
+            # Helpers
+            # ----------------------------------------------------------------
+            async def _safe_post(endpoint: str, payload: dict, retries: int = 3) -> dict:
+                for attempt in range(retries):
+                    try:
+                        return await client.post(endpoint, payload)
+                    except _httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429 and attempt < retries - 1:
+                            wait = int(e.response.headers.get("Retry-After", "10"))
+                            await asyncio.sleep(wait)
+                            continue
+                        raise
+                raise RuntimeError("Rate limit retries exhausted")
+
+            async def _safe_get(endpoint: str, retries: int = 3) -> dict:
+                for attempt in range(retries):
+                    try:
+                        return await client.get(endpoint)
+                    except _httpx.HTTPStatusError as e:
+                        if e.response.status_code == 429 and attempt < retries - 1:
+                            wait = int(e.response.headers.get("Retry-After", "10"))
+                            await asyncio.sleep(wait)
+                            continue
+                        raise
+                raise RuntimeError("Rate limit retries exhausted")
+
+            # ----------------------------------------------------------------
+            # Fast path: search with attributes param
+            # ----------------------------------------------------------------
+            products = []
+            strategy = "fast_path" if use_fast_path else "full_path"
+            truncated = False
+
+            if use_fast_path:
+                page = 1
+                while len(products) < max_products:
+                    payload: dict = {
+                        "pagination": {"page": page, "page_size": 100},
+                        "attributes": attributes,
+                    }
+                    if filters:
+                        payload["filters"] = [filters] if isinstance(filters[0], dict) else filters
+                    result = await _safe_post("/products/search", payload)
+                    batch = result.get("data", [])
+                    if not batch:
+                        break
+                    products.extend(batch)
+                    # Check if we've hit max
+                    if len(products) >= max_products:
+                        products = products[:max_products]
+                        # Check if there were more
+                        pagination = result.get("pagination", {})
+                        total = pagination.get("total_count", pagination.get("total", 0))
+                        truncated = total > max_products
+                        break
+                    if len(batch) < 100:
+                        break
+                    page += 1
+                    await asyncio.sleep(0.2)
+
+            # ----------------------------------------------------------------
+            # Full path: search IDs → concurrent get_product
+            # ----------------------------------------------------------------
+            else:
+                # Phase 1: collect IDs
+                product_ids = []
+                page = 1
+                while len(product_ids) < max_products:
+                    payload = {
+                        "pagination": {"page": page, "page_size": 100},
+                        "attributes": ["sku"],
+                    }
+                    if filters:
+                        payload["filters"] = [filters] if isinstance(filters[0], dict) else filters
+                    result = await _safe_post("/products/search", payload)
+                    batch = result.get("data", [])
+                    if not batch:
+                        break
+                    product_ids.extend(p["id"] for p in batch if "id" in p)
+                    if len(product_ids) >= max_products:
+                        product_ids = product_ids[:max_products]
+                        pagination = result.get("pagination", {})
+                        total = pagination.get("total_count", pagination.get("total", 0))
+                        truncated = total > max_products
+                        break
+                    if len(batch) < 100:
+                        break
+                    page += 1
+                    await asyncio.sleep(0.1)
+
+                # Phase 2: concurrent get_product with semaphore
+                sem = asyncio.Semaphore(5)
+
+                async def fetch_one(pid: str):
+                    async with sem:
+                        r = await _safe_get(f"/products/{quote(pid)}")
+                        if r and "data" in r and r["data"]:
+                            return r["data"][0]
+                        return None
+
+                tasks = [fetch_one(pid) for pid in product_ids]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                products = [r for r in results if isinstance(r, dict)]
+
+            # ----------------------------------------------------------------
+            # Write output file
+            # ----------------------------------------------------------------
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            rand_hex = uuid.uuid4().hex[:8]
+            ext = "csv" if fmt_lower == "csv" else "json"
+            filepath = f"/tmp/plytix_export_{timestamp}_{rand_hex}.{ext}"
+
+            columns: list = []
+            if fmt_lower == "json":
+                with open(filepath, "w", encoding="utf-8") as f:
+                    json.dump(products, f, indent=2, default=str)
+            else:
+                # Build column list: built-in fields first, then attributes.*
+                builtin_cols = ["id", "sku", "label", "status", "gtin",
+                                "thumbnail", "product_family_id", "created", "modified"]
+                attr_col_set: set = set()
+                for p in products:
+                    for key in p.get("attributes", {}):
+                        attr_col_set.add(f"attributes.{key}")
+                attr_cols = sorted(attr_col_set)
+                columns = builtin_cols + attr_cols
+
+                with open(filepath, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+                    writer.writeheader()
+                    for p in products:
+                        row: dict = {k: p.get(k, "") for k in builtin_cols}
+                        for key, val in p.get("attributes", {}).items():
+                            cell = json.dumps(val, default=str) if isinstance(val, (list, dict)) else val
+                            row[f"attributes.{key}"] = "" if cell is None else cell
+                        writer.writerow(row)
+
+            elapsed = round(time.time() - t_start, 1)
+            meta: dict = {
+                "file_path": filepath,
+                "format": fmt_lower,
+                "product_count": len(products),
+                "strategy": strategy,
+                "elapsed_seconds": elapsed,
+                "truncated": truncated,
+            }
+            if columns:
+                meta["columns"] = columns
+            if truncated:
+                meta["truncated_reason"] = f"max_products={max_products} reached"
+            return json.dumps(meta, indent=2)
         except Exception as e:
             return handle_error(e)
 

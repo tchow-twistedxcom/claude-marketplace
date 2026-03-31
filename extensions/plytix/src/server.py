@@ -35,10 +35,17 @@ You have access to Plytix PIM tools for managing products, assets, categories, v
 attributes, relationships, and product families.
 
 ## Workflow: Reading Product Data
-1. Search products → plytix_search_products (basic fields only, max 20 custom attributes)
+1. Search products → plytix_search_products (basic fields + requested custom attributes, max 20)
 2. Full product details → plytix_get_product (ALL attributes, assets, categories, relationships, product_family_id)
 3. Search by custom attribute → plytix_find_products_by_attribute (search cannot filter on custom attributes)
 4. Category hierarchy → plytix_get_category_tree (builds tree client-side from flat list)
+
+## Workflow: Exporting Data
+1. Bulk product export → plytix_export_products (auto-paginates, writes CSV/JSON to /tmp)
+   - Fast path (≤20 custom attrs): uses search API — ~10 products/second
+   - Full path (>20 attrs or None for all): uses get_product calls — ~5 products/second
+2. After export, read the returned file_path with standard file tools
+3. For inline selective data: plytix_search_products with specific attributes param
 
 ## Workflow: Creating Products
 1. Create product → plytix_create_product (do NOT pass family — silently ignored)

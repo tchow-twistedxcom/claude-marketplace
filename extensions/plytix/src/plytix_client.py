@@ -188,7 +188,7 @@ _LIST_KEEP: dict[str, set] = {
 }
 
 
-def _slim(item: dict, resource: str, extra_keep: set | None = None) -> dict:
+def _slim(item: dict, resource: str, extra_keep: Optional[set] = None) -> dict:
     keep = _LIST_KEEP.get(resource)
     if keep:
         effective = keep | extra_keep if extra_keep else keep
@@ -201,7 +201,7 @@ def _slim(item: dict, resource: str, extra_keep: set | None = None) -> dict:
     return {k: v for k, v in item.items() if k not in heavy}
 
 
-def _fmt_list(data: list, resource: str = "", extra_keep: set | None = None) -> str:
+def _fmt_list(data: list, resource: str = "", extra_keep: Optional[set] = None) -> str:
     """Slim list items by resource type, then hard-cap bytes."""
     items = [_slim(i, resource, extra_keep) if isinstance(i, dict) else i for i in data]
     result = json.dumps(items, indent=2)
@@ -219,7 +219,7 @@ def _fmt_list(data: list, resource: str = "", extra_keep: set | None = None) -> 
     }, indent=2)
 
 
-def fmt(data, resource: str = "", extra_keep: set | None = None) -> str:
+def fmt(data, resource: str = "", extra_keep: Optional[set] = None) -> str:
     """Format any response with hard byte cap."""
     if isinstance(data, list):
         return _fmt_list(data, resource, extra_keep)

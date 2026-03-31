@@ -1,0 +1,159 @@
+{
+  "dxt_version": "0.1",
+  "name": "plytix-mcp",
+  "display_name": "Plytix PIM",
+  "version": "1.0.0",
+  "description": "Full Plytix PIM API coverage via MCP. 77 tools across products, assets, categories, variants, attributes, relationships, families, and accounts.",
+  "author": {
+    "name": "tchow"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tchow-twistedxcom/plytix-mcp"
+  },
+  "license": "MIT",
+  "keywords": ["plytix", "pim", "product-information-management", "dam", "ecommerce"],
+  "server": {
+    "type": "python",
+    "entry_point": "src/server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "mcp>=1.0.0",
+        "--with", "httpx>=0.27.0",
+        "${__dirname}/src/server.py"
+      ],
+      "env": {
+        "PLYTIX_API_KEY": "${user_config.api_key}",
+        "PLYTIX_API_PASSWORD": "${user_config.api_password}",
+        "PLYTIX_API_URL": "${user_config.api_url}",
+        "PLYTIX_AUTH_URL": "${user_config.auth_url}",
+        "PLYTIX_READ_ONLY": "${user_config.read_only}"
+      }
+    }
+  },
+  "user_config": {
+    "api_key": {
+      "type": "string",
+      "title": "Plytix API Key",
+      "description": "Your Plytix API key from accounts.plytix.com > Settings > API.",
+      "sensitive": true,
+      "required": true
+    },
+    "api_password": {
+      "type": "string",
+      "title": "Plytix API Password",
+      "description": "Your Plytix API password (paired with the API key).",
+      "sensitive": true,
+      "required": true
+    },
+    "api_url": {
+      "type": "string",
+      "title": "PIM API URL",
+      "description": "Plytix PIM API base URL.",
+      "required": false,
+      "default": "https://pim.plytix.com/api/v1"
+    },
+    "auth_url": {
+      "type": "string",
+      "title": "Auth API URL",
+      "description": "Plytix authentication endpoint URL.",
+      "required": false,
+      "default": "https://auth.plytix.com/auth/api/get-token"
+    },
+    "read_only": {
+      "type": "string",
+      "title": "Read-Only Mode",
+      "description": "Set to 'true' to register only read tools (no create/update/delete). Useful for team members who should only view data.",
+      "required": false,
+      "default": "false"
+    }
+  },
+  "tools": [
+    { "name": "plytix_list_products", "description": "List products with pagination" },
+    { "name": "plytix_get_product", "description": "Get full product details by ID including all attributes" },
+    { "name": "plytix_create_product", "description": "Create a new product" },
+    { "name": "plytix_update_product", "description": "Update product fields and attributes" },
+    { "name": "plytix_delete_product", "description": "Delete a product" },
+    { "name": "plytix_search_products", "description": "Search products with filters and attribute selection" },
+    { "name": "plytix_bulk_update_products", "description": "Bulk update multiple products in one request" },
+    { "name": "plytix_find_products_by_attribute", "description": "Find products by custom attribute value (client-side filtering)" },
+    { "name": "plytix_add_product_assets", "description": "Link assets to a product via a media gallery attribute" },
+    { "name": "plytix_remove_product_assets", "description": "Unlink assets from a product" },
+    { "name": "plytix_get_product_assets", "description": "Get assets linked to a product" },
+    { "name": "plytix_add_product_categories", "description": "Add a product to categories" },
+    { "name": "plytix_remove_product_categories", "description": "Remove a product from categories" },
+    { "name": "plytix_get_product_category_list", "description": "Get category IDs a product belongs to" },
+    { "name": "plytix_add_product_relationships", "description": "Link related products via a relationship type" },
+    { "name": "plytix_remove_product_relationships", "description": "Unlink related products from a relationship" },
+    { "name": "plytix_get_product_relationships", "description": "Get all relationship links for a product" },
+    { "name": "plytix_assign_product_family", "description": "Assign a product family to a product (required — cannot use update_product)" },
+    { "name": "plytix_list_assets", "description": "List assets with pagination and optional file type filter" },
+    { "name": "plytix_get_asset", "description": "Get asset details by ID" },
+    { "name": "plytix_upload_asset_url", "description": "Upload an asset from a public URL (handles duplicates)" },
+    { "name": "plytix_update_asset", "description": "Update asset metadata" },
+    { "name": "plytix_delete_asset", "description": "Delete an asset" },
+    { "name": "plytix_search_assets", "description": "Search assets with filters" },
+    { "name": "plytix_get_asset_download_url", "description": "Get download URL for an asset" },
+    { "name": "plytix_list_categories", "description": "List product categories with pagination" },
+    { "name": "plytix_get_category", "description": "Get category details by ID" },
+    { "name": "plytix_create_category", "description": "Create a new product category" },
+    { "name": "plytix_update_category", "description": "Update an existing product category" },
+    { "name": "plytix_delete_category", "description": "Delete a product category" },
+    { "name": "plytix_get_category_tree", "description": "Build hierarchical category tree from flat list" },
+    { "name": "plytix_list_category_products", "description": "List products in a category" },
+    { "name": "plytix_add_product_subcategory", "description": "Add a subcategory under a parent product category" },
+    { "name": "plytix_list_file_categories", "description": "List file/asset categories with pagination" },
+    { "name": "plytix_create_file_category", "description": "Create a new file/asset category" },
+    { "name": "plytix_add_file_subcategory", "description": "Add a subcategory under a parent file category" },
+    { "name": "plytix_update_file_category", "description": "Update an existing file category" },
+    { "name": "plytix_delete_file_category", "description": "Delete a file category" },
+    { "name": "plytix_search_file_categories", "description": "Search file categories with filters" },
+    { "name": "plytix_list_variants", "description": "List variants for a parent product" },
+    { "name": "plytix_get_variant", "description": "Get variant details by ID" },
+    { "name": "plytix_create_variant", "description": "Create a new variant under a parent product" },
+    { "name": "plytix_update_variant", "description": "Update a variant's fields" },
+    { "name": "plytix_delete_variant", "description": "Delete a variant" },
+    { "name": "plytix_bulk_create_variants", "description": "Create multiple variants for a product in one request" },
+    { "name": "plytix_resync_variant_attributes", "description": "Resync variant attributes with the parent product" },
+    { "name": "plytix_list_attributes", "description": "List product attributes with pagination" },
+    { "name": "plytix_get_attribute", "description": "Get attribute details by ID" },
+    { "name": "plytix_create_attribute", "description": "Create a new product attribute" },
+    { "name": "plytix_update_attribute", "description": "Update an existing attribute" },
+    { "name": "plytix_delete_attribute", "description": "Delete an attribute" },
+    { "name": "plytix_list_attribute_groups", "description": "List attribute groups (NOTE: Plytix API may return 500 — known upstream bug)" },
+    { "name": "plytix_get_attribute_group", "description": "Get attribute group by ID (NOTE: Plytix API may return 500 — known upstream bug)" },
+    { "name": "plytix_create_attribute_group", "description": "Create a new attribute group (NOTE: Plytix API may return 500 — known upstream bug)" },
+    { "name": "plytix_update_attribute_group", "description": "Update an attribute group (NOTE: Plytix API may return 500 — known upstream bug)" },
+    { "name": "plytix_delete_attribute_group", "description": "Delete an attribute group (NOTE: Plytix API may return 500 — known upstream bug)" },
+    { "name": "plytix_list_relationships", "description": "List relationship type definitions" },
+    { "name": "plytix_get_relationship", "description": "Get relationship type definition by ID" },
+    { "name": "plytix_search_relationships", "description": "Search relationship definitions with filters" },
+    { "name": "plytix_get_relationship_by_name", "description": "Find a relationship definition by name (case-insensitive)" },
+    { "name": "plytix_create_relationship", "description": "Create a new relationship type definition" },
+    { "name": "plytix_update_relationship", "description": "Update a relationship type definition" },
+    { "name": "plytix_delete_relationship", "description": "Delete a relationship type definition" },
+    { "name": "plytix_list_product_families", "description": "List product families with pagination" },
+    { "name": "plytix_get_product_family", "description": "Get product family details by ID" },
+    { "name": "plytix_create_product_family", "description": "Create a new product family" },
+    { "name": "plytix_update_product_family", "description": "Update an existing product family" },
+    { "name": "plytix_delete_product_family", "description": "Delete a product family" },
+    { "name": "plytix_search_product_families", "description": "Search product families with filters" },
+    { "name": "plytix_link_family_attributes", "description": "Link attributes to a product family" },
+    { "name": "plytix_unlink_family_attributes", "description": "Unlink attributes from a product family" },
+    { "name": "plytix_get_family_attributes", "description": "Get attributes directly linked to a product family" },
+    { "name": "plytix_get_family_all_attributes", "description": "Get all attributes available to a family (direct + inherited)" },
+    { "name": "plytix_list_account_members", "description": "List account memberships and users" },
+    { "name": "plytix_list_api_credentials", "description": "List API credentials for the account" },
+    { "name": "plytix_get_product_filters", "description": "Get available filter fields for product search" },
+    { "name": "plytix_get_asset_filters", "description": "Get available filter fields for asset search" },
+    { "name": "plytix_get_relationship_filters", "description": "Get available filter fields for relationship search" }
+  ],
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

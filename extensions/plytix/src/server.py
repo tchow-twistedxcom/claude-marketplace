@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "mcp>=1.0.0",
+#   "httpx>=0.27.0",
+# ]
+# ///
 """
 Plytix PIM MCP Server
 

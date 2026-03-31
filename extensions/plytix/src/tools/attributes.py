@@ -26,6 +26,7 @@ def register_attribute_tools(mcp: FastMCP, client: PlytixClient, read_only: bool
         Note:
             Returns attribute metadata, not product values. The 'label' is the snake_case
             identifier used in product attributes dicts. The 'name' is the human-readable label.
+            Attribute groups are unavailable — Plytix upstream API returns 500 (known bug).
         """
         try:
             data = {
@@ -53,56 +54,6 @@ def register_attribute_tools(mcp: FastMCP, client: PlytixClient, read_only: bool
         """
         try:
             result = await client.get(f"/attributes/product/{quote(attribute_id)}")
-            return fmt(result)
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
-        name="plytix_list_attribute_groups",
-        annotations={"title": "List Attribute Groups", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_list_attribute_groups(limit: int = 100, page: int = 1) -> str:
-        """List attribute groups with pagination.
-
-        IMPORTANT: The Plytix attribute groups API (/attributes/product/groups) is known
-        to return 500 Internal Server Error. This is a confirmed upstream bug in the
-        Plytix API — not a client issue. Individual attribute operations work fine.
-
-        Args:
-            limit: Results per page (max 100). Default 100.
-            page: Page number. Default 1.
-
-        Returns:
-            JSON with attribute group data, or 500 error if Plytix's API is broken.
-        """
-        try:
-            data = {
-                "filters": [],
-                "pagination": {"page": page, "page_size": limit},
-            }
-            result = await client.post("/attributes/product/groups/search", data)
-            return fmt(result, "attr_groups")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
-        name="plytix_get_attribute_group",
-        annotations={"title": "Get Attribute Group", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_get_attribute_group(group_id: str) -> str:
-        """Get attribute group details by ID.
-
-        IMPORTANT: The Plytix attribute groups API may return 500 Internal Server Error
-        (known upstream bug). Individual attribute endpoints work normally.
-
-        Args:
-            group_id: The attribute group ID.
-
-        Returns:
-            JSON attribute group object, or 500 error from Plytix's API.
-        """
-        try:
-            result = await client.get(f"/attributes/product/groups/{quote(group_id)}")
             return fmt(result)
         except Exception as e:
             return handle_error(e)
@@ -215,92 +166,3 @@ def register_attribute_tools(mcp: FastMCP, client: PlytixClient, read_only: bool
             except Exception as e:
                 return handle_error(e)
 
-        @mcp.tool(
-            name="plytix_create_attribute_group",
-            annotations={"title": "Create Attribute Group", "readOnlyHint": False, "openWorldHint": True}
-        )
-        async def plytix_create_attribute_group(
-            name: str,
-            label: Optional[str] = None,
-            attributes: Optional[list] = None,
-        ) -> str:
-            """Create a new attribute group.
-
-            IMPORTANT: The Plytix attribute groups API may return 500 Internal Server Error
-            (known upstream bug). This tool is implemented but may not work until Plytix fixes it.
-
-            Args:
-                name: Display name for the group.
-                label: Internal identifier (auto-generated if not provided).
-                attributes: Optional list of attribute IDs to include in this group.
-
-            Returns:
-                JSON with created group data, or 500 error from Plytix's API.
-            """
-            try:
-                data: dict = {"name": name}
-                if label is not None:
-                    data["label"] = label
-                if attributes is not None:
-                    data["attributes"] = attributes
-                result = await client.post("/attributes/product/groups", data)
-                return fmt(result)
-            except Exception as e:
-                return handle_error(e)
-
-        @mcp.tool(
-            name="plytix_update_attribute_group",
-            annotations={"title": "Update Attribute Group", "readOnlyHint": False, "openWorldHint": True, "destructiveHint": False}
-        )
-        async def plytix_update_attribute_group(
-            group_id: str,
-            name: Optional[str] = None,
-            attributes: Optional[list] = None,
-        ) -> str:
-            """Update an existing attribute group.
-
-            IMPORTANT: The Plytix attribute groups API may return 500 Internal Server Error
-            (known upstream bug).
-
-            Args:
-                group_id: The attribute group ID.
-                name: New display name (optional).
-                attributes: New list of attribute IDs (optional).
-
-            Returns:
-                JSON with updated group data, or 500 error from Plytix's API.
-            """
-            try:
-                data: dict = {}
-                if name is not None:
-                    data["name"] = name
-                if attributes is not None:
-                    data["attributes"] = attributes
-                if not data:
-                    return '{"error": "No fields provided to update."}'
-                result = await client.patch(f"/attributes/product/groups/{quote(group_id)}", data)
-                return fmt(result)
-            except Exception as e:
-                return handle_error(e)
-
-        @mcp.tool(
-            name="plytix_delete_attribute_group",
-            annotations={"title": "Delete Attribute Group", "readOnlyHint": False, "openWorldHint": True, "destructiveHint": True}
-        )
-        async def plytix_delete_attribute_group(group_id: str) -> str:
-            """Delete an attribute group.
-
-            IMPORTANT: The Plytix attribute groups API may return 500 Internal Server Error
-            (known upstream bug).
-
-            Args:
-                group_id: The attribute group ID to delete.
-
-            Returns:
-                JSON confirmation of deletion, or 500 error from Plytix's API.
-            """
-            try:
-                result = await client.delete(f"/attributes/product/groups/{quote(group_id)}")
-                return fmt(result)
-            except Exception as e:
-                return handle_error(e)

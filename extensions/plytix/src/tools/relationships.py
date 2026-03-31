@@ -9,33 +9,6 @@ def register_relationship_tools(mcp: FastMCP, client: PlytixClient, read_only: b
     """Register all relationship tools. Pass read_only=True to skip write tools."""
 
     @mcp.tool(
-        name="plytix_list_relationships",
-        annotations={"title": "List Relationship Types", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_list_relationships(limit: int = 100, page: int = 1) -> str:
-        """List relationship type definitions with pagination.
-
-        Relationship types define how products can be connected (e.g., 'Amazon Hierarchy',
-        'Related Products', 'Accessories').
-
-        Args:
-            limit: Results per page (max 100). Default 100.
-            page: Page number. Default 1.
-
-        Returns:
-            JSON with data array of relationship types. Each has id, name, label, bidirectional.
-        """
-        try:
-            data = {
-                "filters": [],
-                "pagination": {"page": page, "page_size": limit},
-            }
-            result = await client.post("/relationships/search", data)
-            return fmt(result, "relationships")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
         name="plytix_get_relationship",
         annotations={"title": "Get Relationship Type", "readOnlyHint": True, "openWorldHint": True}
     )
@@ -82,38 +55,6 @@ def register_relationship_tools(mcp: FastMCP, client: PlytixClient, read_only: b
             }
             result = await client.post("/relationships/search", data)
             return fmt(result, "relationships")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
-        name="plytix_get_relationship_by_name",
-        annotations={"title": "Get Relationship by Name", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_get_relationship_by_name(name: str) -> str:
-        """Find a relationship type definition by name (case-insensitive).
-
-        Args:
-            name: The relationship name to search for (partial match using 'like' operator).
-                  Returns the first exact match, or first partial match if no exact match.
-
-        Returns:
-            JSON relationship type object, or null if not found.
-        """
-        try:
-            data = {
-                "filters": [[{"field": "name", "operator": "like", "value": name}]],
-                "pagination": {"page": 1, "page_size": 100},
-            }
-            result = await client.post("/relationships/search", data)
-            relationships = result.get("data", [])
-            # Prefer exact case-insensitive match
-            for rel in relationships:
-                if rel.get("name", "").lower() == name.lower():
-                    return fmt(rel)
-            # Fall back to first result
-            if relationships:
-                return fmt(relationships[0])
-            return fmt(None)
         except Exception as e:
             return handle_error(e)
 

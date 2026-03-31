@@ -9,42 +9,6 @@ def register_product_tools(mcp: FastMCP, client: PlytixClient, read_only: bool =
     """Register all product tools. Pass read_only=True to skip write tools."""
 
     @mcp.tool(
-        name="plytix_list_products",
-        annotations={"title": "List Plytix Products", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_list_products(
-        limit: int = 100,
-        page: int = 1,
-        sort_by: Optional[str] = None,
-        sort_order: str = "asc",
-    ) -> str:
-        """List products with pagination from Plytix PIM.
-
-        Args:
-            limit: Results per page (max 100). Default 100.
-            page: Page number (1-indexed). Default 1.
-            sort_by: Attribute label to sort by (optional).
-            sort_order: Sort direction: 'asc' or 'desc'. Default 'asc'.
-
-        Returns:
-            JSON array of products with id, sku, label, status, modified, thumbnail,
-            product_family_id, gtin. Includes pagination metadata.
-
-        Note:
-            Returns basic fields only — NOT full attribute values.
-            Use plytix_get_product for complete attribute data and product_family_id.
-        """
-        try:
-            data = {"pagination": {"page": page, "page_size": limit}}
-            if sort_by:
-                data["pagination"]["sort_by_attribute"] = sort_by
-                data["pagination"]["sort_order"] = sort_order
-            result = await client.post("/products/search", data)
-            return fmt(result, "products")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
         name="plytix_get_product",
         annotations={"title": "Get Plytix Product", "readOnlyHint": True, "openWorldHint": True}
     )
@@ -62,6 +26,8 @@ def register_product_tools(mcp: FastMCP, client: PlytixClient, read_only: bool =
         Note:
             product_family_id is ONLY returned by this endpoint — search results always show it as null.
             To check which family a product belongs to, always use plytix_get_product.
+            Assets, categories, and relationships are all included in this response —
+            no need to call separate sub-tools.
         """
         try:
             result = await client.get(f"/products/{quote(product_id)}")
@@ -195,70 +161,6 @@ def register_product_tools(mcp: FastMCP, client: PlytixClient, read_only: bool =
                 page += 1
 
             return fmt(matching, "products")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
-        name="plytix_get_product_assets",
-        annotations={"title": "Get Product Assets", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_get_product_assets(product_id: str) -> str:
-        """Get assets linked to a product (extracted from full product data).
-
-        Args:
-            product_id: The Plytix product ID.
-
-        Returns:
-            JSON array of asset objects linked to this product.
-        """
-        try:
-            result = await client.get(f"/products/{quote(product_id)}")
-            if result and "data" in result and result["data"]:
-                return fmt(result["data"][0].get("assets", []), "assets")
-            return fmt([])
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
-        name="plytix_get_product_category_list",
-        annotations={"title": "Get Product Category IDs", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_get_product_category_list(product_id: str) -> str:
-        """Get the list of category IDs a product belongs to.
-
-        Args:
-            product_id: The Plytix product ID.
-
-        Returns:
-            JSON array of category IDs the product is assigned to.
-        """
-        try:
-            result = await client.get(f"/products/{quote(product_id)}")
-            if result and "data" in result and result["data"]:
-                return fmt(result["data"][0].get("categories", []))
-            return fmt([])
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
-        name="plytix_get_product_relationships",
-        annotations={"title": "Get Product Relationships", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_get_product_relationships(product_id: str) -> str:
-        """Get all relationship links for a product (extracted from full product data).
-
-        Args:
-            product_id: The Plytix product ID.
-
-        Returns:
-            JSON array of relationship objects, each with relationship_id,
-            relationship_label, and related_products list.
-        """
-        try:
-            result = await client.get(f"/products/{quote(product_id)}")
-            if result and "data" in result and result["data"]:
-                return fmt(result["data"][0].get("relationships", []))
-            return fmt([])
         except Exception as e:
             return handle_error(e)
 

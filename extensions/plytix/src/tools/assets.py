@@ -10,37 +10,6 @@ def register_asset_tools(mcp: FastMCP, client: PlytixClient, read_only: bool = F
     """Register all asset tools. Pass read_only=True to skip write tools."""
 
     @mcp.tool(
-        name="plytix_list_assets",
-        annotations={"title": "List Plytix Assets", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_list_assets(
-        limit: int = 100,
-        page: int = 1,
-        file_type: Optional[str] = None,
-    ) -> str:
-        """List assets with pagination and optional file type filter.
-
-        Args:
-            limit: Results per page (max 100). Default 100.
-            page: Page number (1-indexed). Default 1.
-            file_type: Filter by file type (e.g., 'image', 'video', 'document'). Optional.
-
-        Returns:
-            JSON array of asset objects with id, filename, file_type, file_size, modified, public_url.
-        """
-        try:
-            data: dict = {
-                "filters": [],
-                "pagination": {"page": page, "page_size": limit},
-            }
-            if file_type:
-                data["filters"] = [[{"field": "file_type", "operator": "eq", "value": file_type}]]
-            result = await client.post("/assets/search", data)
-            return fmt(result, "assets")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
         name="plytix_get_asset",
         annotations={"title": "Get Plytix Asset", "readOnlyHint": True, "openWorldHint": True}
     )

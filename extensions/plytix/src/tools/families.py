@@ -9,33 +9,6 @@ def register_family_tools(mcp: FastMCP, client: PlytixClient, read_only: bool = 
     """Register all product family tools. Pass read_only=True to skip write tools."""
 
     @mcp.tool(
-        name="plytix_list_product_families",
-        annotations={"title": "List Product Families", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_list_product_families(limit: int = 100, page: int = 1) -> str:
-        """List product family definitions with pagination.
-
-        Product families define attribute groupings and schemas for products.
-        Each product must belong to exactly one family.
-
-        Args:
-            limit: Results per page (max 100). Default 100.
-            page: Page number. Default 1.
-
-        Returns:
-            JSON with data array of family objects. Each has id, name, label.
-        """
-        try:
-            data = {
-                "filters": [],
-                "pagination": {"page": page, "page_size": limit},
-            }
-            result = await client.post("/product_families/search", data)
-            return fmt(result, "families")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
         name="plytix_get_product_family",
         annotations={"title": "Get Product Family", "readOnlyHint": True, "openWorldHint": True}
     )
@@ -90,32 +63,10 @@ def register_family_tools(mcp: FastMCP, client: PlytixClient, read_only: bool = 
         annotations={"title": "Get Family Attributes", "readOnlyHint": True, "openWorldHint": True}
     )
     async def plytix_get_family_attributes(family_id: str) -> str:
-        """Get attributes directly linked to a product family.
-
-        Returns only attributes explicitly assigned to this family,
-        not inherited from parent families.
-
-        Args:
-            family_id: The product family ID.
-
-        Returns:
-            JSON with data array of attribute objects linked to this family.
-        """
-        try:
-            result = await client.get(f"/product_families/{quote(family_id)}/attributes")
-            return fmt(result, "attributes")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
-        name="plytix_get_family_all_attributes",
-        annotations={"title": "Get Family All Attributes", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_get_family_all_attributes(family_id: str) -> str:
         """Get all attributes available to a product family.
 
-        Includes attributes inherited from parent families and
-        system-wide default attributes.
+        Includes attributes directly assigned to this family, inherited from parent
+        families, and system-wide default attributes.
 
         Args:
             family_id: The product family ID.

@@ -21,8 +21,7 @@ import httpx
 # Configuration
 # =============================================================================
 
-CHARACTER_LIMIT = 80_000   # ~80KB text — well under Claude Desktop's 1MB MCP limit
-BYTE_HARD_LIMIT = 900_000  # 900KB hard cap on raw bytes returned
+BYTE_HARD_LIMIT = 80_000  # 80KB hard cap on raw bytes returned
 
 DEFAULT_API_URL = "https://pim.plytix.com/api/v1"
 DEFAULT_AUTH_URL = "https://auth.plytix.com/auth/api/get-token"

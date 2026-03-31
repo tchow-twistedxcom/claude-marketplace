@@ -253,32 +253,6 @@ def register_category_tools(mcp: FastMCP, client: PlytixClient, read_only: bool 
     # =========================================================================
 
     @mcp.tool(
-        name="plytix_list_file_categories",
-        annotations={"title": "List File Categories", "readOnlyHint": True, "openWorldHint": True}
-    )
-    async def plytix_list_file_categories(limit: int = 100, page: int = 1) -> str:
-        """List file/asset categories with pagination.
-
-        File categories are used to organize assets (images, videos, documents).
-
-        Args:
-            limit: Results per page (max 100). Default 100.
-            page: Page number. Default 1.
-
-        Returns:
-            JSON with data array of file category objects.
-        """
-        try:
-            data = {
-                "filters": [],
-                "pagination": {"page": page, "page_size": limit},
-            }
-            result = await client.post("/categories/file/search", data)
-            return fmt(result, "file_categories")
-        except Exception as e:
-            return handle_error(e)
-
-    @mcp.tool(
         name="plytix_search_file_categories",
         annotations={"title": "Search File Categories", "readOnlyHint": True, "openWorldHint": True}
     )

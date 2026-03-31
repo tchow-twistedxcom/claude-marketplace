@@ -41,11 +41,12 @@ attributes, relationships, and product families.
 4. Category hierarchy → plytix_get_category_tree (builds tree client-side from flat list)
 
 ## Workflow: Exporting Data
-1. Bulk product export → plytix_export_products (auto-paginates, writes CSV/JSON to /tmp)
+1. Bulk product export → plytix_export_products (auto-paginates, returns data inline)
    - Fast path (≤20 custom attrs): uses search API — ~10 products/second
    - Full path (>20 attrs or None for all): uses get_product calls — ~5 products/second
-2. After export, read the returned file_path with standard file tools
-3. For inline selective data: plytix_search_products with specific attributes param
+2. CSV output: returned as CSV text (first line = metadata comment, then headers + rows)
+3. JSON output: returns metadata JSON + product array
+4. For inline selective data: plytix_search_products with specific attributes param
 
 ## Workflow: Creating Products
 1. Create product → plytix_create_product (do NOT pass family — silently ignored)

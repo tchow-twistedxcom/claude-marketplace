@@ -1,10 +1,9 @@
 """Product domain MCP tools — CRUD, search, bulk, assets/categories/relationships."""
 import asyncio
 import csv
+import io
 import json
-import os
 import time
-import uuid
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
 from plytix_client import PlytixClient, fmt, handle_error
@@ -335,17 +334,18 @@ def register_product_tools(mcp: FastMCP, client: PlytixClient, read_only: bool =
                 products = [r for r in results if isinstance(r, dict)]
 
             # ----------------------------------------------------------------
-            # Write output file
+            # Build inline output (no file — returned directly in response)
             # ----------------------------------------------------------------
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            rand_hex = uuid.uuid4().hex[:8]
-            ext = "csv" if fmt_lower == "csv" else "json"
-            filepath = f"/tmp/plytix_export_{timestamp}_{rand_hex}.{ext}"
+            elapsed = round(time.time() - t_start, 1)
 
-            columns: list = []
             if fmt_lower == "json":
-                with open(filepath, "w", encoding="utf-8") as f:
-                    json.dump(products, f, indent=2, default=str)
+                header = json.dumps({
+                    "product_count": len(products),
+                    "strategy": strategy,
+                    "elapsed_seconds": elapsed,
+                    "truncated": truncated,
+                }, indent=2)
+                return header + "\n\n" + json.dumps(products, indent=2, default=str)
             else:
                 # Build column list: built-in fields first, then attributes.*
                 builtin_cols = ["id", "sku", "label", "status", "gtin",
@@ -354,33 +354,23 @@ def register_product_tools(mcp: FastMCP, client: PlytixClient, read_only: bool =
                 for p in products:
                     for key in p.get("attributes", {}):
                         attr_col_set.add(f"attributes.{key}")
-                attr_cols = sorted(attr_col_set)
-                columns = builtin_cols + attr_cols
+                columns = builtin_cols + sorted(attr_col_set)
 
-                with open(filepath, "w", newline="", encoding="utf-8") as f:
-                    writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
-                    writer.writeheader()
-                    for p in products:
-                        row: dict = {k: p.get(k, "") for k in builtin_cols}
-                        for key, val in p.get("attributes", {}).items():
-                            cell = json.dumps(val, default=str) if isinstance(val, (list, dict)) else val
-                            row[f"attributes.{key}"] = "" if cell is None else cell
-                        writer.writerow(row)
+                buf = io.StringIO()
+                writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
+                writer.writeheader()
+                for p in products:
+                    row: dict = {k: p.get(k, "") for k in builtin_cols}
+                    for key, val in p.get("attributes", {}).items():
+                        cell = json.dumps(val, default=str) if isinstance(val, (list, dict)) else val
+                        row[f"attributes.{key}"] = "" if cell is None else cell
+                    writer.writerow(row)
 
-            elapsed = round(time.time() - t_start, 1)
-            meta: dict = {
-                "file_path": filepath,
-                "format": fmt_lower,
-                "product_count": len(products),
-                "strategy": strategy,
-                "elapsed_seconds": elapsed,
-                "truncated": truncated,
-            }
-            if columns:
-                meta["columns"] = columns
-            if truncated:
-                meta["truncated_reason"] = f"max_products={max_products} reached"
-            return json.dumps(meta, indent=2)
+                meta_comment = (
+                    f"# product_count={len(products)} strategy={strategy} "
+                    f"elapsed={elapsed}s truncated={truncated}\n"
+                )
+                return meta_comment + buf.getvalue()
         except Exception as e:
             return handle_error(e)
 

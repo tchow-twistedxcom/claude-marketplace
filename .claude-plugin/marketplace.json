@@ -130,8 +130,8 @@
     {
       "name": "m365-skills",
       "source": "./plugins/m365-skills",
-      "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, and directory management",
-      "version": "1.0.0",
+      "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, directory management, and security/incident response (sign-in logs, risk detections, audit logs, session revocation).",
+      "version": "1.1.0",
       "keywords": [
         "microsoft-365",
         "m365",
@@ -326,6 +326,13 @@
         "react",
         "skills"
       ]
+    },
+    {
+      "name": "cowork-bridge",
+      "source": "./plugins/cowork-bridge",
+      "description": "Shared workspace bridge between Claude Code and Claude Cowork. Packages artifacts, generates Cowork-ready prompts with deliverable templates, and tracks handoffs via manifest. Syncs via SharePoint/OneDrive.",
+      "version": "1.0.0",
+      "keywords": ["cowork", "sharepoint", "handoff", "deliverables", "collaboration"]
     }
   ]
 }

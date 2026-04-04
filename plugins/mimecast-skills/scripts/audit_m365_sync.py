@@ -27,6 +27,29 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# ── Exclusion Patterns ────────────────────────────────────────────────────────
+
+# Azure AD accounts whose UPN local-part starts with these are service accounts
+AZURE_SVC_PREFIXES = (
+    "svc-", "sync_", "ntservice", "dnsuser", "ncldap", "snipe",
+)
+# Azure AD accounts whose UPN local-part contains these are service accounts
+AZURE_SVC_CONTAINS = ("ldapsync",)
+
+# Mimecast email-address prefixes that are domain infrastructure, not people
+MIMECAST_INFRA_PREFIXES = (
+    "abuse@", "postmaster@", "noreply@", "no-reply@",
+    "mailer-daemon@", "bounces@", "journaling@",
+)
+# Mimecast account-name strings that identify non-person accounts
+MIMECAST_INFRA_NAMES = (
+    "domain abuse address", "domain postmaster address",
+    "mimecast journaling", "ingestion user",
+)
+# Mimecast email local-part prefixes that are Mimecast-internal accounts
+MIMECAST_INTERNAL_PREFIXES = ("api-", "ingest_")
+
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR = Path(__file__).parent
@@ -74,7 +97,7 @@ def fetch_azure_users(tenant: str, verbose: bool) -> list[dict]:
     data = run_cli([
         AZURE_CLI, "-t", tenant, "-f", "json",
         "users", "list",
-        "--select", "id,displayName,userPrincipalName,mail,accountEnabled,department,jobTitle,createdDateTime",
+        "--select", "id,displayName,userPrincipalName,mail,accountEnabled,userType,department,jobTitle,createdDateTime",
         "--all",
     ], verbose)
     if data is None:
@@ -121,6 +144,51 @@ def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
     return []
 
 
+def filter_azure_users(users: list[dict]) -> dict:
+    """
+    Split Azure AD users into employees vs. non-employees.
+
+    Azure AD often contains more than just employees:
+      - Guest (B2B) accounts — external contacts invited via Entra B2B
+      - Service accounts — svc-*, sync_*, ntservice*, dnsuser*, etc.
+      - Infrastructure accounts — LDAP sync, directory sync service accounts
+
+    Returns dict with keys:
+      employees      — Members with real email addresses (used for comparison)
+      guests         — B2B external invites (userType=Guest or #EXT# in UPN)
+      service_accts  — Internal service/infrastructure accounts
+    """
+    employees, guests, service_accts = [], [], []
+
+    for u in users:
+        upn = (u.get("userPrincipalName") or "").lower()
+        display = (u.get("displayName") or "").lower()
+        user_type = (u.get("userType") or "Member")
+
+        # Guest / B2B externals
+        if user_type == "Guest" or "#EXT#" in upn:
+            guests.append(u)
+            continue
+
+        # Service / infrastructure accounts by UPN pattern
+        local = upn.split("@")[0]
+        if (
+            any(local.startswith(p) for p in AZURE_SVC_PREFIXES)
+            or any(s in local for s in AZURE_SVC_CONTAINS)
+            or "synchronization service account" in display
+        ):
+            service_accts.append(u)
+            continue
+
+        employees.append(u)
+
+    return {
+        "employees": employees,
+        "guests": guests,
+        "service_accts": service_accts,
+    }
+
+
 def fetch_mimecast_users(profile: str, verbose: bool) -> list[dict]:
     """Fetch all Mimecast internal users."""
     if verbose:
@@ -145,6 +213,19 @@ def fetch_mimecast_users(profile: str, verbose: bool) -> list[dict]:
     return []
 
 
+def _is_mimecast_infra(user: dict) -> bool:
+    """Return True if this Mimecast account is domain infrastructure, not a person."""
+    email = (user.get("emailAddress") or "").lower()
+    name = (user.get("name") or "").lower()
+    local_at = email.split("@")[0] + "@" if "@" in email else ""
+
+    return (
+        any(email.startswith(p) for p in MIMECAST_INFRA_PREFIXES)
+        or any(s in name for s in MIMECAST_INFRA_NAMES)
+        or any(local_at.startswith(p) for p in MIMECAST_INTERNAL_PREFIXES)
+    )
+
+
 def segment_mimecast_users(users: list[dict]) -> dict:
     """
     Split raw Mimecast user list into meaningful categories.
@@ -154,6 +235,7 @@ def segment_mimecast_users(users: list[dict]) -> dict:
       - Aliases — secondary email addresses for existing users (alias=True)
       - Distribution lists — email groups synced from LDAP (addressType=dl_from_ldap)
       - Email-auto-created — entries generated from mail traffic with no guaranteed mailbox
+      - Infrastructure accounts — abuse@, postmaster@, api-*, ingest_*, journaling@
 
     Only real user accounts should be compared against Azure AD.
 
@@ -162,25 +244,30 @@ def segment_mimecast_users(users: list[dict]) -> dict:
       aliases     — secondary address entries
       dls         — distribution lists
       email_auto  — auto-created from mail traffic
+      infra       — domain infrastructure accounts (abuse@, postmaster@, api-*, etc.)
     """
     aliases = [u for u in users if u.get("alias")]
     dls = [u for u in users if not u.get("alias") and u.get("addressType") == "dl_from_ldap"]
     email_auto = [
         u for u in users
         if not u.get("alias")
-        and u.get("addressType") not in ("dl_from_ldap",)
         and u.get("addressType") == "created_by_email"
     ]
-    real_users = [
+    # From remaining accounts, split out infrastructure vs. real users
+    candidates = [
         u for u in users
         if not u.get("alias")
         and u.get("addressType") not in ("dl_from_ldap", "created_by_email")
     ]
+    infra = [u for u in candidates if _is_mimecast_infra(u)]
+    real_users = [u for u in candidates if not _is_mimecast_infra(u)]
+
     return {
         "real_users": real_users,
         "aliases": aliases,
         "dls": dls,
         "email_auto": email_auto,
+        "infra": infra,
     }
 
 
@@ -673,6 +760,7 @@ def generate_markdown_report(
     grace_days: int,
     timestamp: str,
     mimecast_segments: dict | None = None,
+    azure_segments: dict | None = None,
 ) -> str:
     lines = []
     r = sync_results
@@ -696,25 +784,35 @@ def generate_markdown_report(
     else:
         lines.append(f"⚠️ **{total_issues} user account(s) require attention.**\n")
 
-    # Mimecast user count breakdown (explain the 1,012 vs 359 gap)
-    if mimecast_segments:
-        total_mc = (
-            len(mimecast_segments.get("real_users", []))
-            + len(mimecast_segments.get("aliases", []))
-            + len(mimecast_segments.get("dls", []))
-            + len(mimecast_segments.get("email_auto", []))
-        )
-        lines.append("## Mimecast User Count Breakdown\n")
+    # Account count breakdown (explain why raw numbers look misleading)
+    if mimecast_segments or azure_segments:
+        lines.append("## Account Filtering Applied\n")
         lines.append(
-            "Mimecast's total entry count includes more than just user accounts. "
-            "The comparison below only uses **real user accounts**.\n"
+            "Both Azure AD and Mimecast contain non-employee entries. "
+            "The comparison below uses only **real user accounts** from each side.\n"
         )
+
+    if azure_segments:
+        total_az = sum(len(v) for v in azure_segments.values())
+        lines.append("**Azure AD**\n")
+        lines.append("| Category | Count | Included in Comparison |")
+        lines.append("|---|---|---|")
+        lines.append(f"| Employees (Member accounts) | {len(azure_segments['employees'])} | ✅ Yes |")
+        lines.append(f"| Guests / B2B externals | {len(azure_segments['guests'])} | ❌ No — external contacts, not employees |")
+        lines.append(f"| Service accounts (svc-*, sync_*, etc.) | {len(azure_segments['service_accts'])} | ❌ No — infrastructure, no mailbox needed |")
+        lines.append(f"| **Total Azure AD entries** | **{total_az}** | |")
+        lines.append("")
+
+    if mimecast_segments:
+        total_mc = sum(len(v) for v in mimecast_segments.values())
+        lines.append("**Mimecast**\n")
         lines.append("| Category | Count | Included in Comparison |")
         lines.append("|---|---|---|")
         lines.append(f"| Real user accounts (LDAP-synced, manual, imported) | {len(mimecast_segments['real_users'])} | ✅ Yes |")
         lines.append(f"| Aliases (secondary email addresses) | {len(mimecast_segments['aliases'])} | ❌ No — same person, different address |")
         lines.append(f"| Distribution lists (LDAP groups) | {len(mimecast_segments['dls'])} | ❌ No — groups, not individuals |")
         lines.append(f"| Email-auto-created (from mail traffic) | {len(mimecast_segments['email_auto'])} | ❌ No — no guaranteed mailbox |")
+        lines.append(f"| Infrastructure (abuse@, postmaster@, api-*, ingest_*) | {len(mimecast_segments['infra'])} | ❌ No — domain/system accounts |")
         lines.append(f"| **Total Mimecast entries** | **{total_mc}** | |")
         lines.append("")
 
@@ -857,24 +955,32 @@ def main():
     print("=" * 40, file=sys.stderr)
 
     # Fetch data
-    azure_users = fetch_azure_users(args.azure_tenant, args.verbose)
+    azure_users_raw = fetch_azure_users(args.azure_tenant, args.verbose)
     deleted_users = fetch_azure_deleted_users(args.azure_tenant, args.verbose)
     mimecast_raw = fetch_mimecast_users(args.mimecast_profile, args.verbose)
     azure_domains = fetch_azure_domains(args.azure_tenant, args.verbose)
 
-    # Segment Mimecast users: only real accounts should be compared against Azure AD
+    # Segment Azure AD: filter out Guests and service accounts
+    azure_segments = filter_azure_users(azure_users_raw)
+    azure_users = azure_segments["employees"]
+
+    # Segment Mimecast: filter out aliases, DLs, email-auto, and infra accounts
     mimecast_segments = segment_mimecast_users(mimecast_raw)
     mimecast_users = mimecast_segments["real_users"]
 
-    print(f"  Azure AD users: {len(azure_users)}", file=sys.stderr)
+    print(f"  Azure AD total:          {len(azure_users_raw)}", file=sys.stderr)
+    print(f"    ├─ Employees (Members): {len(azure_users)}", file=sys.stderr)
+    print(f"    ├─ Guests (B2B):        {len(azure_segments['guests'])}", file=sys.stderr)
+    print(f"    └─ Service accounts:    {len(azure_segments['service_accts'])}", file=sys.stderr)
     print(f"  Azure AD deleted: {len(deleted_users)}", file=sys.stderr)
-    print(f"  Mimecast total entries: {len(mimecast_raw)}", file=sys.stderr)
-    print(f"    ├─ Real user accounts: {len(mimecast_users)}", file=sys.stderr)
-    print(f"    ├─ Aliases:            {len(mimecast_segments['aliases'])}", file=sys.stderr)
-    print(f"    ├─ Distribution lists: {len(mimecast_segments['dls'])}", file=sys.stderr)
-    print(f"    └─ Email-auto-created: {len(mimecast_segments['email_auto'])}", file=sys.stderr)
+    print(f"  Mimecast total entries:  {len(mimecast_raw)}", file=sys.stderr)
+    print(f"    ├─ Real user accounts:  {len(mimecast_users)}", file=sys.stderr)
+    print(f"    ├─ Aliases:             {len(mimecast_segments['aliases'])}", file=sys.stderr)
+    print(f"    ├─ Distribution lists:  {len(mimecast_segments['dls'])}", file=sys.stderr)
+    print(f"    ├─ Email-auto-created:  {len(mimecast_segments['email_auto'])}", file=sys.stderr)
+    print(f"    └─ Infra (abuse/api/…): {len(mimecast_segments['infra'])}", file=sys.stderr)
 
-    # Cross-reference real user accounts only
+    # Cross-reference employees only
     sync_results = cross_reference(
         azure_users, mimecast_users, deleted_users,
         excluded_domains, args.grace_days,
@@ -914,7 +1020,7 @@ def main():
     else:
         output = generate_markdown_report(
             sync_results, config_findings, sync_health_findings,
-            args.grace_days, timestamp, mimecast_segments,
+            args.grace_days, timestamp, mimecast_segments, azure_segments,
         )
 
     if args.output == "-":

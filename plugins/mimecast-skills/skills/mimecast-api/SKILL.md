@@ -82,6 +82,28 @@ python3 scripts/mimecast_api.py reports stats
 python3 scripts/mimecast_api.py reports threat-intel
 ```
 
+### Awareness Training
+```bash
+# Training campaigns
+python3 scripts/mimecast_api.py awareness campaigns
+
+# Per-user SAFE scores
+python3 scripts/mimecast_api.py awareness safe-score --email user@example.com
+python3 scripts/mimecast_api.py awareness safe-score-summary
+
+# Phishing simulations
+python3 scripts/mimecast_api.py awareness phishing
+python3 scripts/mimecast_api.py awareness phishing-users --campaign-id CAMP123
+
+# High-risk watchlist
+python3 scripts/mimecast_api.py awareness watchlist
+python3 scripts/mimecast_api.py awareness watchlist-summary
+
+# Training queue and user details
+python3 scripts/mimecast_api.py awareness queue
+python3 scripts/mimecast_api.py awareness training-details --email user@example.com
+```
+
 ## Output Formats
 
 ```bash

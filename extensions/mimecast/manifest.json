@@ -87,16 +87,309 @@
     }
   },
   "tools": [
-    { "name": "mimecast_get_account", "description": "Get account information" },
-    { "name": "mimecast_list_held_messages", "description": "List messages in hold queue" },
-    { "name": "mimecast_track_message", "description": "Track messages through the gateway" },
-    { "name": "mimecast_list_ttp_url_logs", "description": "Get TTP URL protection scan logs" },
-    { "name": "mimecast_list_ttp_attachment_logs", "description": "Get TTP attachment scan logs" },
-    { "name": "mimecast_list_users", "description": "List internal users" },
-    { "name": "mimecast_list_groups", "description": "List directory groups" },
-    { "name": "mimecast_list_managed_senders", "description": "List blocked or permitted senders" },
-    { "name": "mimecast_get_audit_events", "description": "Get audit events log" },
-    { "name": "mimecast_list_policies", "description": "List email policies" }
+    {
+      "name": "mimecast_get_account",
+      "description": "Get Mimecast account information including domain, region, and package details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "mimecast_list_held_messages",
+      "description": "List messages currently held in the Mimecast queue awaiting review.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "admin": {"type": "boolean", "description": "True for admin hold queue, False for user hold queue (default: false)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_track_message",
+      "description": "Track messages through the Mimecast gateway by sender, recipient, or subject.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sender": {"type": "string", "description": "Filter by sender email address (optional)"},
+          "recipient": {"type": "string", "description": "Filter by recipient email address (optional)"},
+          "subject": {"type": "string", "description": "Filter by subject (optional)"},
+          "from_date": {"type": "string", "description": "Start date ISO format e.g. '2024-01-01T00:00:00+0000' (optional)"},
+          "to_date": {"type": "string", "description": "End date ISO format (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_list_ttp_url_logs",
+      "description": "Get TTP URL protection scan logs showing clicked URLs and threat results.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scan_result": {"type": "string", "description": "Filter by result: 'clean', 'malicious', 'warn', 'error', 'neutral' (optional)"},
+          "from_date": {"type": "string", "description": "Start date ISO format (optional)"},
+          "to_date": {"type": "string", "description": "End date ISO format (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_list_ttp_attachment_logs",
+      "description": "Get TTP attachment protection scan logs for sandboxed email attachments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "string", "description": "Filter by result: 'clean', 'malicious', 'unknown', 'timeout' (optional)"},
+          "from_date": {"type": "string", "description": "Start date ISO format (optional)"},
+          "to_date": {"type": "string", "description": "End date ISO format (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_list_users",
+      "description": "List Mimecast internal users, optionally filtered by name or email.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "Search query to filter users by name or email (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_list_groups",
+      "description": "List Mimecast directory groups.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "Search query to filter groups by name (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_list_managed_senders",
+      "description": "List managed senders (blocked or permitted) in Mimecast.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sender_type": {"type": "string", "description": "'blocked' or 'permit' (default: 'blocked')", "default": "blocked"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_audit_events",
+      "description": "Get Mimecast audit events for admin activity tracking.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from_date": {"type": "string", "description": "Start date ISO format (optional, default: 24h ago)"},
+          "to_date": {"type": "string", "description": "End date ISO format (optional, default: now)"},
+          "category": {"type": "string", "description": "Filter by event category (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_list_policies",
+      "description": "List Mimecast policies of a given type (blocked-senders, permitted-senders, anti-spoofing).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "policy_type": {"type": "string", "description": "Policy type: 'blocked-senders', 'permitted-senders', 'anti-spoofing' (default: 'blocked-senders')", "default": "blocked-senders"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_release_held_message",
+      "description": "Release a held message from the Mimecast hold queue so it can be delivered.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "message_id": {"type": "string", "description": "ID of the held message to release (required)"},
+          "reason": {"type": "string", "description": "Optional reason for releasing the message"}
+        },
+        "required": ["message_id"]
+      }
+    },
+    {
+      "name": "mimecast_block_sender",
+      "description": "Add an email sender to the Mimecast blocked senders list.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sender": {"type": "string", "description": "Email address to block (required)"},
+          "to": {"type": "string", "description": "Recipient address to scope the block to (optional)"},
+          "comment": {"type": "string", "description": "Optional comment describing why sender is blocked"}
+        },
+        "required": ["sender"]
+      }
+    },
+    {
+      "name": "mimecast_permit_sender",
+      "description": "Add an email sender to the Mimecast permitted senders list.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sender": {"type": "string", "description": "Email address to permit (required)"},
+          "to": {"type": "string", "description": "Recipient address to scope the permit to (optional)"},
+          "comment": {"type": "string", "description": "Optional comment describing why sender is permitted"}
+        },
+        "required": ["sender"]
+      }
+    },
+    {
+      "name": "mimecast_block_url",
+      "description": "Add a URL to the Mimecast TTP URL block list to prevent users from accessing it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to block (required)"},
+          "comment": {"type": "string", "description": "Optional comment describing why URL is blocked"}
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "mimecast_permit_url",
+      "description": "Add a URL to the Mimecast TTP URL permit list to allow users to access it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {"type": "string", "description": "URL to permit (required)"},
+          "comment": {"type": "string", "description": "Optional comment describing why URL is permitted"}
+        },
+        "required": ["url"]
+      }
+    },
+    {
+      "name": "mimecast_get_ttp_impersonation_logs",
+      "description": "Get TTP impersonation protection logs showing emails blocked or warned as impersonation attempts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "days": {"type": "integer", "description": "Number of days to look back (default: 1, max: 7)", "default": 1},
+          "action": {"type": "string", "description": "Filter by action taken: 'block', 'warn', 'none' (optional)"},
+          "limit": {"type": "integer", "description": "Maximum number of results (default: 100, max: 500)", "default": 100}
+        }
+      }
+    },
+    {
+      "name": "mimecast_list_campaigns",
+      "description": "List awareness training campaigns with ID, name, status, and completion counts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": {"type": "string", "description": "Optional source filter for campaigns"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_safe_scores",
+      "description": "Get per-user SAFE (Security Awareness For Employees) score details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "description": "Filter to a specific user email address (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_phishing_results",
+      "description": "Get phishing simulation campaign results including open, click, and report statistics.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "campaign_id": {"type": "string", "description": "Specific phishing campaign ID (optional)"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_watchlist",
+      "description": "Get the high-risk user watchlist — users with the lowest SAFE scores or most security incidents.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "mimecast_get_campaign_users",
+      "description": "Get per-user data for awareness training campaigns.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "campaign_id": {"type": "string", "description": "Specific campaign ID (optional)"},
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_performance",
+      "description": "Get company-wide awareness training performance details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_performance_summary",
+      "description": "Get a summary of company-wide awareness training performance.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_phishing_user_data",
+      "description": "Get per-user data for phishing simulation campaigns.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "campaign_id": {"type": "string", "description": "Specific phishing campaign ID (optional)"},
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_safe_score_summary",
+      "description": "Get a company-wide summary of SAFE score distribution.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_training_queue",
+      "description": "Get the current awareness training assignment queue.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_training_details",
+      "description": "Get training module completion details, optionally filtered by user email.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {"type": "string", "description": "Filter to a specific user email address (optional)"},
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    },
+    {
+      "name": "mimecast_get_watchlist_summary",
+      "description": "Get a summary of the high-risk user watchlist including total users at risk and risk distribution.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {"type": "string", "description": "Config profile to use", "default": "default"}
+        }
+      }
+    }
   ],
   "compatibility": {
     "platforms": ["darwin", "linux", "win32"],

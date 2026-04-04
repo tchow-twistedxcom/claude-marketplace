@@ -21,9 +21,9 @@ def make_common_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument(
         "--output", "-o",
-        choices=["table", "json", "csv"],
+        choices=["table", "json"],
         default=None,
-        help="Output format: table (default), json, or csv"
+        help="Output format: table (default) or json"
     )
     p.add_argument(
         "--profile",

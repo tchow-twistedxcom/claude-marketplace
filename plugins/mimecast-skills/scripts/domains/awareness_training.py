@@ -19,14 +19,13 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING, Any
 
-from .base import BaseDomain, register_domain
+from .base import BaseDomain
 from .utils import add_date_shortcuts, resolve_date_range
 
 if TYPE_CHECKING:
     import argparse
 
 
-@register_domain("awareness_training")
 class AwarenessTrainingDomain(BaseDomain):
     """Awareness Training API domain — campaigns, phishing, SAFE scores, watchlist."""
 
@@ -190,7 +189,8 @@ class AwarenessTrainingDomain(BaseDomain):
             ("awareness", "watchlist-summary"):   self.cmd_watchlist_summary,
         }
 
-    def register_parsers(self, subparsers: Any, make_common_parser: Any) -> None:
+    @classmethod
+    def register_parsers(cls, subparsers: Any, make_common_parser: Any) -> None:
         """Register awareness training subparsers."""
         p = subparsers.add_parser(
             "awareness",

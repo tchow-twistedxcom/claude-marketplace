@@ -12,6 +12,7 @@ import hmac
 import json
 import os
 import sys
+import tempfile
 import time
 import uuid
 from datetime import datetime
@@ -143,11 +144,20 @@ class MimecastAuth:
     def _save_token_cache(self, token_data: dict):
         """Save OAuth token to cache with restricted file permissions."""
         self._token_cache = token_data
+        cache_path = str(TOKEN_CACHE_FILE)
         try:
-            with open(TOKEN_CACHE_FILE, 'w') as f:
-                json.dump(token_data, f, indent=2)
-            # Restrict to owner read/write only (0o600) — tokens are sensitive
-            TOKEN_CACHE_FILE.chmod(0o600)
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(cache_path))
+            try:
+                os.fchmod(tmp_fd, 0o600)
+                with os.fdopen(tmp_fd, "w") as f:
+                    json.dump(token_data, f, indent=2)
+                os.replace(tmp_path, cache_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except IOError as e:
             print(f"Warning: Could not cache token: {e}", file=sys.stderr)
 

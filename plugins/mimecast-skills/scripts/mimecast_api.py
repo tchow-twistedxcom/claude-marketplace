@@ -24,7 +24,7 @@ from mimecast_formatter import format_output, print_json
 # New API operations are added as domain modules in scripts/domains/.
 # Existing operations in MimecastAPI class are migrated incrementally.
 from domains.base import BaseDomain
-from domains.awareness_training import AwarenessTrainingDomain
+from domains import DOMAIN_CLASSES
 
 
 class MimecastAPI:
@@ -2221,10 +2221,8 @@ Examples:
     rep_threat.add_argument("--feed", help="Specific feed type")
 
     # ── Register domain module parsers ────────────────────────────────────────
-    # Domain instances are created here with no client (client injected after arg parsing)
-    _pre_domains = [AwarenessTrainingDomain(None)]
-    for _domain in _pre_domains:
-        _domain.register_parsers(subparsers, make_common_parser)
+    for cls in DOMAIN_CLASSES:
+        cls.register_parsers(subparsers, make_common_parser)
 
     args = parser.parse_args()
 
@@ -2318,7 +2316,7 @@ Examples:
 
     # ── Merge domain module cmd_maps ─────────────────────────────────────────
     # Re-instantiate domains with the live client so bound methods use real auth
-    for _domain in [AwarenessTrainingDomain(api.client)]:
+    for _domain in [cls(api.client) for cls in DOMAIN_CLASSES]:
         cmd_map.update(_domain.get_cmd_map())
 
     cmd_key = (args.resource, args.action)

@@ -1,37 +1,12 @@
 """
 Mimecast Domain Base Classes
 
-Provides BaseDomain ABC and @register_domain decorator for the domain module system.
+Provides BaseDomain ABC for the domain module system.
 """
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from typing import TypeVar, Any
-
-T = TypeVar("T", bound="BaseDomain")
-
-_REGISTRY: dict[str, type["BaseDomain"]] = {}
-
-
-def register_domain(name: str):
-    """Register a domain class by name.
-
-    Raises ValueError on duplicate registration to prevent silent overwrites.
-    """
-    def decorator(cls: type[T]) -> type[T]:
-        if name in _REGISTRY:
-            raise ValueError(
-                f"Domain '{name}' already registered by {_REGISTRY[name].__name__}. "
-                f"Duplicate registration attempted by {cls.__name__}."
-            )
-        _REGISTRY[name] = cls
-        return cls
-    return decorator
-
-
-def get_registry() -> dict[str, type["BaseDomain"]]:
-    """Return the domain registry."""
-    return _REGISTRY
+from typing import Any
 
 
 class BaseDomain(ABC):
@@ -59,8 +34,9 @@ class BaseDomain(ABC):
         """
         ...
 
+    @classmethod
     @abstractmethod
-    def register_parsers(self, subparsers: Any, make_common_parser: Callable) -> None:
+    def register_parsers(cls, subparsers: Any, make_common_parser: Callable) -> None:
         """Register argparse subparsers for this domain's commands.
 
         Args:

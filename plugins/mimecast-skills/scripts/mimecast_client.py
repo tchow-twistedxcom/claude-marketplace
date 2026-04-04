@@ -288,10 +288,13 @@ class MimecastClient:
 
             # API 2.0 uses 'value' or 'data' for the items array
             page = resp.get("value") or resp.get("data") or []
-            results.extend(page)
-
-            if max_results is not None and len(results) >= max_results:
-                return results[:max_results]
+            if max_results is not None:
+                remaining = max_results - len(results)
+                results.extend(page[:remaining])
+                if len(results) >= max_results:
+                    return results
+            else:
+                results.extend(page)
 
             # Support both @odata.nextLink and nextPageToken pagination
             next_link = resp.get("@odata.nextLink") or resp.get("@nextLink")

@@ -16,6 +16,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from email.utils import formatdate
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 import httpx
@@ -52,7 +53,8 @@ def _get_region_urls(region: str) -> tuple[str, str]:
     return legacy.get(region, legacy["us"]), oauth.get(region, oauth["global"])
 
 
-def _get_auth_config() -> dict:
+@lru_cache(maxsize=4)
+def _get_auth_config(profile: str = "default") -> dict:
     """Get auth configuration from env vars or config file."""
     region = os.environ.get("MIMECAST_REGION", "us")
     client_id = os.environ.get("MIMECAST_CLIENT_ID", "")
@@ -544,7 +546,9 @@ async def mimecast_list_policies(policy_type: str = "blocked-senders") -> str:
             "permitted-senders": "/api/policy/permittedsenders/get-policy",
             "anti-spoofing": "/api/policy/antispoofing-bypass/get-policy",
         }
-        uri = endpoint_map.get(policy_type, f"/api/policy/{policy_type}/get-policy")
+        if policy_type not in endpoint_map:
+            raise ValueError(f"Unknown policy type: {policy_type!r}. Valid types: {list(endpoint_map)}")
+        uri = endpoint_map[policy_type]
         resp = await _mimecast_request(uri, {})
         return _truncate(json.dumps(_extract_data(resp), indent=2))
     except Exception as e:
@@ -839,6 +843,205 @@ async def mimecast_get_watchlist() -> str:
     try:
         resp = await _mimecast_request(
             "/api/awareness-training/company/get-watchlist-details", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_campaign_users",
+    description="Get per-user data for awareness training campaigns.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_campaign_users(
+    campaign_id: Optional[str] = None,
+    profile: str = "default",
+) -> str:
+    """Get per-user data for awareness training campaigns.
+
+    Args:
+        campaign_id: Specific campaign ID to filter results (optional — omit for all campaigns)
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of per-user campaign data with email, completion status, and score.
+    """
+    try:
+        body = {"data": [{"campaignId": campaign_id}]} if campaign_id else {"data": [{}]}
+        return _truncate(json.dumps(_extract_data(await _mimecast_request(
+            "/api/awareness-training/campaign/get-user-data", body
+        )), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_performance",
+    description="Get company-wide awareness training performance details.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_performance(profile: str = "default") -> str:
+    """Get company-wide awareness training performance details.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON with overall company performance metrics for awareness training.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-performance-details", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_performance_summary",
+    description="Get a summary of company-wide awareness training performance.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_performance_summary(profile: str = "default") -> str:
+    """Get a summary of company-wide awareness training performance.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON summary of overall awareness training performance including completion rates.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-performance-summary", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_phishing_user_data",
+    description="Get per-user data for phishing simulation campaigns.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_phishing_user_data(
+    campaign_id: Optional[str] = None,
+    profile: str = "default",
+) -> str:
+    """Get per-user data for phishing simulation campaigns.
+
+    Args:
+        campaign_id: Specific phishing campaign ID (optional — omit for all campaigns)
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of per-user phishing campaign data with click, open, and report actions.
+    """
+    try:
+        body = {"data": [{"campaignId": campaign_id}]} if campaign_id else {"data": [{}]}
+        return _truncate(json.dumps(_extract_data(await _mimecast_request(
+            "/api/awareness-training/phishing/campaign/get-user-data", body
+        )), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_safe_score_summary",
+    description="Get a company-wide summary of SAFE scores.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_safe_score_summary(profile: str = "default") -> str:
+    """Get a company-wide summary of SAFE (Security Awareness For Employees) scores.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON summary of SAFE score distribution across the company.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-safe-score-summary", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_training_queue",
+    description="Get the current awareness training assignment queue.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_training_queue(profile: str = "default") -> str:
+    """Get the current awareness training assignment queue.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of queued training assignments with user, module, and due date.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/queue/get-queue", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_training_details",
+    description="Get training module completion details, optionally filtered by user email.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_training_details(
+    email: Optional[str] = None,
+    profile: str = "default",
+) -> str:
+    """Get training module completion details for users.
+
+    Args:
+        email: Filter to a specific user email address (optional — omit for all users)
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of training detail records with module name, completion date, and score.
+    """
+    try:
+        body = {}
+        if email is not None:
+            body["emailAddress"] = email
+        resp = await _mimecast_request(
+            "/api/awareness-training/user/get-training-details", body
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_watchlist_summary",
+    description="Get a summary of the high-risk user watchlist.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_watchlist_summary(profile: str = "default") -> str:
+    """Get a summary of the high-risk user watchlist.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON summary of watchlist statistics including total users at risk and risk distribution.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-watchlist-summary", {}
         )
         return _truncate(json.dumps(_extract_data(resp), indent=2))
     except Exception as e:

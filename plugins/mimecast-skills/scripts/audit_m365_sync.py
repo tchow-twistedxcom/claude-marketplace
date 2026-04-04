@@ -166,6 +166,20 @@ def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
     }
 
 
+def fetch_sync_health(profile: str, verbose: bool) -> dict:
+    """Fetch directory sync connection config and recent event history."""
+    if verbose:
+        print("Fetching directory sync health...", file=sys.stderr)
+
+    def _run(cmd):
+        return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
+
+    return {
+        "connection": _run(["sync", "status"]),
+        "history": _run(["sync", "history", "--days", "2"]),
+    }
+
+
 # ── Email Normalization ────────────────────────────────────────────────────────
 
 def normalize_email(user: dict, source: str) -> str | None:
@@ -467,6 +481,134 @@ def analyze_config(config: dict, azure_domains: list[dict]) -> list[dict]:
     return findings
 
 
+# ── Sync Health Analysis ──────────────────────────────────────────────────────
+
+def analyze_sync_health(sync_health: dict) -> list[dict]:
+    """Analyze directory sync config and history for issues."""
+    findings = []
+
+    conn_data = sync_health.get("connection")
+    history_data = sync_health.get("history")
+
+    if not conn_data:
+        findings.append({
+            "check": "Directory sync connection",
+            "status": "error",
+            "severity": "HIGH",
+            "detail": "Could not retrieve directory sync configuration",
+        })
+        return findings
+
+    connections = conn_data.get("data", []) if isinstance(conn_data, dict) else []
+    if not connections:
+        findings.append({
+            "check": "Directory sync connection",
+            "status": "not configured",
+            "severity": "HIGH",
+            "detail": "No directory sync connections found — user lifecycle not automated",
+        })
+        return findings
+
+    conn = connections[0]
+    conn_name = conn.get("description", "unknown")
+
+    # Check acknowledgeDisabledAccounts
+    if not conn.get("acknowledgeDisabledAccounts", False):
+        findings.append({
+            "check": "Acknowledge Disabled Accounts",
+            "status": "disabled",
+            "severity": "HIGH",
+            "detail": (
+                f"Connection '{conn_name}': acknowledgeDisabledAccounts=false — "
+                "Azure AD disabled users are NOT automatically disabled in Mimecast. "
+                "Fix: Administration → Services → Directory Sync → enable 'Acknowledge Disabled Accounts'"
+            ),
+        })
+    else:
+        findings.append({
+            "check": "Acknowledge Disabled Accounts",
+            "status": "enabled",
+            "severity": "OK",
+            "detail": f"Connection '{conn_name}': disabled Azure AD users are auto-disabled in Mimecast",
+        })
+
+    # Check deleteUsers
+    if not conn.get("deleteUsers", False):
+        findings.append({
+            "check": "Delete Users on Removal",
+            "status": "disabled",
+            "severity": "MEDIUM",
+            "detail": (
+                f"Connection '{conn_name}': deleteUsers=false — "
+                "Users deleted from Azure AD persist in Mimecast indefinitely"
+            ),
+        })
+    else:
+        findings.append({
+            "check": "Delete Users on Removal",
+            "status": "enabled",
+            "severity": "OK",
+            "detail": f"Connection '{conn_name}': deleted Azure AD users are removed from Mimecast",
+        })
+
+    # Check maxUnlink threshold
+    max_unlink = conn.get("maxUnlink", "")
+    if max_unlink == "unlink_10":
+        findings.append({
+            "check": "Max Unlink Threshold",
+            "status": "low",
+            "severity": "LOW",
+            "detail": (
+                f"Connection '{conn_name}': maxUnlink=unlink_10 — "
+                "Only 10 accounts can be unlinked per sync. "
+                "With 48+ disabled accounts, remediation will take multiple sync cycles"
+            ),
+        })
+
+    # Check sync status
+    conn_status = conn.get("status", "unknown")
+    if conn_status == "error":
+        findings.append({
+            "check": "Directory sync status",
+            "status": "error",
+            "severity": "MEDIUM",
+            "detail": f"Connection '{conn_name}' is in error state — check sync history for details",
+        })
+    else:
+        findings.append({
+            "check": "Directory sync status",
+            "status": conn_status,
+            "severity": "OK",
+            "detail": f"Connection '{conn_name}': last sync {conn.get('lastSync', 'unknown')}",
+        })
+
+    # Check recent failures from history
+    if history_data:
+        history_events = history_data.get("data", []) if isinstance(history_data, dict) else []
+        recent_failures = [
+            e for e in history_events
+            if "failed" in e.get("auditType", "").lower()
+        ]
+        if recent_failures:
+            fail_times = [e.get("eventTime", "")[:16].replace("T", " ") for e in recent_failures]
+            findings.append({
+                "check": "Recent sync failures",
+                "status": "failures detected",
+                "severity": "MEDIUM",
+                "detail": f"{len(recent_failures)} failure(s) in last 48h: {', '.join(fail_times)}. "
+                          "Cause: 'Unable to connect to directory service' — likely transient Azure AD issue",
+            })
+        else:
+            findings.append({
+                "check": "Recent sync failures",
+                "status": "none",
+                "severity": "OK",
+                "detail": "No sync failures in last 48h",
+            })
+
+    return findings
+
+
 # ── Report Generation ─────────────────────────────────────────────────────────
 
 SEVERITY_ICON = {
@@ -486,6 +628,7 @@ def _remediation(email: str) -> str:
 def generate_markdown_report(
     sync_results: dict,
     config_findings: list[dict],
+    sync_health_findings: list[dict],
     grace_days: int,
     timestamp: str,
 ) -> str:
@@ -577,6 +720,16 @@ def generate_markdown_report(
             lines.append(f"| {u['email']} | {u.get('mimecast_name', '')} | {_remediation(u['email'])} |")
         lines.append("")
 
+    # Directory sync health
+    if sync_health_findings:
+        lines.append("## Directory Sync Health\n")
+        lines.append("| Check | Status | Severity | Detail |")
+        lines.append("|---|---|---|---|")
+        for f in sync_health_findings:
+            icon = SEVERITY_ICON.get(f["severity"], "•")
+            lines.append(f"| {f['check']} | {icon} {f['status'].upper()} | {f['severity']} | {f['detail']} |")
+        lines.append("")
+
     # Security configuration
     lines.append("## Security Configuration Checks\n")
     lines.append("| Check | Status | Severity | Detail |")
@@ -587,7 +740,8 @@ def generate_markdown_report(
     lines.append("")
 
     # Footer
-    high_config = [f for f in config_findings if f["severity"] in ("HIGH",)]
+    all_findings = sync_health_findings + config_findings
+    high_config = [f for f in all_findings if f["severity"] in ("HIGH",)]
     if high_config:
         lines.append("### ⚠️ High-Severity Configuration Issues\n")
         for f in high_config:
@@ -663,8 +817,16 @@ def main():
     # Fetch and analyze config
     config = fetch_mimecast_config(args.mimecast_profile, args.verbose)
     config_findings = analyze_config(config, azure_domains)
-    config_issues = [f for f in config_findings if f["severity"] in ("HIGH", "MEDIUM")]
-    print(f"  Config issues: {len(config_issues)}", file=sys.stderr)
+
+    # Fetch and analyze directory sync health
+    sync_health = fetch_sync_health(args.mimecast_profile, args.verbose)
+    sync_health_findings = analyze_sync_health(sync_health)
+
+    all_config_issues = [
+        f for f in config_findings + sync_health_findings
+        if f["severity"] in ("HIGH", "MEDIUM")
+    ]
+    print(f"  Config issues: {len(all_config_issues)}", file=sys.stderr)
 
     # Generate output
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M %Z").strip()
@@ -674,10 +836,11 @@ def main():
             "timestamp": timestamp,
             "sync_results": sync_results,
             "config_findings": config_findings,
+            "sync_health_findings": sync_health_findings,
         }, indent=2)
     else:
         output = generate_markdown_report(
-            sync_results, config_findings, args.grace_days, timestamp
+            sync_results, config_findings, sync_health_findings, args.grace_days, timestamp
         )
 
     if args.output == "-":

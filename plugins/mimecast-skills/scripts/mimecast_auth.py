@@ -141,11 +141,13 @@ class MimecastAuth:
         return {}
 
     def _save_token_cache(self, token_data: dict):
-        """Save OAuth token to cache."""
+        """Save OAuth token to cache with restricted file permissions."""
         self._token_cache = token_data
         try:
             with open(TOKEN_CACHE_FILE, 'w') as f:
                 json.dump(token_data, f, indent=2)
+            # Restrict to owner read/write only (0o600) — tokens are sensitive
+            TOKEN_CACHE_FILE.chmod(0o600)
         except IOError as e:
             print(f"Warning: Could not cache token: {e}", file=sys.stderr)
 

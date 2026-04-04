@@ -7,6 +7,7 @@ Covers email security, user/group management, policy management, and reporting.
 """
 
 import argparse
+import html
 import json
 import sys
 from datetime import datetime, timedelta
@@ -447,11 +448,11 @@ class MimecastAPI:
             if end:
                 xml_parts.append(f'<mtodate>{end}T23:59:59+0000</mtodate>')
             if sender:
-                xml_parts.append(f'<from><address displayable="true" headerencoded="false">{sender}</address></from>')
+                xml_parts.append(f'<from><address displayable="true" headerencoded="false">{html.escape(sender)}</address></from>')
             if recipient:
-                xml_parts.append(f'<to><address displayable="true" headerencoded="false">{recipient}</address></to>')
+                xml_parts.append(f'<to><address displayable="true" headerencoded="false">{html.escape(recipient)}</address></to>')
             if subject:
-                xml_parts.append(f'<subject>{subject}</subject>')
+                xml_parts.append(f'<subject>{html.escape(subject)}</subject>')
 
             # Select fields to return
             xml_parts.append('<select>')

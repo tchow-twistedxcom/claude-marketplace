@@ -201,16 +201,48 @@ def _handle_error(e: Exception) -> str:
 
 
 def _truncate(result: str) -> str:
-    if len(result) > CHARACTER_LIMIT:
-        try:
-            data = json.loads(result)
-            if isinstance(data, list):
-                half = max(1, len(data) // 2)
-                return json.dumps({"items": data[:half], "truncated": True,
-                                   "message": f"Showing {half}/{len(data)} items."}, indent=2)
-        except Exception:
-            return result[:CHARACTER_LIMIT] + "\n... [truncated]"
-    return result
+    """Safely truncate large responses while preserving valid JSON."""
+    if len(result) <= CHARACTER_LIMIT:
+        return result
+    try:
+        data = json.loads(result)
+        if isinstance(data, list):
+            # Trim list to fit within limit
+            half = max(1, len(data) // 2)
+            trimmed = data[:half]
+            truncated = json.dumps(
+                {"items": trimmed, "truncated": True,
+                 "total_returned": half, "total_available": len(data),
+                 "hint": "Use date filters or --limit to narrow results."},
+                indent=2
+            )
+            # Recurse once in case half is still too large
+            if len(truncated) > CHARACTER_LIMIT:
+                quarter = max(1, half // 2)
+                trimmed = data[:quarter]
+                truncated = json.dumps(
+                    {"items": trimmed, "truncated": True,
+                     "total_returned": quarter, "total_available": len(data),
+                     "hint": "Use date filters or --limit to narrow results."},
+                    indent=2
+                )
+            return truncated
+        elif isinstance(data, dict):
+            # For dicts, return a note instead of breaking the structure
+            return json.dumps(
+                {"truncated": True,
+                 "message": f"Response too large ({len(result)} chars). Use more specific filters.",
+                 "keys": list(data.keys())[:20]},
+                indent=2
+            )
+    except Exception:
+        pass
+    # Fallback: return a valid JSON error rather than broken truncated string
+    return json.dumps(
+        {"truncated": True,
+         "message": f"Response too large to display ({len(result)} chars). Use more specific filters."},
+        indent=2
+    )
 
 
 # =============================================================================
@@ -514,6 +546,198 @@ async def mimecast_list_policies(policy_type: str = "blocked-senders") -> str:
         }
         uri = endpoint_map.get(policy_type, f"/api/policy/{policy_type}/get-policy")
         resp = await _mimecast_request(uri, {})
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# Quarantine & Message Actions
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_release_held_message",
+    annotations={"title": "Release Held Message", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_release_held_message(message_id: str, reason: str = "") -> str:
+    """Release a held message from the Mimecast hold queue so it can be delivered.
+
+    Args:
+        message_id: ID of the held message to release (required)
+        reason: Optional reason for releasing the message
+
+    Returns:
+        JSON confirmation of the release action.
+    """
+    try:
+        body = {"id": message_id, "reason": reason}
+        resp = await _mimecast_request("/api/gateway/accept-hold-message", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# Sender Management
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_block_sender",
+    annotations={"title": "Block Sender", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_block_sender(
+    sender: str,
+    to: str = "",
+    comment: str = "",
+) -> str:
+    """Add an email sender to the Mimecast blocked senders list.
+
+    Args:
+        sender: Email address to block (required)
+        to: Recipient address to scope the block to (optional, empty = all recipients)
+        comment: Optional comment describing why sender is blocked
+
+    Returns:
+        JSON confirmation with the created managed sender entry.
+    """
+    try:
+        body = {
+            "sender": sender,
+            "to": to,
+            "type": "block",
+        }
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/managedsender/permit-or-block-sender", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_permit_sender",
+    annotations={"title": "Permit Sender", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_permit_sender(
+    sender: str,
+    to: str = "",
+    comment: str = "",
+) -> str:
+    """Add an email sender to the Mimecast permitted senders list.
+
+    Args:
+        sender: Email address to permit (required)
+        to: Recipient address to scope the permit to (optional, empty = all recipients)
+        comment: Optional comment describing why sender is permitted
+
+    Returns:
+        JSON confirmation with the created managed sender entry.
+    """
+    try:
+        body = {
+            "sender": sender,
+            "to": to,
+            "type": "permit",
+        }
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/managedsender/permit-or-block-sender", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# TTP URL Management
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_block_url",
+    annotations={"title": "Block URL in TTP", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_block_url(url: str, comment: str = "") -> str:
+    """Add a URL to the Mimecast TTP URL block list to prevent users from accessing it.
+
+    Args:
+        url: URL to block (required)
+        comment: Optional comment describing why URL is blocked
+
+    Returns:
+        JSON confirmation with the created managed URL entry.
+    """
+    try:
+        body = {"url": url, "action": "block"}
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/ttp/url/create-managed-url", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_permit_url",
+    annotations={"title": "Permit URL in TTP", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_permit_url(url: str, comment: str = "") -> str:
+    """Add a URL to the Mimecast TTP URL permit list to allow users to access it.
+
+    Args:
+        url: URL to permit (required)
+        comment: Optional comment describing why URL is permitted
+
+    Returns:
+        JSON confirmation with the created managed URL entry.
+    """
+    try:
+        body = {"url": url, "action": "permit"}
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/ttp/url/create-managed-url", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# TTP Impersonation Logs
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_get_ttp_impersonation_logs",
+    annotations={"title": "Get TTP Impersonation Logs", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_ttp_impersonation_logs(
+    days: int = 1,
+    action: Optional[str] = None,
+    limit: int = 100,
+) -> str:
+    """Get TTP impersonation protection logs showing emails blocked or warned as impersonation attempts.
+
+    Args:
+        days: Number of days to look back (default: 1, max: 7)
+        action: Filter by action taken: 'block', 'warn', 'none' (optional)
+        limit: Maximum number of results to return (default: 100, max: 500)
+
+    Returns:
+        JSON array of impersonation log entries with sender, subject, action, reason, date.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        body = {
+            "from": (now - timedelta(days=min(days, 7))).strftime("%Y-%m-%dT%H:%M:%S+0000"),
+            "to": now.strftime("%Y-%m-%dT%H:%M:%S+0000"),
+            "pageSize": min(limit, 500),
+        }
+        if action:
+            body["action"] = action
+        resp = await _mimecast_request("/api/ttp/impersonation/get-logs", body)
         return _truncate(json.dumps(_extract_data(resp), indent=2))
     except Exception as e:
         return _handle_error(e)

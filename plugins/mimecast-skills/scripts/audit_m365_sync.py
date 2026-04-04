@@ -11,7 +11,7 @@ Usage:
     python3 scripts/audit_m365_sync.py [options]
 
 Options:
-    --mimecast-profile PROFILE   Mimecast config profile (default: default)
+    --mimecast-profile PROFILE   Mimecast config profile (default: production)
     --azure-tenant TENANT        Azure AD tenant alias (default: default)
     --grace-days N               Days after Azure AD disable to flag as grace period (default: 90)
     --exclude-domains DOMAINS    Comma-separated domains to exclude from comparison
@@ -126,13 +126,20 @@ def fetch_mimecast_users(profile: str, verbose: bool) -> list[dict]:
     if verbose:
         print("Fetching Mimecast users...", file=sys.stderr)
     data = run_cli([
-        MIMECAST_CLI, "--profile", profile, "users", "list", "--output", "json",
+        MIMECAST_CLI, "--profile", profile, "--output", "json", "users", "list", "--all",
     ], verbose)
     if data is None:
         return []
-    # Mimecast: {"data": [...]} or [...]
+    # Mimecast v1: {"data": [{"users": [...]}]} — flatten nested pages
     if isinstance(data, dict) and "data" in data:
-        return data["data"]
+        items = data["data"]
+        result = []
+        for item in items:
+            if isinstance(item, dict) and "users" in item:
+                result.extend(item["users"])
+            elif isinstance(item, dict) and item:
+                result.append(item)
+        return result if result else items
     if isinstance(data, list):
         return data
     return []
@@ -144,7 +151,7 @@ def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
         print("Fetching Mimecast configuration...", file=sys.stderr)
 
     def _run(cmd):
-        return run_cli([MIMECAST_CLI, "--profile", profile] + cmd + ["--output", "json"], verbose)
+        return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
 
     return {
         "dkim": _run(["dkim", "status"]),
@@ -601,8 +608,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--mimecast-profile", default="default",
-                        help="Mimecast config profile (default: default)")
+    parser.add_argument("--mimecast-profile", default="production",
+                        help="Mimecast config profile (default: production)")
     parser.add_argument("--azure-tenant", default="default",
                         help="Azure AD tenant alias (default: default)")
     parser.add_argument("--grace-days", type=int, default=90,

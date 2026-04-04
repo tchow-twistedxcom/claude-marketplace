@@ -434,15 +434,18 @@ class MimecastClient:
 
         while pagination.get("next"):
             # Prepare next page request
+            # Mimecast v1: pageToken goes at request ROOT, not inside data[]
             next_token = pagination.get("next")
-            page_data = data.copy() if data else {}
-            page_data["meta"] = {"pagination": {"pageToken": next_token}}
 
             # Wait for rate limit
             self.rate_limiter.wait()
 
             # Make request
-            body = {"data": [page_data]}
+            page_data = data.copy() if data else {}
+            body = {
+                "meta": {"pagination": {"pageToken": next_token}},
+                "data": [page_data] if page_data else [],
+            }
             body_bytes = json.dumps(body).encode('utf-8')
             url = f"{self.base_url}{uri}"
             headers = self.auth.get_headers(uri)

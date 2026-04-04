@@ -145,6 +145,45 @@ def fetch_mimecast_users(profile: str, verbose: bool) -> list[dict]:
     return []
 
 
+def segment_mimecast_users(users: list[dict]) -> dict:
+    """
+    Split raw Mimecast user list into meaningful categories.
+
+    Mimecast's /api/user/get-internal-users returns everything it manages:
+      - Actual user accounts (created_by_ldap_sync, created_manually, created_by_import)
+      - Aliases — secondary email addresses for existing users (alias=True)
+      - Distribution lists — email groups synced from LDAP (addressType=dl_from_ldap)
+      - Email-auto-created — entries generated from mail traffic with no guaranteed mailbox
+
+    Only real user accounts should be compared against Azure AD.
+
+    Returns dict with keys:
+      real_users  — list to compare against Azure AD
+      aliases     — secondary address entries
+      dls         — distribution lists
+      email_auto  — auto-created from mail traffic
+    """
+    aliases = [u for u in users if u.get("alias")]
+    dls = [u for u in users if not u.get("alias") and u.get("addressType") == "dl_from_ldap"]
+    email_auto = [
+        u for u in users
+        if not u.get("alias")
+        and u.get("addressType") not in ("dl_from_ldap",)
+        and u.get("addressType") == "created_by_email"
+    ]
+    real_users = [
+        u for u in users
+        if not u.get("alias")
+        and u.get("addressType") not in ("dl_from_ldap", "created_by_email")
+    ]
+    return {
+        "real_users": real_users,
+        "aliases": aliases,
+        "dls": dls,
+        "email_auto": email_auto,
+    }
+
+
 def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
     """Run all Mimecast config checks in parallel and return results."""
     if verbose:
@@ -215,6 +254,8 @@ def cross_reference(
 ) -> dict:
     """
     Cross-reference Azure AD users against Mimecast users and categorize findings.
+
+    mimecast_users should be pre-filtered to real user accounts only (no aliases or DLs).
 
     Categories:
         active         - In both Azure AD (enabled) and Mimecast
@@ -631,6 +672,7 @@ def generate_markdown_report(
     sync_health_findings: list[dict],
     grace_days: int,
     timestamp: str,
+    mimecast_segments: dict | None = None,
 ) -> str:
     lines = []
     r = sync_results
@@ -654,6 +696,28 @@ def generate_markdown_report(
     else:
         lines.append(f"⚠️ **{total_issues} user account(s) require attention.**\n")
 
+    # Mimecast user count breakdown (explain the 1,012 vs 359 gap)
+    if mimecast_segments:
+        total_mc = (
+            len(mimecast_segments.get("real_users", []))
+            + len(mimecast_segments.get("aliases", []))
+            + len(mimecast_segments.get("dls", []))
+            + len(mimecast_segments.get("email_auto", []))
+        )
+        lines.append("## Mimecast User Count Breakdown\n")
+        lines.append(
+            "Mimecast's total entry count includes more than just user accounts. "
+            "The comparison below only uses **real user accounts**.\n"
+        )
+        lines.append("| Category | Count | Included in Comparison |")
+        lines.append("|---|---|---|")
+        lines.append(f"| Real user accounts (LDAP-synced, manual, imported) | {len(mimecast_segments['real_users'])} | ✅ Yes |")
+        lines.append(f"| Aliases (secondary email addresses) | {len(mimecast_segments['aliases'])} | ❌ No — same person, different address |")
+        lines.append(f"| Distribution lists (LDAP groups) | {len(mimecast_segments['dls'])} | ❌ No — groups, not individuals |")
+        lines.append(f"| Email-auto-created (from mail traffic) | {len(mimecast_segments['email_auto'])} | ❌ No — no guaranteed mailbox |")
+        lines.append(f"| **Total Mimecast entries** | **{total_mc}** | |")
+        lines.append("")
+
     # User sync summary table
     lines.append("## User Sync Summary\n")
     lines.append("| Category | Count | Severity |")
@@ -669,7 +733,8 @@ def generate_markdown_report(
     # Orphaned users
     if orphaned:
         lines.append("## 🔴 Orphaned in Mimecast\n")
-        lines.append("Users with Mimecast accounts but **no matching Azure AD account**.")
+        lines.append("Real user accounts in Mimecast with **no matching Azure AD account**.")
+        lines.append("Aliases, distribution lists, and email-auto-created entries are excluded from this list.")
         lines.append("These are likely departed employees whose Mimecast accounts were never removed.\n")
         lines.append("| Email | Mimecast Name | Note | Remediation |")
         lines.append("|---|---|---|---|")
@@ -794,14 +859,22 @@ def main():
     # Fetch data
     azure_users = fetch_azure_users(args.azure_tenant, args.verbose)
     deleted_users = fetch_azure_deleted_users(args.azure_tenant, args.verbose)
-    mimecast_users = fetch_mimecast_users(args.mimecast_profile, args.verbose)
+    mimecast_raw = fetch_mimecast_users(args.mimecast_profile, args.verbose)
     azure_domains = fetch_azure_domains(args.azure_tenant, args.verbose)
+
+    # Segment Mimecast users: only real accounts should be compared against Azure AD
+    mimecast_segments = segment_mimecast_users(mimecast_raw)
+    mimecast_users = mimecast_segments["real_users"]
 
     print(f"  Azure AD users: {len(azure_users)}", file=sys.stderr)
     print(f"  Azure AD deleted: {len(deleted_users)}", file=sys.stderr)
-    print(f"  Mimecast users: {len(mimecast_users)}", file=sys.stderr)
+    print(f"  Mimecast total entries: {len(mimecast_raw)}", file=sys.stderr)
+    print(f"    ├─ Real user accounts: {len(mimecast_users)}", file=sys.stderr)
+    print(f"    ├─ Aliases:            {len(mimecast_segments['aliases'])}", file=sys.stderr)
+    print(f"    ├─ Distribution lists: {len(mimecast_segments['dls'])}", file=sys.stderr)
+    print(f"    └─ Email-auto-created: {len(mimecast_segments['email_auto'])}", file=sys.stderr)
 
-    # Cross-reference users
+    # Cross-reference real user accounts only
     sync_results = cross_reference(
         azure_users, mimecast_users, deleted_users,
         excluded_domains, args.grace_days,
@@ -840,7 +913,8 @@ def main():
         }, indent=2)
     else:
         output = generate_markdown_report(
-            sync_results, config_findings, sync_health_findings, args.grace_days, timestamp
+            sync_results, config_findings, sync_health_findings,
+            args.grace_days, timestamp, mimecast_segments,
         )
 
     if args.output == "-":

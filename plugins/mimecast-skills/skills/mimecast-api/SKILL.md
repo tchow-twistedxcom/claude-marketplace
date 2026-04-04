@@ -20,6 +20,8 @@ Execute Mimecast email security operations via Python CLI.
 - Security reporting and SIEM integration
 - Threat intelligence retrieval
 
+> **Auditing Mimecast against M365/Azure AD?** Use the `mimecast-audit` skill instead — it cross-references Azure AD users against Mimecast, identifies orphaned/stale accounts, and checks security configuration.
+
 ## CLI Location
 
 ```bash

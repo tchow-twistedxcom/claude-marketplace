@@ -1,7 +1,7 @@
 {
   "name": "mimecast-skills",
-  "version": "1.2.0",
-  "description": "Mimecast email security integration via Python CLI - 67 operations for email security, awareness training, user/group management, policy management, and reporting",
+  "version": "1.3.0",
+  "description": "Mimecast email security integration via Python CLI - 67 operations for email security, awareness training, user/group management, policy management, and reporting. Includes M365/Azure AD cross-reference audit skill.",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -12,9 +12,11 @@
   "keywords": ["mimecast", "email-security", "ttp", "anti-phishing", "user-management", "policy", "siem", "awareness-training", "safe-score", "phishing-simulation", "cli"],
   "commands": [
     "./commands/mimecast-setup.md",
-    "./commands/mimecast-manage.md"
+    "./commands/mimecast-manage.md",
+    "./commands/mimecast-audit.md"
   ],
   "skills": [
-    "./skills/mimecast-api"
+    "./skills/mimecast-api",
+    "./skills/mimecast-audit"
   ]
 }

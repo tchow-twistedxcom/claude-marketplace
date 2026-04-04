@@ -157,8 +157,8 @@
     {
       "name": "mimecast-skills",
       "source": "./plugins/mimecast-skills",
-      "description": "Mimecast email security integration via Python CLI. 67 operations for TTP URL/attachment protection, held messages, awareness training, SAFE scores, phishing simulations, user/group management, policies, audit logs, and SIEM integration",
-      "version": "1.2.0",
+      "description": "Mimecast email security integration via Python CLI. 67 operations for TTP URL/attachment protection, held messages, awareness training, SAFE scores, phishing simulations, user/group management, policies, audit logs, and SIEM integration. Includes M365/Azure AD cross-reference audit.",
+      "version": "1.3.0",
       "keywords": [
         "mimecast",
         "email-security",

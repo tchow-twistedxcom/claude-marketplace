@@ -4,7 +4,8 @@ description: |
   Execute Mimecast operations via Python CLI. Use when managing email security,
   user provisioning, policy management, or security reporting programmatically.
   Covers TTP URL/attachment protection, held messages, user/group management,
-  blocked/permitted senders, audit logs, and SIEM integration.
+  blocked/permitted senders, audit logs, SIEM integration, awareness training
+  campaigns, SAFE scores, phishing simulations, and high-risk user watchlists.
 ---
 
 # Mimecast API Skill

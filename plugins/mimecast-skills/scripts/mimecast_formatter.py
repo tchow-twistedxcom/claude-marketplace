@@ -243,6 +243,74 @@ def print_account_info(account):
         print(f"Packages: {', '.join(account.get('packages', []))}")
 
 
+# ==================== AWARENESS TRAINING FORMATTERS ====================
+
+def print_campaigns_table(campaigns):
+    """Print awareness training campaigns table."""
+    headers = ['Campaign ID', 'Name', 'Status', 'Sent', 'Completed', 'Correct%']
+    rows = []
+    for c in campaigns:
+        sent = c.get('sent', c.get('totalSent', 0))
+        completed = c.get('completed', c.get('totalCompleted', 0))
+        correct = c.get('correctPct', c.get('correctPercentage', 'N/A'))
+        rows.append([
+            truncate(str(c.get('campaignId', c.get('id', 'N/A'))), 30),
+            truncate(str(c.get('name', c.get('campaignName', 'N/A'))), 40),
+            str(c.get('status', 'N/A')),
+            str(sent),
+            str(completed),
+            f"{correct}%" if correct != 'N/A' else 'N/A',
+        ])
+    print_table(headers, rows)
+
+
+def print_safe_scores_table(scores):
+    """Print per-user SAFE score table."""
+    headers = ['Email', 'Name', 'Department', 'Risk Grade', 'Knowledge', 'Engagement']
+    rows = []
+    for s in scores:
+        rows.append([
+            truncate(str(s.get('emailAddress', s.get('email', 'N/A'))), 40),
+            truncate(str(s.get('name', 'N/A')), 30),
+            truncate(str(s.get('department', 'N/A')), 20),
+            str(s.get('riskGrade', s.get('safeGrade', 'N/A'))),
+            str(s.get('knowledgeScore', s.get('knowledge', 'N/A'))),
+            str(s.get('engagementScore', s.get('engagement', 'N/A'))),
+        ])
+    print_table(headers, rows)
+
+
+def print_phishing_table(campaigns):
+    """Print phishing campaign results table."""
+    headers = ['Campaign', 'Sent', 'Opened', 'Clicked', 'Submitted', 'Reported']
+    rows = []
+    for c in campaigns:
+        rows.append([
+            truncate(str(c.get('name', c.get('campaignName', 'N/A'))), 35),
+            str(c.get('sent', c.get('totalSent', 0))),
+            str(c.get('opened', c.get('totalOpened', 0))),
+            str(c.get('clicked', c.get('totalClicked', 0))),
+            str(c.get('submitted', c.get('totalSubmitted', 0))),
+            str(c.get('reported', c.get('totalReported', 0))),
+        ])
+    print_table(headers, rows)
+
+
+def print_watchlist_table(users):
+    """Print high-risk user watchlist table."""
+    headers = ['Email', 'Name', 'Department', 'Risk Level', 'Risk Score']
+    rows = []
+    for u in users:
+        rows.append([
+            truncate(str(u.get('emailAddress', u.get('email', 'N/A'))), 40),
+            truncate(str(u.get('name', 'N/A')), 30),
+            truncate(str(u.get('department', 'N/A')), 20),
+            str(u.get('riskLevel', u.get('risk', 'N/A'))),
+            str(u.get('riskScore', 'N/A')),
+        ])
+    print_table(headers, rows)
+
+
 def format_output(data, format_type='table', resource_type=None):
     """
     Format and print data based on format type.
@@ -292,6 +360,15 @@ def format_output(data, format_type='table', resource_type=None):
     elif resource_type == 'account':
         if items:
             print_account_info(items[0] if isinstance(items, list) else items)
+    elif resource_type == 'awareness-campaigns':
+        print_campaigns_table(items)
+    elif resource_type == 'awareness-safe-scores':
+        print_safe_scores_table(items)
+    elif resource_type == 'awareness-phishing':
+        print_phishing_table(items)
+    elif resource_type in ('awareness-phishing-users', 'awareness-campaign-users',
+                           'awareness-watchlist'):
+        print_watchlist_table(items)
     else:
         # Generic table output
         if items and isinstance(items[0], dict):

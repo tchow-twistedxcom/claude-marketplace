@@ -743,5 +743,107 @@ async def mimecast_get_ttp_impersonation_logs(
         return _handle_error(e)
 
 
+# =============================================================================
+# Awareness Training (requires Awareness Training product)
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_list_campaigns",
+    annotations={"title": "List Awareness Training Campaigns", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_list_campaigns(source: Optional[str] = None) -> str:
+    """List awareness training campaigns.
+
+    Args:
+        source: Optional source filter for campaigns
+
+    Returns:
+        JSON array of training campaigns with ID, name, status, sent/completed counts.
+    """
+    try:
+        body = {}
+        if source is not None:
+            body["source"] = source
+        resp = await _mimecast_request("/api/awareness-training/campaign/get-campaigns", body)
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_safe_scores",
+    annotations={"title": "Get SAFE Score Details", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_safe_scores(email: Optional[str] = None) -> str:
+    """Get per-user SAFE (Security Awareness For Employees) score details.
+
+    Args:
+        email: Filter to a specific user email address (optional — omit for all users)
+
+    Returns:
+        JSON array of user SAFE scores with email, name, risk grade, knowledge score,
+        engagement score.
+    """
+    try:
+        body = {}
+        if email is not None:
+            body["emailAddress"] = email
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-safe-score-details", body
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_phishing_results",
+    annotations={"title": "Get Phishing Simulation Results", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_phishing_results(campaign_id: Optional[str] = None) -> str:
+    """Get phishing simulation campaign results.
+
+    Args:
+        campaign_id: Specific phishing campaign ID (optional — omit for all campaigns)
+
+    Returns:
+        JSON with campaign name, sent count, opened/clicked/submitted/reported statistics.
+    """
+    try:
+        body = {}
+        if campaign_id is not None:
+            body["campaignId"] = campaign_id
+        resp = await _mimecast_request(
+            "/api/awareness-training/phishing/campaign/get-campaign", body
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_watchlist",
+    annotations={"title": "Get High-Risk User Watchlist", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_watchlist() -> str:
+    """Get the high-risk user watchlist — users with the lowest SAFE scores or most
+    security incidents.
+
+    Returns:
+        JSON array of high-risk users with email, name, department, risk level, risk score.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-watchlist-details", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
 if __name__ == "__main__":
     mcp.run()

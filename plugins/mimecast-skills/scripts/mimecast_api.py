@@ -20,6 +20,12 @@ from mimecast_auth import MimecastAuth
 from mimecast_client import MimecastClient, MimecastError, create_client
 from mimecast_formatter import format_output, print_json
 
+# ── Domain Module Imports (incremental expansion) ────────────────────────────
+# New API operations are added as domain modules in scripts/domains/.
+# Existing operations in MimecastAPI class are migrated incrementally.
+from domains.base import BaseDomain
+from domains.awareness_training import AwarenessTrainingDomain
+
 
 class MimecastAPI:
     """Mimecast API client with all operations."""
@@ -969,6 +975,19 @@ def _add_date_shortcuts(parser):
                             help="Last 7 days")
     date_group.add_argument("--month", action="store_true",
                             help="Last 30 days")
+
+
+# ==================== PARSER FACTORY ====================
+
+def make_common_parser() -> argparse.ArgumentParser:
+    """Factory: return a fresh parent parser with --output and --profile flags.
+
+    Domain modules call this once per sub-parser (argparse parents are stateful).
+    """
+    p = argparse.ArgumentParser(add_help=False)
+    p.add_argument("--output", "-o", choices=["table", "json"], default=None,
+                   help="Output format (default: table)")
+    return p
 
 
 # ==================== CLI COMMANDS ====================
@@ -2201,6 +2220,12 @@ Examples:
     rep_threat = reports_sub.add_parser("threat-intel", help="Threat intelligence")
     rep_threat.add_argument("--feed", help="Specific feed type")
 
+    # ── Register domain module parsers ────────────────────────────────────────
+    # Domain instances are created here with no client (client injected after arg parsing)
+    _pre_domains = [AwarenessTrainingDomain(None)]
+    for _domain in _pre_domains:
+        _domain.register_parsers(subparsers, make_common_parser)
+
     args = parser.parse_args()
 
     # Handle output arg - subparser may override with None if not specified
@@ -2291,6 +2316,11 @@ Examples:
         ("reports", "threat-intel"): cmd_reports_threat_intel,
     }
 
+    # ── Merge domain module cmd_maps ─────────────────────────────────────────
+    # Re-instantiate domains with the live client so bound methods use real auth
+    for _domain in [AwarenessTrainingDomain(api.client)]:
+        cmd_map.update(_domain.get_cmd_map())
+
     cmd_key = (args.resource, args.action)
     if cmd_key not in cmd_map:
         # Check if resource parser has subcommands
@@ -2303,7 +2333,13 @@ Examples:
         sys.exit(1)
 
     try:
-        cmd_map[cmd_key](api, args)
+        handler = cmd_map[cmd_key]
+        # Domain handlers are bound methods — call as handler(args)
+        # Legacy handlers are module-level functions — call as handler(api, args)
+        if isinstance(getattr(handler, '__self__', None), BaseDomain):
+            handler(args)
+        else:
+            handler(api, args)
     except MimecastError as e:
         print(f"API Error: {e}", file=sys.stderr)
         if e.request_id:

@@ -26,5 +26,5 @@
   "commands": [
     "./commands/azure-ad-sweep.md"
   ],
-  "mcpServers": []
+  "mcpServers": "./.mcp.json"
 }

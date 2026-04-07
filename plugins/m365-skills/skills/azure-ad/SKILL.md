@@ -58,7 +58,43 @@ Comprehensive Azure AD operations using Microsoft Graph API.
 - **Auth methods**: MFA enrollment per user
 - **Compromise sweep**: 6-vector detection (IP sweep, MFA fatigue, risk events, audit anomalies, auth methods)
 
-## Quick Start
+## MCP Server (48 Agent-Native Tools)
+
+The `azure-ad` MCP server exposes 48 tools including `azure_ad_incident_triage`, email forensics
+(`azure_ad_sent_emails`, `azure_ad_email_events`), Defender Advanced Hunting (`azure_ad_advanced_hunt`),
+CA policy management, and OAuth grant detection. These tools are registered automatically when
+`m365-skills` is installed via the plugin system.
+
+### Method 1: Environment Variables (Plugin Auto-Registration)
+
+Set credentials as environment variables before starting Claude Code:
+
+```bash
+export AZURE_TENANT_ID="your-tenant-id"
+export AZURE_CLIENT_ID="your-client-id"
+export AZURE_CLIENT_SECRET="your-client-secret"
+```
+
+The MCP server is defined in `plugins/m365-skills/.mcp.json` and registered via `plugin.json`
+`mcpServers`. Once env vars are set, the `azure-ad` MCP server starts automatically.
+
+### Method 2: DXT Extension (Interactive Credential Setup)
+
+The `extensions/azure-ad.dxt` bundle can be installed directly via Claude Code's extension
+installer, which prompts for credentials and stores them securely:
+
+```bash
+# In Claude Code, install the extension from the local bundle:
+/extension install extensions/azure-ad.dxt
+```
+
+The DXT installer handles `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, and `AZURE_CLIENT_SECRET`
+interactively. Use this method if you prefer not to set environment variables manually.
+
+The DXT manifest is at `extensions/azure-ad/manifest.json`. The server entry point is
+`extensions/azure-ad/src/server.py`.
+
+## Quick Start (CLI Interface)
 
 ```bash
 # Setup

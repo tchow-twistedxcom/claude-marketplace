@@ -22,6 +22,7 @@ Options:
 import argparse
 import json
 import os
+import shlex
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -769,12 +770,12 @@ SEVERITY_ICON = {
     "LOW": "🔵",
     "OK": "✅",
     "INFO": "ℹ️",
-    "error": "❌",
+    "ERROR": "❌",
 }
 
 
 def _remediation(email: str) -> str:
-    return f"`python3 scripts/mimecast_api.py users delete --email {email}`"
+    return f"`python3 scripts/mimecast_api.py users delete --email {shlex.quote(email)}`"
 
 
 def generate_markdown_report(
@@ -883,7 +884,11 @@ def generate_markdown_report(
         lines.append("| Email | Display Name | Department | Job Title | Remediation |")
         lines.append("|---|---|---|---|---|")
         for u in missing:
-            provision = f"`python3 scripts/mimecast_api.py users create --email {u['email']} --name \"{u.get('azure_display', '')}\" `"
+            provision = (
+                f"`python3 scripts/mimecast_api.py users create "
+                f"--email {shlex.quote(u['email'])} "
+                f"--name {shlex.quote(u.get('azure_display', ''))}`"
+            )
             lines.append(f"| {u['email']} | {u.get('azure_display', '')} | {u.get('department', '')} | {u.get('job_title', '')} | {provision} |")
         lines.append("")
 

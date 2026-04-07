@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "030"
 tags: [code-review, security, audit, mimecast]
@@ -60,3 +60,4 @@ Option A — add `import shlex` and wrap all email/name values in `shlex.quote()
 ## Work Log
 
 - 2026-04-07: Identified by security-sentinel as M3 (MEDIUM)
+- 2026-04-07: Fixed — added `import shlex` (line 25), wrapped email in `_remediation()` with `shlex.quote()` (line 778), and rewrote the provision command (lines 887-891) to wrap both email and display name with `shlex.quote()`. Committed in `9d7c561`.

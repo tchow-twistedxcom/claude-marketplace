@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "027"
 tags: [code-review, performance, azure-ad, server]
@@ -65,3 +65,4 @@ Option A — module-level singleton. Standard httpx pattern for long-lived serve
 ## Work Log
 
 - 2026-04-07: Identified by performance-oracle as CRITICAL (highest ROI change)
+- 2026-04-07: Fixed in server.py (commit 25d965c). Added _http_client module-level singleton (Optional[httpx.AsyncClient]) and _get_http_client() factory that creates/recreates the client when None or closed. Set limits=httpx.Limits(max_connections=20, max_keepalive_connections=10). Replaced async with httpx.AsyncClient in _graph() (line 134), _ual_request() (line 832), and _ual_fetch_blobs() blob download loop. All Graph API calls now reuse TLS connections. azure_ad_incident_triage parallel gather calls benefit from connection pooling.

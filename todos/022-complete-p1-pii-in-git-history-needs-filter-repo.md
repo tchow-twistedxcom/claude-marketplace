@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "022"
 tags: [code-review, security, pii, git-history]
@@ -58,3 +58,4 @@ Option C for now (this appears to be a personal private repo). If the repo is ev
 
 - 2026-04-07: Initial git rm done in a3e1561 (todo 011)
 - 2026-04-07: Architecture-strategist confirmed PII still in history, flags as merge blocker for shared repos
+- 2026-04-07: **DECISION — Option C accepted.** This is a personal private repo with no remote sharing, CI runners, or team members. Risk is documented and contained. If repo is ever shared or made public, run `git filter-repo --path plugins/mimecast-skills/audit-2026-04-04.md --invert-paths --force` before sharing.

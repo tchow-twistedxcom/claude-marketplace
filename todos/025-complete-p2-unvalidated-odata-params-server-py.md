@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "025"
 tags: [code-review, security, injection, azure-ad]
@@ -60,3 +60,4 @@ Option B immediately (minimal fix), Option A for enum-constrained fields as a fo
 ## Work Log
 
 - 2026-04-07: Identified by security-sentinel as H1 (HIGH) — partial fix from todo 014
+- 2026-04-07: Fixed in server.py (commit 25d965c). Added VALID_RISK_LEVELS, VALID_RISK_STATES, VALID_RISK_EVENT_TYPES, VALID_RESULT_FILTERS allowlists and _validate_enum() helper. Applied allowlist validation to risk_level (sign_ins, risk_detections, risky_users), risk_state (risky_users), result_filter (audit_logs). Applied .replace("'","''") escaping to free-text fields: app, country (sign_ins), risk_event_type (risk_detections), activity, category (audit_logs). Fixed azure_ad_search_mail from: sender to escape single quotes (matches subject branch behavior on line 1155).

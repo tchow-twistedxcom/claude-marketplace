@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "026"
 tags: [code-review, bug, correctness, azure-ad]
@@ -46,10 +46,12 @@ Options A + C + D — warn to stderr, increase default to 500, align the two imp
 
 ## Acceptance Criteria
 
-- [ ] A warning is printed to stderr when `_get_all_pages` hits `max_pages` and more pages exist
-- [ ] Both implementations use the same `max_pages` default
-- [ ] The `azure_ad_list_users --all` path in the audit is not silently truncated for tenants with 10k+ users
+- [x] A warning is printed to stderr when `_get_all_pages` hits `max_pages` and more pages exist
+- [x] Both implementations use the same `max_pages` default (both now 500)
+- [x] The `azure_ad_list_users --all` path in the audit is not silently truncated for tenants with 10k+ users
 
 ## Work Log
 
 - 2026-04-07: Identified by kieran-python-reviewer (Critical) and performance-oracle
+- 2026-04-07: Fixed `azure_ad_api.py` portion. Increased `max_pages` default from 100 to 500 (covers 100k users at 200/page). Added post-loop stderr warning when the cap is hit and `@odata.nextLink` is still present. The `server.py` divergent cap (`max_pages=50`) is a separate file and was handled in a separate work item. Committed as `65f3544` (`fix(azure-ad-api): SSRF nextLink validation + truncation warning in _get_all_pages (todos 023,026)`).
+- 2026-04-07: Fixed `server.py` portion (commit 25d965c). Increased max_pages default from 50 to 500 (now aligned with azure_ad_api.py). Added stderr WARNING when cap is hit and @odata.nextLink is still present. Both acceptance criteria for server.py now satisfied.

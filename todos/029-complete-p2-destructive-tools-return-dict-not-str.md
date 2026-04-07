@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "029"
 tags: [code-review, bug, azure-ad, server]
@@ -49,3 +49,4 @@ Option A — consistent `-> str` return type matches all other tools.
 ## Work Log
 
 - 2026-04-07: Identified by pattern-recognition-specialist and code-simplicity-reviewer
+- 2026-04-07: Fixed in server.py (commit 25d965c). Changed return type annotation from -> dict to -> str for azure_ad_revoke_sessions, azure_ad_confirm_compromised, and azure_ad_delete_ca_policy. Dry-run paths now return json.dumps({...}) instead of raw dict literals. Execute paths now return _fmt(result) directly instead of json.loads(_fmt(result)). For azure_ad_delete_ca_policy execute path (DELETE returns 204/empty), returns json.dumps({"success": True, "deleted_policy_id": policy_id}) directly. No json.loads(_fmt(...)) roundtrip remains anywhere in the file.

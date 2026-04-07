@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "023"
 tags: [code-review, security, ssrf, azure-ad]
@@ -53,9 +53,10 @@ Option A — one-line prefix check. Takes 2 minutes, eliminates the SSRF vector 
 
 ## Acceptance Criteria
 
-- [ ] `_get_all_pages` validates nextLink URLs start with `https://graph.microsoft.com/` before following
-- [ ] HTTP errors on next-page links are caught and raised as `GraphAPIError` (or at least not silently dropped)
+- [x] `_get_all_pages` validates nextLink URLs start with `https://graph.microsoft.com/` before following
+- [x] HTTP errors on next-page links are caught and raised as `GraphAPIError` (or at least not silently dropped)
 
 ## Work Log
 
 - 2026-04-07: Identified by security-sentinel as H2 (HIGH)
+- 2026-04-07: Fixed in `azure_ad_api.py`. Added `GRAPH_BASE` class constant and prefix check before following any `@odata.nextLink`. Added `try/except` around the nextLink `requests.get()` call to wrap `HTTPError` → `GraphAPIError` and `RequestException` → `GraphAPIError`, matching the error handling in `_request()`. Committed as `65f3544` (`fix(azure-ad-api): SSRF nextLink validation + truncation warning in _get_all_pages (todos 023,026)`).

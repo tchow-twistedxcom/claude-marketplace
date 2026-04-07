@@ -24,8 +24,10 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Literal
 
 # ── Exclusion Patterns ────────────────────────────────────────────────────────
 
@@ -62,17 +64,18 @@ AZURE_CLI = REPO_ROOT / "plugins" / "m365-skills" / "skills" / "azure-ad" / "scr
 
 # ── CLI Runner ────────────────────────────────────────────────────────────────
 
-def run_cli(cmd: list[str], verbose: bool = False) -> dict | list | None:
+def run_cli(cmd: list[str], verbose: bool = False, timeout: int = 60) -> dict | list | None:
     """Run a CLI command and return parsed JSON output. Returns None on error."""
     if verbose:
         print(f"  → {' '.join(str(c) for c in cmd)}", file=sys.stderr)
     try:
         result = subprocess.run(
             [sys.executable] + [str(c) for c in cmd],
-            capture_output=True, text=True, timeout=120
+            capture_output=True, text=True, timeout=timeout
         )
         if result.returncode != 0:
-            print(f"  ⚠ CLI error: {result.stderr.strip()[:200]}", file=sys.stderr)
+            cmd_name = Path(cmd[1]).name if len(cmd) > 1 else "unknown"
+            print(f"  ⚠ CLI error ({cmd_name}): {result.stderr.strip()[:200]}", file=sys.stderr)
             return None
         if not result.stdout.strip():
             return None
@@ -81,7 +84,8 @@ def run_cli(cmd: list[str], verbose: bool = False) -> dict | list | None:
         print(f"  ⚠ JSON parse error: {e}", file=sys.stderr)
         return None
     except subprocess.TimeoutExpired:
-        print("  ⚠ CLI timed out", file=sys.stderr)
+        cmd_name = f"{Path(cmd[1]).name} {' '.join(str(c) for c in cmd[2:4])}" if len(cmd) > 1 else "unknown"
+        print(f"  ⚠ CLI timed out ({timeout}s): {cmd_name}", file=sys.stderr)
         return None
     except Exception as e:
         print(f"  ⚠ CLI error: {e}", file=sys.stderr)
@@ -99,7 +103,7 @@ def fetch_azure_users(tenant: str, verbose: bool) -> list[dict]:
         "users", "list",
         "--select", "id,displayName,userPrincipalName,mail,accountEnabled,userType,department,jobTitle,createdDateTime",
         "--all",
-    ], verbose)
+    ], verbose, timeout=180)
     if data is None:
         return []
     # Graph API: {"value": [...]} or already a list
@@ -117,7 +121,7 @@ def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
     data = run_cli([
         AZURE_CLI, "-t", tenant, "-f", "json",
         "directory", "deleted-users",
-    ], verbose)
+    ], verbose, timeout=60)
     if data is None:
         return []
     if isinstance(data, dict) and "value" in data:
@@ -134,7 +138,7 @@ def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
     data = run_cli([
         AZURE_CLI, "-t", tenant, "-f", "json",
         "directory", "domains",
-    ], verbose)
+    ], verbose, timeout=60)
     if data is None:
         return []
     if isinstance(data, dict) and "value" in data:
@@ -195,7 +199,7 @@ def fetch_mimecast_users(profile: str, verbose: bool) -> list[dict]:
         print("Fetching Mimecast users...", file=sys.stderr)
     data = run_cli([
         MIMECAST_CLI, "--profile", profile, "--output", "json", "users", "list", "--all",
-    ], verbose)
+    ], verbose, timeout=180)
     if data is None:
         return []
     # Mimecast v1: {"data": [{"users": [...]}]} — flatten nested pages
@@ -279,17 +283,25 @@ def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
     def _run(cmd):
         return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
 
-    return {
-        "dkim": _run(["dkim", "status"]),
-        "domains": _run(["domains", "list"]),
-        "policies": _run(["policies", "list"]),
-        "ttp_summary": _run(["ttp", "summary"]),
-        "delivery_routes": _run(["delivery", "routes"]),
-        "senders_blocked": _run(["senders", "blocked"]),
-        "senders_permitted": _run(["senders", "permitted"]),
-        "awareness_summary": _run(["awareness", "performance-summary"]),
-        "watchlist": _run(["awareness", "watchlist"]),
+    checks = {
+        "dkim": ["dkim", "status"],
+        "domains": ["domains", "list"],
+        "policies": ["policies", "list"],
+        "ttp_summary": ["ttp", "summary"],
+        "delivery_routes": ["delivery", "routes"],
+        "senders_blocked": ["senders", "blocked"],
+        "senders_permitted": ["senders", "permitted"],
+        "awareness_summary": ["awareness", "performance-summary"],
+        "watchlist": ["awareness", "watchlist"],
     }
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(checks)) as executor:
+        futures = {executor.submit(_run, cmd): key for key, cmd in checks.items()}
+        for future in as_completed(futures):
+            key = futures[future]
+            results[key] = future.result()
+    return results
 
 
 def fetch_sync_health(profile: str, verbose: bool) -> dict:
@@ -308,15 +320,18 @@ def fetch_sync_health(profile: str, verbose: bool) -> dict:
 
 # ── Email Normalization ────────────────────────────────────────────────────────
 
-def normalize_email(user: dict, source: str) -> str | None:
+def normalize_email(user: dict, source: Literal["azure", "mimecast"]) -> str | None:
     """Extract and normalize email address from a user record."""
     if source == "azure":
-        # Prefer mail, fall back to userPrincipalName (strip guest suffix)
-        email = user.get("mail") or user.get("userPrincipalName", "")
-        # Remove #EXT# guest suffix
-        if "#EXT#" in email:
+        mail = user.get("mail", "")
+        upn = user.get("userPrincipalName", "")
+        email = mail or upn
+        if not email or "#EXT#" in email:
             return None
-        return email.lower().strip() if email else None
+        # Skip .onmicrosoft.com UPNs when no primary mail — they won't match Mimecast addresses
+        if not mail and upn.lower().endswith(".onmicrosoft.com"):
+            return None
+        return email.lower().strip()
     else:  # mimecast
         email = user.get("emailAddress", "")
         return email.lower().strip() if email else None
@@ -402,11 +417,7 @@ def cross_reference(
                 "department": azure_by_email[email].get("department", ""),
             })
         elif email in azure_disabled:
-            # Azure AD disabled — check when it was disabled/created for grace period
             az_user = azure_disabled[email]
-            # Use createdDateTime as proxy (Mimecast doesn't expose disable date)
-            # In practice the disableDate comes from audit logs; we use a heuristic
-            created_str = az_user.get("createdDateTime", "")
             disabled_entry = {
                 "email": email,
                 "mimecast_name": mc_user.get("name", ""),
@@ -414,7 +425,20 @@ def cross_reference(
                 "department": az_user.get("department", ""),
                 "azure_status": "disabled",
             }
-            results["disabled_active"].append(disabled_entry)
+            created_str = az_user.get("createdDateTime", "")
+            if created_str:
+                try:
+                    created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                    # Using createdDateTime as a proxy for disable date.
+                    # For precise classification, Azure AD audit logs would provide the actual disabledDateTime.
+                    if created_dt > grace_cutoff:
+                        results["grace_period"].append(disabled_entry)
+                    else:
+                        results["stale_grace"].append(disabled_entry)
+                except ValueError:
+                    results["disabled_active"].append(disabled_entry)
+            else:
+                results["disabled_active"].append(disabled_entry)
         elif email in deleted_emails:
             results["orphaned"].append({
                 "email": email,
@@ -954,11 +978,23 @@ def main():
     print("Mimecast ↔ M365 Configuration Audit", file=sys.stderr)
     print("=" * 40, file=sys.stderr)
 
-    # Fetch data
-    azure_users_raw = fetch_azure_users(args.azure_tenant, args.verbose)
-    deleted_users = fetch_azure_deleted_users(args.azure_tenant, args.verbose)
-    mimecast_raw = fetch_mimecast_users(args.mimecast_profile, args.verbose)
-    azure_domains = fetch_azure_domains(args.azure_tenant, args.verbose)
+    # Fetch data — all 4 sources are independent, run in parallel
+    fetch_tasks = {
+        "azure_users_raw": lambda: fetch_azure_users(args.azure_tenant, args.verbose),
+        "deleted_users": lambda: fetch_azure_deleted_users(args.azure_tenant, args.verbose),
+        "mimecast_raw": lambda: fetch_mimecast_users(args.mimecast_profile, args.verbose),
+        "azure_domains": lambda: fetch_azure_domains(args.azure_tenant, args.verbose),
+    }
+    fetch_results: dict = {}
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(fn): key for key, fn in fetch_tasks.items()}
+        for future in as_completed(futures):
+            key = futures[future]
+            fetch_results[key] = future.result()
+    azure_users_raw = fetch_results["azure_users_raw"]
+    deleted_users = fetch_results["deleted_users"]
+    mimecast_raw = fetch_results["mimecast_raw"]
+    azure_domains = fetch_results["azure_domains"]
 
     # Segment Azure AD: filter out Guests and service accounts
     azure_segments = filter_azure_users(azure_users_raw)

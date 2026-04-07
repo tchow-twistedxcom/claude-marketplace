@@ -24,6 +24,7 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 
 # Reuse existing modules
@@ -80,8 +81,14 @@ def collect_mfa_fatigue_victims(api: AzureADAPI, filter_base: str, window_minute
     if not failures:
         return {}
 
-    # Collect unique UPNs with failures
-    upns_with_failures = set(s.get('userPrincipalName', '') for s in failures if s.get('userPrincipalName'))
+    # Pre-group failures by UPN once (O(n)) to avoid O(n²) re-scan per UPN
+    failures_by_upn: dict = defaultdict(list)
+    for s in failures:
+        upn = s.get('userPrincipalName', '')
+        if upn:
+            failures_by_upn[upn].append(s)
+
+    upns_with_failures = set(failures_by_upn.keys())
 
     victims = {}
 
@@ -93,11 +100,12 @@ def collect_mfa_fatigue_victims(api: AzureADAPI, filter_base: str, window_minute
         try:
             succ_result = api.security_sign_ins(top=200, filter_query=f_success, all_pages=False)
             successes = succ_result.get('value', []) if isinstance(succ_result, dict) else []
-        except Exception:
+        except Exception as e:
+            print(f"  [!] Success query failed for {upn}: {e}", file=sys.stderr)
             continue
 
-        # Build timeline: failures for this UPN
-        user_failures = [s for s in failures if s.get('userPrincipalName') == upn]
+        # Build timeline: failures for this UPN (pre-grouped for O(1) lookup)
+        user_failures = failures_by_upn[upn]
 
         # Cross-reference: is any success within window_minutes of a failure?
         evidence = []
@@ -204,29 +212,38 @@ def run_sweep(api: AzureADAPI, args) -> dict:
         suspect_ips.update(ip.strip() for ip in args.ips.split(',') if ip.strip())
 
     if suspect_ips:
-        print(f"[1/5] IP sweep: querying {len(suspect_ips)} IP(s)...", flush=True)
-        for ip in suspect_ips:
-            sign_ins = collect_sign_ins_by_ip(api, ip, filter_base)
-            for si in sign_ins:
-                upn = si.get('userPrincipalName', '')
-                if upn:
-                    victim_evidence[upn]['ip_sweep'].append({
-                        'ip': ip,
-                        'time': si.get('createdDateTime', ''),
-                        'app': si.get('appDisplayName', ''),
-                        'error_code': si.get('status', {}).get('errorCode', ''),
-                    })
+        print(f"[1/5] IP sweep: querying {len(suspect_ips)} IP(s)...", file=sys.stderr, flush=True)
+        all_v1_sign_ins: list = []
+        with ThreadPoolExecutor(max_workers=min(len(suspect_ips), 10)) as executor:
+            futures = {executor.submit(collect_sign_ins_by_ip, api, ip, filter_base): ip
+                       for ip in suspect_ips}
+            for future in as_completed(futures):
+                ip = futures[future]
+                try:
+                    results = future.result()
+                    all_v1_sign_ins.extend((ip, si) for si in results)
+                except Exception as e:
+                    print(f"  [!] Error sweeping IP {ip}: {e}", file=sys.stderr)
+        for ip, si in all_v1_sign_ins:
+            upn = si.get('userPrincipalName', '')
+            if upn:
+                victim_evidence[upn]['ip_sweep'].append({
+                    'ip': ip,
+                    'time': si.get('createdDateTime', ''),
+                    'app': si.get('appDisplayName', ''),
+                    'error_code': si.get('status', {}).get('errorCode', ''),
+                })
     else:
-        print("[1/5] IP sweep: skipped (no --ips provided)", flush=True)
+        print("[1/5] IP sweep: skipped (no --ips provided)", file=sys.stderr, flush=True)
 
     # ── Vector 2: MFA fatigue ───────────────────────────────────────────────
-    print(f"[2/5] MFA fatigue detection (window={args.mfa_window}m)...", flush=True)
+    print(f"[2/5] MFA fatigue detection (window={args.mfa_window}m)...", file=sys.stderr, flush=True)
     fatigue_victims = collect_mfa_fatigue_victims(api, filter_base, args.mfa_window)
     for upn, evidence in fatigue_victims.items():
         victim_evidence[upn]['mfa_fatigue'].extend(evidence)
 
     # ── Vector 3: Risk detections ───────────────────────────────────────────
-    print("[3/5] Risk detections (requires Entra ID P1+)...", flush=True)
+    print("[3/5] Risk detections (requires Entra ID P1+)...", file=sys.stderr, flush=True)
     risk_events = collect_risk_detections(api, risk_filter_base)
     for event in risk_events:
         upn = event.get('userPrincipalName', '')
@@ -245,20 +262,29 @@ def run_sweep(api: AzureADAPI, args) -> dict:
     # ── Vector 4: Risk IP cross-reference ──────────────────────────────────
     new_ips = suspect_ips - set(getattr(args, 'ips', '').split(',') if getattr(args, 'ips', None) else [])
     if new_ips:
-        print(f"[4/5] Cross-referencing {len(new_ips)} IPs from risk events...", flush=True)
-        for ip in new_ips:
-            sign_ins = collect_sign_ins_by_ip(api, ip, filter_base)
-            for si in sign_ins:
-                upn = si.get('userPrincipalName', '')
-                if upn:
-                    victim_evidence[upn]['ip_crossref'].append({
-                        'ip': ip,
-                        'time': si.get('createdDateTime', ''),
-                        'app': si.get('appDisplayName', ''),
-                        'error_code': si.get('status', {}).get('errorCode', ''),
-                    })
+        print(f"[4/5] Cross-referencing {len(new_ips)} IPs from risk events...", file=sys.stderr, flush=True)
+        all_v4_sign_ins: list = []
+        with ThreadPoolExecutor(max_workers=min(len(new_ips), 10)) as executor:
+            futures = {executor.submit(collect_sign_ins_by_ip, api, ip, filter_base): ip
+                       for ip in new_ips}
+            for future in as_completed(futures):
+                ip = futures[future]
+                try:
+                    results = future.result()
+                    all_v4_sign_ins.extend((ip, si) for si in results)
+                except Exception as e:
+                    print(f"  [!] Error sweeping IP {ip}: {e}", file=sys.stderr)
+        for ip, si in all_v4_sign_ins:
+            upn = si.get('userPrincipalName', '')
+            if upn:
+                victim_evidence[upn]['ip_crossref'].append({
+                    'ip': ip,
+                    'time': si.get('createdDateTime', ''),
+                    'app': si.get('appDisplayName', ''),
+                    'error_code': si.get('status', {}).get('errorCode', ''),
+                })
     else:
-        print("[4/5] Cross-reference: no new IPs from risk detections", flush=True)
+        print("[4/5] Cross-reference: no new IPs from risk detections", file=sys.stderr, flush=True)
 
     # ── Vectors 5+6: Audit anomalies + auth methods per victim ─────────────
     audit_filter_base = build_time_filter(
@@ -269,7 +295,7 @@ def run_sweep(api: AzureADAPI, args) -> dict:
     )
     all_victims = list(victim_evidence.keys())
     if all_victims:
-        print(f"[5/5] Audit logs + auth methods for {len(all_victims)} flagged account(s)...", flush=True)
+        print(f"[5/5] Audit logs + auth methods for {len(all_victims)} flagged account(s)...", file=sys.stderr, flush=True)
         for upn in all_victims:
             user_id = resolve_user_id(api, upn)
             if user_id:
@@ -286,7 +312,7 @@ def run_sweep(api: AzureADAPI, args) -> dict:
                     for m in auth_methods
                 ]
     else:
-        print("[5/5] No flagged accounts — nothing to audit", flush=True)
+        print("[5/5] No flagged accounts — nothing to audit", file=sys.stderr, flush=True)
 
     return dict(victim_evidence)
 

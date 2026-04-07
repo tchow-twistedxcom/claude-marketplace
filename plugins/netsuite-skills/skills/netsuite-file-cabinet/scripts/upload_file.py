@@ -23,7 +23,8 @@ import urllib.error
 from typing import Dict, Any, Optional
 
 # NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -104,7 +105,7 @@ def run_query(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 
@@ -272,7 +273,7 @@ def upload_file(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 
@@ -349,7 +350,7 @@ def get_file_info(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 

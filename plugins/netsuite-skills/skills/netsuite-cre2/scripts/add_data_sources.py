@@ -3,12 +3,14 @@
 Add data sources to CRE2 profiles that are missing them.
 """
 
+import os
 import sys
 import json
 import urllib.request
 import time
 
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 DATA_SOURCE_QUERY = """SELECT h.id, h.name, h.custrecord_twx_edi_history_json AS edi_json, h.custrecord_twx_eth_edi_tp AS trading_partner, h.custrecord_twx_edi_type AS doc_type, h.custrecord_twx_edi_history_status AS status, h.created AS created_date, tp.custrecord_twx_edi_tp_logo AS tp_logo_id, tp.name AS tp_name FROM customrecord_twx_edi_history h LEFT JOIN customrecord_twx_edi_tp tp ON h.custrecord_twx_eth_edi_tp = tp.id WHERE h.id = ${record.id}"""
 
@@ -30,7 +32,7 @@ def execute_query(query, account='twistedx', environment='sandbox2'):
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Origin': 'http://localhost:3000'
+            **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
         }
     )
     with urllib.request.urlopen(req, timeout=60) as response:
@@ -62,7 +64,7 @@ def create_data_source(profile_id, account='twistedx', environment='sandbox2'):
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
         with urllib.request.urlopen(req, timeout=60) as response:

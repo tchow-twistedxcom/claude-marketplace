@@ -15,11 +15,12 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import time
 import requests
 
-GATEWAY_URL = "http://localhost:3001"
+GATEWAY_URL = "https://nsapi.twistedx.tech"
 
 
 def make_request(app: str, action: str, env: str, method: str = "GET", body: dict = None) -> dict:

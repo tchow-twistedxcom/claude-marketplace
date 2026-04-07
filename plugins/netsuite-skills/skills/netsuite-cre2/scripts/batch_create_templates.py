@@ -23,7 +23,8 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 
 # NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account/Environment aliases
 ACCOUNT_ALIASES = {
@@ -124,7 +125,7 @@ def execute_query(query: str, params: Optional[List] = None, account: str = DEFA
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
         with urllib.request.urlopen(req, timeout=60) as response:
@@ -171,7 +172,7 @@ def upload_file(content: str, filename: str, folder_id: int, account: str, envir
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
         with urllib.request.urlopen(req, timeout=120) as response:
@@ -207,7 +208,7 @@ def update_profile_template(profile_id: int, template_id: int, account: str, env
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
         with urllib.request.urlopen(req, timeout=60) as response:

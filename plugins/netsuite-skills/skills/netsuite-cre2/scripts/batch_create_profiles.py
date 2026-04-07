@@ -32,6 +32,7 @@ Examples:
     python3 batch_create_profiles.py --env sb2 --doctype 810
 """
 
+import os
 import sys
 import json
 import urllib.request
@@ -41,7 +42,8 @@ from typing import Dict, List, Any, Optional
 import time
 
 # NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -271,7 +273,7 @@ def get_existing_profiles(account: str, environment: str) -> Dict[str, int]:
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 
@@ -322,7 +324,7 @@ def create_profile(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 
@@ -380,7 +382,7 @@ def create_data_source(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 

@@ -15,11 +15,12 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-GATEWAY_URL = "http://localhost:3001"
+GATEWAY_URL = "https://nsapi.twistedx.tech"
 ENVIRONMENTS = ["production", "sandbox", "sandbox2"]
 
 # Expected account IDs per environment

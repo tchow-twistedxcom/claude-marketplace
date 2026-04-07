@@ -14,6 +14,7 @@ Returns:
     JSON with success, data (entityId, fileId, fileName, pdfUrl)
 """
 
+import os
 import sys
 import json
 import argparse
@@ -23,7 +24,8 @@ import urllib.error
 from typing import Optional, Dict, Any
 
 # NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -138,7 +140,7 @@ def render_statement(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3002'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 

@@ -11,6 +11,8 @@ Usage:
   python3 query_execution_logs.py --title "DEBUG-" --hours 1 --account dm --format json
 """
 
+import os
+import os
 import sys
 import json
 import urllib.request
@@ -18,7 +20,8 @@ import urllib.error
 from typing import Dict, Any, Optional, List
 
 # NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -107,7 +110,7 @@ def query_execution_logs(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 

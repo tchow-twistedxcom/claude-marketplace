@@ -15,11 +15,12 @@ Usage:
 import argparse
 import json
 import re
+import os
 import sys
 import requests
 from typing import Any
 
-GATEWAY_URL = "http://localhost:3001"
+GATEWAY_URL = "https://nsapi.twistedx.tech"
 
 
 def fetch_api_response(app: str, action: str, env: str) -> dict | None:

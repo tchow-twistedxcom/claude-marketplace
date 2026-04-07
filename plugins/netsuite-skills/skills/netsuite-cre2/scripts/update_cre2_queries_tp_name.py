@@ -9,6 +9,7 @@ Usage:
     python3 update_cre2_queries_tp_name.py --env sb2 --dry-run
 """
 
+import os
 import sys
 import json
 import urllib.request
@@ -16,7 +17,8 @@ import urllib.error
 from typing import Dict, List, Any
 import argparse
 
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # The corrected data source query with tp.name included
 NEW_QUERY = """SELECT h.id, h.name, h.custrecord_twx_edi_history_json AS edi_json, h.custrecord_twx_eth_edi_tp AS trading_partner, h.custrecord_twx_edi_type AS doc_type, h.custrecord_twx_edi_history_status AS status, h.created AS created_date, tp.custrecord_twx_edi_tp_logo AS tp_logo_id, tp.name AS tp_name FROM customrecord_twx_edi_history h LEFT JOIN customrecord_twx_edi_tp tp ON h.custrecord_twx_eth_edi_tp = tp.id WHERE h.id = ${record.id}"""
@@ -64,7 +66,7 @@ def execute_query(query: str, account: str, environment: str) -> List[Dict]:
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Origin': 'http://localhost:3000'
+            **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
         }
     )
 
@@ -102,7 +104,7 @@ def update_record(record_type: str, record_id: int, fields: Dict, account: str, 
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Origin': 'http://localhost:3000'
+            **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
         }
     )
 

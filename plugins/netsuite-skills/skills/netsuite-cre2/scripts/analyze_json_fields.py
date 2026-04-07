@@ -17,6 +17,7 @@ Returns:
     - Mismatches and suggestions
 """
 
+import os
 import sys
 import json
 import argparse
@@ -27,7 +28,8 @@ from typing import Dict, Any, List, Set
 from pathlib import Path
 
 # NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account/Environment mappings
 ACCOUNT_ALIASES = {
@@ -149,7 +151,7 @@ def fetch_record_json(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3002'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 

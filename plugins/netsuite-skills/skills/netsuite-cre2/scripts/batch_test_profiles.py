@@ -22,7 +22,8 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+GATEWAY_URL = 'https://nsapi.twistedx.tech/api/suiteapi'
+_api_key = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account/Environment aliases
 ACCOUNT_ALIASES = {
@@ -99,7 +100,7 @@ def execute_query(query: str, account: str = DEFAULT_ACCOUNT, environment: str =
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
         with urllib.request.urlopen(req, timeout=60) as response:
@@ -129,7 +130,7 @@ def render_pdf(profile_id: int, record_id: int, account: str, environment: str) 
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3002'
+                **({'X-API-Key': _api_key} if _api_key else {'Origin': 'https://nsapi.twistedx.tech'})
             }
         )
 

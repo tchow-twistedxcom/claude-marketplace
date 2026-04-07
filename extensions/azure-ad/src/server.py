@@ -3,6 +3,8 @@
 import asyncio
 import json
 import os
+import re
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -16,6 +18,43 @@ except ImportError:
     raise RuntimeError("msal package required. Run: pip install msal")
 
 mcp = FastMCP("azure-ad")
+
+# ─── Input validation helpers ─────────────────────────────────────────────────
+
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$', re.IGNORECASE)
+_IP_RE = re.compile(r'^\d{1,3}(\.\d{1,3}){3}$')
+_SAFE_NAME_RE = re.compile(r'^[a-zA-Z0-9 @.\-_]+$')
+
+
+def _validate_email(value: str) -> str:
+    """Validate email format and escape single quotes for OData safety."""
+    if not _EMAIL_RE.match(value):
+        raise ValueError(f"Invalid email format: {value!r}")
+    return value.replace("'", "''")
+
+
+def _validate_ip(value: str) -> str:
+    """Validate IP address format."""
+    if not _IP_RE.match(value):
+        raise ValueError(f"Invalid IP address format: {value!r}")
+    return value
+
+
+def _validate_safe_name(value: str) -> str:
+    """Validate display name (group, device) for OData safety."""
+    if not _SAFE_NAME_RE.match(value):
+        raise ValueError(f"Unsafe characters in name: {value!r}")
+    return value.replace("'", "''")
+
+
+def _validate_kql_value(value: str) -> str:
+    """Reject KQL metacharacters in user-supplied values."""
+    bad_chars = ('|', ';', '//', "'", '"')
+    for c in bad_chars:
+        if c in value:
+            raise ValueError(f"Unsafe character {c!r} in KQL value: {value!r}")
+    return value
+
 
 CHARACTER_LIMIT = 25000
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
@@ -157,6 +196,8 @@ async def azure_ad_list_users(
 
     Args:
         filter_query: OData $filter expression (e.g. "department eq 'Engineering'" or "accountEnabled eq false").
+            NOTE: This parameter is passed directly to the Graph API without sanitization.
+            Intended for admin use only — do not pass untrusted user input here.
         search: Full-text search across displayName, UPN, email (e.g. "John Smith").
         select: Comma-separated fields to include (default: id,displayName,userPrincipalName,mail,jobTitle,department,accountEnabled).
         top: Number of results per page (default 100, max 999).
@@ -285,6 +326,8 @@ async def azure_ad_list_groups(
 
     Args:
         filter_query: OData $filter (e.g. "displayName eq 'IT Admins'" or "groupTypes/any(t:t eq 'Unified')").
+            NOTE: This parameter is passed directly to the Graph API without sanitization.
+            Intended for admin use only — do not pass untrusted user input here.
         search: Full-text search on displayName or description.
         top: Max results (default 100).
 
@@ -317,7 +360,7 @@ async def azure_ad_get_group(group_id: str) -> str:
     if len(group_id) == 36 and group_id.count("-") == 4:
         result = await _graph("GET", f"/groups/{group_id}")
     else:
-        params = {"$filter": f"displayName eq '{group_id}'"}
+        params = {"$filter": f"displayName eq '{_validate_safe_name(group_id)}'"}
         result = await _graph("GET", "/groups", params=params)
     return _fmt(result)
 
@@ -365,6 +408,8 @@ async def azure_ad_list_devices(
 
     Args:
         filter_query: OData $filter (e.g. "operatingSystem eq 'Windows'" or "isCompliant eq false").
+            NOTE: This parameter is passed directly to the Graph API without sanitization.
+            Intended for admin use only — do not pass untrusted user input here.
         search: Full-text search on displayName.
         top: Max results (default 100).
 
@@ -395,7 +440,7 @@ async def azure_ad_get_device(device_id: str) -> str:
     if len(device_id) == 36 and device_id.count("-") == 4:
         result = await _graph("GET", f"/devices/{device_id}")
     else:
-        params = {"$filter": f"displayName eq '{device_id}'"}
+        params = {"$filter": f"displayName eq '{_validate_safe_name(device_id)}'"}
         result = await _graph("GET", "/devices", params=params)
     return _fmt(result)
 
@@ -481,9 +526,9 @@ async def azure_ad_sign_ins(
     """
     filters = [_hours_filter(hours)]
     if user:
-        filters.append(f"userPrincipalName eq '{user}'")
+        filters.append(f"userPrincipalName eq '{_validate_email(user)}'")
     if ip:
-        filters.append(f"ipAddress eq '{ip}'")
+        filters.append(f"ipAddress eq '{_validate_ip(ip)}'")
     if app:
         filters.append(f"appDisplayName eq '{app}'")
     if error_code is not None:
@@ -548,7 +593,7 @@ async def azure_ad_risk_detections(
     if risk_event_type:
         filters.append(f"riskEventType eq '{risk_event_type}'")
     if user:
-        filters.append(f"userPrincipalName eq '{user}'")
+        filters.append(f"userPrincipalName eq '{_validate_email(user)}'")
 
     params = {
         "$filter": " and ".join(filters),
@@ -637,7 +682,7 @@ async def azure_ad_audit_logs(
     if user:
         # Note: filtering by initiatedBy UPN requires knowing the object ID.
         # We filter client-side if user UPN provided via search param instead.
-        filters.append(f"initiatedBy/user/userPrincipalName eq '{user}'")
+        filters.append(f"initiatedBy/user/userPrincipalName eq '{_validate_email(user)}'")
 
     params = {
         "$filter": " and ".join(filters),
@@ -674,6 +719,8 @@ async def azure_ad_ca_policies(filter_query: Optional[str] = None) -> str:
 
     Args:
         filter_query: OData $filter (e.g. "state eq 'enabled'" or "displayName eq 'Block legacy auth'").
+            NOTE: This parameter is passed directly to the Graph API without sanitization.
+            Intended for admin use only — do not pass untrusted user input here.
 
     Returns CA policies with conditions (users, apps, locations, platforms),
     grant controls (MFA, compliant device, etc.), and session controls.
@@ -697,45 +744,77 @@ async def azure_ad_named_locations() -> str:
 
 
 @mcp.tool()
-async def azure_ad_revoke_sessions(user_id: str) -> str:
-    """Revoke all active sign-in sessions for a user.
+async def azure_ad_revoke_sessions(
+    user: str,
+    dry_run: bool = True,
+) -> dict:
+    """Revoke all sign-in sessions for a user.
+
+    IMPORTANT: This immediately invalidates all active sessions. By default, dry_run=True
+    returns a preview without executing. Pass dry_run=False to actually revoke sessions.
 
     Use during incident response to immediately terminate access for a compromised account.
     This invalidates all refresh tokens — the user will be forced to re-authenticate
     on all devices and applications.
 
     Args:
-        user_id: User UPN (e.g. 'john@contoso.com') or object ID.
+        user: User UPN (e.g. 'john@contoso.com') or object ID.
+        dry_run: If True (default), returns a preview without executing. Pass False to revoke.
 
-    Returns success/failure status. After revocation, the user's risk level is unaffected —
+    Returns preview dict when dry_run=True, or Graph API result when dry_run=False.
+    After revocation, the user's risk level is unaffected —
     use azure_ad_confirm_compromised to also flag them in Identity Protection.
     """
-    result = await _graph("POST", f"/users/{user_id}/revokeSignInSessions")
-    return _fmt(result)
+    if dry_run:
+        return {
+            "dry_run": True,
+            "would_revoke_sessions_for": user,
+            "message": "Pass dry_run=False to execute. This will immediately sign out the user from all devices.",
+        }
+    print(f"[azure-ad-server] DESTRUCTIVE OP: revokeSignInSessions user={user}", file=sys.stderr)
+    result = await _graph("POST", f"/users/{user}/revokeSignInSessions")
+    return json.loads(_fmt(result))
 
 
 @mcp.tool()
-async def azure_ad_confirm_compromised(user_ids: list[str]) -> str:
+async def azure_ad_confirm_compromised(
+    users: list[str],
+    confirm: bool = False,
+) -> dict:
     """Mark users as confirmed compromised in Identity Protection.
+
+    WARNING: This sets risk state to confirmedCompromised. If Conditional Access blocks
+    high-risk users, this immediately locks out the affected accounts. IRREVERSIBLE via API.
+
+    Pass confirm=True to execute. Defaults to False for safety.
 
     Triggers remediation: risk level set to 'high', account may be blocked per CA policy,
     and the event is recorded in risk history. Use together with azure_ad_revoke_sessions
     for complete incident response.
 
     Args:
-        user_ids: List of user object IDs (GUIDs) to mark as compromised.
+        users: List of user object IDs (GUIDs) to mark as compromised.
             Get IDs from azure_ad_get_user or azure_ad_risky_users.
             Note: UPNs are NOT accepted here — must be object IDs.
+        confirm: Must be set to True to execute. Defaults to False for safety.
 
-    Returns success status. Affected users will appear in azure_ad_risky_users
-    with riskState = 'confirmedCompromised'.
+    Returns preview dict when confirm=False, or success status when confirm=True.
+    Affected users will appear in azure_ad_risky_users with riskState = 'confirmedCompromised'.
     """
+    if not confirm:
+        return {
+            "confirm": False,
+            "would_flag_as_compromised": users,
+            "warning": "This operation is irreversible via API and may immediately lock out accounts.",
+            "message": "Pass confirm=True to execute.",
+        }
+    print(f"[azure-ad-server] DESTRUCTIVE OP: confirmCompromised users={users}", file=sys.stderr)
     result = await _graph(
         "POST",
         "/identityProtection/riskyUsers/confirmCompromised",
-        data={"userIds": user_ids},
+        data={"userIds": users},
     )
-    return _fmt(result)
+    return json.loads(_fmt(result))
 
 
 # ─── Unified Audit Log (Office 365 Management Activity API) ──────────────────
@@ -1220,14 +1299,28 @@ async def azure_ad_update_ca_policy(
 
 
 @mcp.tool()
-async def azure_ad_delete_ca_policy(policy_id: str) -> str:
+async def azure_ad_delete_ca_policy(
+    policy_id: str,
+    confirm: bool = False,
+) -> dict:
     """Delete a Conditional Access policy.
+
+    WARNING: Permanently deletes the policy. This cannot be undone via API.
+    Pass confirm=True to execute. Defaults to False for safety.
 
     Args:
         policy_id: Policy object ID (from azure_ad_list_ca_policies).
+        confirm: Must be set to True to execute. Defaults to False for safety.
     """
+    if not confirm:
+        return {
+            "confirm": False,
+            "would_delete_policy": policy_id,
+            "message": "Pass confirm=True to permanently delete this Conditional Access policy.",
+        }
+    print(f"[azure-ad-server] DESTRUCTIVE OP: deleteCAPolicy policy_id={policy_id}", file=sys.stderr)
     await _graph("DELETE", f"/identity/conditionalAccess/policies/{policy_id}")
-    return _fmt({"success": True, "deleted_policy_id": policy_id})
+    return {"success": True, "deleted_policy_id": policy_id}
 
 
 @mcp.tool()
@@ -1253,6 +1346,9 @@ async def azure_ad_advanced_hunt(query: str, top: int = 1000) -> str:
             captures ALL sends regardless of SaveToSentItems flag.
             Example: "EmailEvents | where SenderFromAddress =~ 'user@domain.com'
                       | where Timestamp >= ago(24h) | order by Timestamp desc"
+            NOTE: The query is passed to the Defender API without validation.
+            Intended for admin use only — do not pass untrusted user input here.
+            A '| limit N' clause is appended automatically if 'limit'/'take' is absent.
         top: Implicit LIMIT appended if query has no 'limit' or 'take' clause (default 1000).
 
     Returns schema and results rows.
@@ -1298,15 +1394,15 @@ async def azure_ad_email_events(
     """
     filters = [f"Timestamp >= ago({hours}h)"]
     if direction:
-        filters.append(f"EmailDirection == '{direction}'")
+        filters.append(f"EmailDirection == '{_validate_kql_value(direction)}'")
     if sender:
-        filters.append(f"SenderFromAddress =~ '{sender}'")
+        filters.append(f"SenderFromAddress =~ '{_validate_kql_value(sender)}'")
     if recipient:
-        filters.append(f"RecipientEmailAddress =~ '{recipient}'")
+        filters.append(f"RecipientEmailAddress =~ '{_validate_kql_value(recipient)}'")
     if subject:
-        filters.append(f"Subject has '{subject}'")
+        filters.append(f"Subject has '{_validate_kql_value(subject)}'")
     if network_message_id:
-        filters.append(f"NetworkMessageId == '{network_message_id}'")
+        filters.append(f"NetworkMessageId == '{_validate_kql_value(network_message_id)}'")
 
     kql = (
         "EmailEvents\n"
@@ -1548,11 +1644,11 @@ async def azure_ad_email_attachments(
     """
     filters = [f"Timestamp >= ago({hours}h)"]
     if sender:
-        filters.append(f"SenderFromAddress =~ '{sender}'")
+        filters.append(f"SenderFromAddress =~ '{_validate_kql_value(sender)}'")
     if recipient:
-        filters.append(f"RecipientEmailAddress =~ '{recipient}'")
+        filters.append(f"RecipientEmailAddress =~ '{_validate_kql_value(recipient)}'")
     if file_name:
-        filters.append(f"FileName has '{file_name}'")
+        filters.append(f"FileName has '{_validate_kql_value(file_name)}'")
 
     kql = (
         "EmailAttachmentInfo\n"
@@ -1693,14 +1789,15 @@ async def azure_ad_incident_triage(
         # EmailEvents: captures SaveToSentItems=false attacker sends (requires Defender for O365 Plan 2)
         # CloudAppEvents: Exchange Online activity visible to MCAS/Defender — mailbox access, sends,
         #   deletes from attacker IPs. Available without Defender for O365 Plan 2.
+        _upn_kql = _validate_kql_value(upn)
         email_kql = (
-            f"EmailEvents | where SenderFromAddress =~ '{upn}' "
+            f"EmailEvents | where SenderFromAddress =~ '{_upn_kql}' "
             f"and Timestamp >= ago({hours}h) and EmailDirection == 'Outbound' "
             "| project Timestamp, RecipientEmailAddress, Subject, NetworkMessageId, DeliveryStatus "
             "| order by Timestamp desc | limit 1000"
         )
         cloud_kql = (
-            f"CloudAppEvents | where AccountUpn =~ '{upn}' "
+            f"CloudAppEvents | where AccountUpn =~ '{_upn_kql}' "
             f"and Timestamp >= ago({hours}h) "
             "and Application == 'Microsoft Exchange Online' "
             "| project Timestamp, ActionType, IPAddress, CountryCode, ISP, UserAgent, ObjectName "
@@ -1713,9 +1810,9 @@ async def azure_ad_incident_triage(
             _graph("GET", f"/users/{upn}/mailFolders/inbox/messageRules"),
             _graph("GET", f"/users/{upn}/authentication/methods"),
             _graph("GET", "/identityProtection/riskyUsers",
-                   params={"$filter": f"userPrincipalName eq '{upn}'", "$top": 1}),
+                   params={"$filter": f"userPrincipalName eq '{_validate_email(upn)}'", "$top": 1}),
             _graph("GET", "/auditLogs/signIns", params={
-                "$filter": f"userPrincipalName eq '{upn}' and createdDateTime ge {since}",
+                "$filter": f"userPrincipalName eq '{_validate_email(upn)}' and createdDateTime ge {since}",
                 "$top": 200, "$orderby": "createdDateTime desc"}),
             _graph("POST", "/security/runHuntingQuery", data={"Query": email_kql}),
             _graph("POST", "/security/runHuntingQuery", data={"Query": cloud_kql}),

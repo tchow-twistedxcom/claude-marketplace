@@ -1279,9 +1279,17 @@ class EDIAPI:
         """Query EDI transactions."""
         return self.client.post("/ediTransactions/query", data)
 
-    def get_fa_details(self, transaction_id: str) -> dict:
+    def get_fa_details(self, transaction_id: str, file_type: str = None) -> dict:
         """Get functional acknowledgment details for a transaction."""
-        return self.client.get(f"/ediTransactions/{transaction_id}/faDetails")
+        params = {}
+        if file_type:
+            params["fileType"] = file_type
+        return self.client.get(f"/ediTransactions/{transaction_id}/faDetails", params or None)
+
+    def download_edi_file(self, document_number: str, document_type: str) -> str:
+        """Download raw EDI file for a given document number and type."""
+        params = {"documentType": document_type}
+        return self.client.get(f"/edi/documents/{document_number}/ediFile", params)
 
 
 # =============================================================================
@@ -2386,7 +2394,10 @@ def cmd_edi(args):
         print_result(api.query_transactions(data), args.format)
 
     elif args.action == "fa-details":
-        print_result(api.get_fa_details(args.id), args.format)
+        print_result(api.get_fa_details(args.id, file_type=getattr(args, 'file_type', None)), args.format)
+
+    elif args.action == "download-edi-file":
+        print_result(api.download_edi_file(args.document_number, args.document_type), args.format)
 
 
 def cmd_edi_reports(args):
@@ -3521,6 +3532,13 @@ Examples:
 
     edi_fa = edi_sub.add_parser("fa-details", help="Get FA details for transaction")
     edi_fa.add_argument("id", help="Transaction ID")
+    edi_fa.add_argument("--file-type", dest="file_type", choices=["X12", "EDIFACT"],
+                        help="EDI file type (X12 or EDIFACT)")
+
+    edi_dl = edi_sub.add_parser("download-edi-file", help="Download raw EDI file by document number")
+    edi_dl.add_argument("document_number", help="Document number")
+    edi_dl.add_argument("--document-type", dest="document_type", required=True,
+                        help="Document type (e.g. 850, 856, 810)")
 
     return parser
 

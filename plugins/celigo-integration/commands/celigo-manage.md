@@ -538,7 +538,14 @@ python3 scripts/celigo_api.py edi create --file profile.json
 
 # Transaction operations
 python3 scripts/celigo_api.py edi query-transactions --data '{"filter": {...}}'
+
+# Get functional acknowledgment details (--file-type X12 or EDIFACT)
 python3 scripts/celigo_api.py edi fa-details <transaction_id>
+python3 scripts/celigo_api.py edi fa-details <transaction_id> --file-type X12
+
+# Download raw EDI file by document number (added March 2026)
+python3 scripts/celigo_api.py edi download-edi-file <document_number> --document-type 850
+python3 scripts/celigo_api.py edi download-edi-file <document_number> --document-type 856
 ```
 
 ## Advanced Error Operations

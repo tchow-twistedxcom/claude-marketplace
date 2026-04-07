@@ -66,6 +66,43 @@ TOKEN_REFRESH_BUFFER = 300  # Refresh 5 min before expiry
 _token_cache: dict = {}
 _msal_app: Optional[ConfidentialClientApplication] = None
 
+# ─── HTTP client singleton ────────────────────────────────────────────────────
+
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    """Return (or create) a shared httpx.AsyncClient for connection pooling."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=60,
+            follow_redirects=True,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+        )
+    return _http_client
+
+
+# ─── OData enum allowlists ────────────────────────────────────────────────────
+
+VALID_RISK_LEVELS = {"low", "medium", "high", "none", "hidden", "unknownfuturevalue"}
+VALID_RISK_STATES = {"atrisk", "confirmedcompromised", "remediated", "dismissed", "none"}
+VALID_RISK_EVENT_TYPES = {
+    "unfamiliarfeatures", "anonymizedipaddress", "maliciousipaddress",
+    "leakedcredentials", "impossibletravel", "newcountry", "suspiciousbrowser",
+    "malwareinfectedipaddress", "suspiciousipaddress", "riskyipaddress",
+    "investigationstrippedout", "generic", "adminconfirmedusersafe",
+    "mcasmfadenial", "onpremisespasswordchange", "unknownfuturevalue",
+}
+VALID_RESULT_FILTERS = {"success", "failure", "timeout"}
+
+
+def _validate_enum(value: str, valid_set: set, field: str) -> str:
+    """Validate that value is in the allowed set (case-insensitive). Returns original casing."""
+    if value.lower() not in valid_set:
+        raise ValueError(f"Invalid {field}: {value!r}. Valid values: {sorted(valid_set)}")
+    return value
+
 
 def _get_credentials() -> tuple[str, str, str]:
     """Get credentials from environment variables."""
@@ -131,30 +168,30 @@ async def _graph(
         "ConsistencyLevel": "eventual",  # Required for $search and $count
     }
 
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        response = await client.request(
-            method=method.upper(),
-            url=url,
-            headers=headers,
-            params=params,
-            json=data,
+    client = _get_http_client()
+    response = await client.request(
+        method=method.upper(),
+        url=url,
+        headers=headers,
+        params=params,
+        json=data,
+    )
+    if response.status_code == 204:
+        return {"status": "success", "message": "Operation completed successfully"}
+    if response.status_code == 401:
+        raise ValueError("Unauthorized. Check credentials and app permissions.")
+    if response.status_code == 403:
+        raise ValueError(
+            f"Forbidden. The app lacks the required Graph API permission for this operation. "
+            f"Details: {response.text[:300]}"
         )
-        if response.status_code == 204:
-            return {"status": "success", "message": "Operation completed successfully"}
-        if response.status_code == 401:
-            raise ValueError("Unauthorized. Check credentials and app permissions.")
-        if response.status_code == 403:
-            raise ValueError(
-                f"Forbidden. The app lacks the required Graph API permission for this operation. "
-                f"Details: {response.text[:300]}"
-            )
-        if response.status_code == 404:
-            raise ValueError(f"Not found: {endpoint}")
-        response.raise_for_status()
-        return response.json() if response.content else {}
+    if response.status_code == 404:
+        raise ValueError(f"Not found: {endpoint}")
+    response.raise_for_status()
+    return response.json() if response.content else {}
 
 
-async def _get_all_pages(endpoint: str, params: Optional[dict] = None, max_pages: int = 50) -> list:
+async def _get_all_pages(endpoint: str, params: Optional[dict] = None, max_pages: int = 500) -> list:
     """Collect all pages of a paginated Graph API result."""
     all_items = []
     page = 0
@@ -164,6 +201,11 @@ async def _get_all_pages(endpoint: str, params: Optional[dict] = None, max_pages
         endpoint = result.get("@odata.nextLink")
         params = None  # nextLink carries its own params
         page += 1
+    if page >= max_pages and endpoint:
+        print(
+            f"WARNING: _get_all_pages hit max_pages={max_pages} — results TRUNCATED",
+            file=sys.stderr,
+        )
     return all_items
 
 
@@ -530,13 +572,13 @@ async def azure_ad_sign_ins(
     if ip:
         filters.append(f"ipAddress eq '{_validate_ip(ip)}'")
     if app:
-        filters.append(f"appDisplayName eq '{app}'")
+        filters.append(f"appDisplayName eq '{app.replace(chr(39), chr(39)*2)}'")
     if error_code is not None:
         filters.append(f"status/errorCode eq {error_code}")
     if risk_level:
-        filters.append(f"riskLevelDuringSignIn eq '{risk_level}'")
+        filters.append(f"riskLevelDuringSignIn eq '{_validate_enum(risk_level, VALID_RISK_LEVELS, 'risk_level')}'")
     if country:
-        filters.append(f"location/countryOrRegion eq '{country}'")
+        filters.append(f"location/countryOrRegion eq '{country.replace(chr(39), chr(39)*2)}'")
 
     params = {
         "$filter": " and ".join(filters),
@@ -589,9 +631,9 @@ async def azure_ad_risk_detections(
     """
     filters = [_hours_filter(hours, "activityDateTime")]
     if risk_level:
-        filters.append(f"riskLevel eq '{risk_level}'")
+        filters.append(f"riskLevel eq '{_validate_enum(risk_level, VALID_RISK_LEVELS, 'risk_level')}'")
     if risk_event_type:
-        filters.append(f"riskEventType eq '{risk_event_type}'")
+        filters.append(f"riskEventType eq '{risk_event_type.replace(chr(39), chr(39)*2)}'")
     if user:
         filters.append(f"userPrincipalName eq '{_validate_email(user)}'")
 
@@ -621,9 +663,9 @@ async def azure_ad_risky_users(
     """
     filters = []
     if risk_level:
-        filters.append(f"riskLevel eq '{risk_level}'")
+        filters.append(f"riskLevel eq '{_validate_enum(risk_level, VALID_RISK_LEVELS, 'risk_level')}'")
     if risk_state:
-        filters.append(f"riskState eq '{risk_state}'")
+        filters.append(f"riskState eq '{_validate_enum(risk_state, VALID_RISK_STATES, 'risk_state')}'")
 
     params: dict = {"$top": min(top, 500)}
     if filters:
@@ -674,11 +716,11 @@ async def azure_ad_audit_logs(
     """
     filters = [_hours_filter(hours, "activityDateTime")]
     if activity:
-        filters.append(f"activityDisplayName eq '{activity}'")
+        filters.append(f"activityDisplayName eq '{activity.replace(chr(39), chr(39)*2)}'")
     if category:
-        filters.append(f"category eq '{category}'")
+        filters.append(f"category eq '{category.replace(chr(39), chr(39)*2)}'")
     if result_filter:
-        filters.append(f"result eq '{result_filter}'")
+        filters.append(f"result eq '{_validate_enum(result_filter, VALID_RESULT_FILTERS, 'result_filter')}'")
     if user:
         # Note: filtering by initiatedBy UPN requires knowing the object ID.
         # We filter client-side if user UPN provided via search param instead.
@@ -747,7 +789,7 @@ async def azure_ad_named_locations() -> str:
 async def azure_ad_revoke_sessions(
     user: str,
     dry_run: bool = True,
-) -> dict:
+) -> str:
     """Revoke all sign-in sessions for a user.
 
     IMPORTANT: This immediately invalidates all active sessions. By default, dry_run=True
@@ -766,21 +808,21 @@ async def azure_ad_revoke_sessions(
     use azure_ad_confirm_compromised to also flag them in Identity Protection.
     """
     if dry_run:
-        return {
+        return json.dumps({
             "dry_run": True,
             "would_revoke_sessions_for": user,
             "message": "Pass dry_run=False to execute. This will immediately sign out the user from all devices.",
-        }
+        })
     print(f"[azure-ad-server] DESTRUCTIVE OP: revokeSignInSessions user={user}", file=sys.stderr)
     result = await _graph("POST", f"/users/{user}/revokeSignInSessions")
-    return json.loads(_fmt(result))
+    return _fmt(result)
 
 
 @mcp.tool()
 async def azure_ad_confirm_compromised(
     users: list[str],
     confirm: bool = False,
-) -> dict:
+) -> str:
     """Mark users as confirmed compromised in Identity Protection.
 
     WARNING: This sets risk state to confirmedCompromised. If Conditional Access blocks
@@ -802,19 +844,19 @@ async def azure_ad_confirm_compromised(
     Affected users will appear in azure_ad_risky_users with riskState = 'confirmedCompromised'.
     """
     if not confirm:
-        return {
+        return json.dumps({
             "confirm": False,
             "would_flag_as_compromised": users,
             "warning": "This operation is irreversible via API and may immediately lock out accounts.",
             "message": "Pass confirm=True to execute.",
-        }
+        })
     print(f"[azure-ad-server] DESTRUCTIVE OP: confirmCompromised users={users}", file=sys.stderr)
     result = await _graph(
         "POST",
         "/identityProtection/riskyUsers/confirmCompromised",
         data={"userIds": users},
     )
-    return json.loads(_fmt(result))
+    return _fmt(result)
 
 
 # ─── Unified Audit Log (Office 365 Management Activity API) ──────────────────
@@ -829,15 +871,15 @@ async def _ual_request(method: str, path: str, params: Optional[dict] = None, da
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-        response = await client.request(method=method.upper(), url=url, headers=headers, params=params, json=data)
-        if response.status_code == 403:
-            raise ValueError(
-                "Forbidden. Ensure the app has 'ActivityFeed.Read' from Office 365 Management APIs "
-                "with admin consent granted."
-            )
-        response.raise_for_status()
-        return response.json() if response.content else {}
+    client = _get_http_client()
+    response = await client.request(method=method.upper(), url=url, headers=headers, params=params, json=data)
+    if response.status_code == 403:
+        raise ValueError(
+            "Forbidden. Ensure the app has 'ActivityFeed.Read' from Office 365 Management APIs "
+            "with admin consent granted."
+        )
+    response.raise_for_status()
+    return response.json() if response.content else {}
 
 
 async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) -> list:
@@ -862,11 +904,11 @@ async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) ->
     token = _get_token(UAL_SCOPE)
     headers = {"Authorization": f"Bearer {token}"}
     all_events = []
-    async with httpx.AsyncClient(timeout=60) as client:
-        for blob in result:
-            r = await client.get(blob["contentUri"], headers=headers)
-            if r.status_code == 200:
-                all_events.extend(r.json())
+    client = _get_http_client()
+    for blob in result:
+        r = await client.get(blob["contentUri"], headers=headers)
+        if r.status_code == 200:
+            all_events.extend(r.json())
     return all_events
 
 
@@ -1106,7 +1148,7 @@ async def azure_ad_search_mail(
 
     # Build filter: support 'from:address' prefix or default subject contains
     if query.lower().startswith("from:"):
-        sender = query[5:].strip()
+        sender = query[5:].strip().replace("'", "''")
         filter_parts = [f"from/emailAddress/address eq '{sender}'"]
     else:
         # Escape single quotes in query for OData
@@ -1302,7 +1344,7 @@ async def azure_ad_update_ca_policy(
 async def azure_ad_delete_ca_policy(
     policy_id: str,
     confirm: bool = False,
-) -> dict:
+) -> str:
     """Delete a Conditional Access policy.
 
     WARNING: Permanently deletes the policy. This cannot be undone via API.
@@ -1313,14 +1355,14 @@ async def azure_ad_delete_ca_policy(
         confirm: Must be set to True to execute. Defaults to False for safety.
     """
     if not confirm:
-        return {
+        return json.dumps({
             "confirm": False,
             "would_delete_policy": policy_id,
             "message": "Pass confirm=True to permanently delete this Conditional Access policy.",
-        }
+        })
     print(f"[azure-ad-server] DESTRUCTIVE OP: deleteCAPolicy policy_id={policy_id}", file=sys.stderr)
     await _graph("DELETE", f"/identity/conditionalAccess/policies/{policy_id}")
-    return {"success": True, "deleted_policy_id": policy_id}
+    return json.dumps({"success": True, "deleted_policy_id": policy_id})
 
 
 @mcp.tool()

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "031"
 tags: [code-review, quality, mimecast, pattern-bypass]
@@ -49,10 +49,11 @@ Option A for a follow-up cleanup PR. Not a blocker for the current PR, but creat
 
 ## Acceptance Criteria
 
-- [ ] `directory_sync.py` domain commands use `format_output()` for json/csv/table routing
-- [ ] `human_risk.py` domain commands use `format_output()` for json/csv/table routing
-- [ ] All `import json` / `import re` calls moved to module top level
+- [x] `directory_sync.py` domain commands use `format_output()` for json/csv/table routing
+- [x] `human_risk.py` domain commands use `format_output()` for json/csv/table routing
+- [x] All `import json` / `import re` calls moved to module top level
 
 ## Work Log
 
 - 2026-04-07: Identified by pattern-recognition-specialist (HIGH) and code-simplicity-reviewer
+- 2026-04-07: Resolved — both modules refactored. Added `from mimecast_formatter import format_output` inside each cmd method (following awareness_training.py pattern). Non-table output (`json`/`csv`) now routed through `format_output()`. Custom table rendering preserved in both files as it is too specialized for the generic formatter (annotated connection-config view in directory_sync; grade-distribution matrix in human_risk). Inline `import json as _json` (directory_sync lines 53, 94) and `import re` (line 127) removed; `import re` moved to module top. Inline `import json` (human_risk cmd_summary, cmd_users) removed; no longer needed since json output is delegated to formatter. Commit: `c45ca14` on branch `feat/mimecast-m365-audit`.

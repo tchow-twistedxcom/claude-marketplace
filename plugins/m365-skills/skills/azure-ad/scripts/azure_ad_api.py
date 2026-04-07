@@ -7,6 +7,7 @@ Comprehensive CLI for Microsoft Graph API operations on Azure AD resources:
 - Groups: List, get, members, owners, add/remove members
 - Devices: List, get, search, owners, registered users
 - Directory: Organization info, domains, licenses, roles
+- Security: Sign-in logs, risk detections, risky users, audit logs, auth methods
 
 Usage:
     python azure_ad_api.py users list
@@ -14,6 +15,8 @@ Usage:
     python azure_ad_api.py groups members GROUP_ID
     python azure_ad_api.py --format json users list
     python azure_ad_api.py -t prod devices list
+    python azure_ad_api.py security sign-ins --hours 24
+    python azure_ad_api.py security risky-users --risk-level high
 """
 
 import argparse
@@ -25,6 +28,40 @@ import requests
 
 from auth import AzureAuth, AuthError
 from formatters import format_output, print_error, print_success, print_warning
+
+
+def build_time_filter(
+    field: str = "createdDateTime",
+    hours: Optional[int] = None,
+    days: Optional[int] = None,
+    since: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Build an OData time filter string.
+
+    Args:
+        field: The datetime field to filter on (default: "createdDateTime")
+        hours: Number of hours to look back from now
+        days: Number of days to look back from now
+        since: ISO 8601 datetime string to filter from
+
+    Returns:
+        OData filter string like "createdDateTime ge 2026-04-06T00:00:00Z"
+        or None if no time constraint is provided
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if since:
+        return f"{field} ge {since}"
+    if days:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"{field} ge {cutoff_str}"
+    if hours:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"{field} ge {cutoff_str}"
+    return None
 
 
 class GraphAPIError(Exception):
@@ -415,6 +452,68 @@ class AzureADAPI:
         """Restore a deleted user."""
         return self._request('POST', f'/directory/deletedItems/{user_id}/restore')
 
+    # ========== SECURITY ==========
+
+    def security_sign_ins(
+        self,
+        top: int = 100,
+        filter_query: Optional[str] = None,
+        all_pages: bool = False,
+    ) -> Dict:
+        """Fetch sign-in audit logs. Requires AuditLog.Read.All permission."""
+        params: Dict = {"$top": top, "$orderby": "createdDateTime desc"}
+        if filter_query:
+            params["$filter"] = filter_query
+        if all_pages:
+            items = self._get_all_pages("/auditLogs/signIns", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/auditLogs/signIns', params=params)
+
+    def security_risk_detections(
+        self,
+        top: int = 100,
+        filter_query: Optional[str] = None,
+        all_pages: bool = False,
+    ) -> Dict:
+        """Fetch Identity Protection risk detections. Requires IdentityRiskEvent.Read.All."""
+        params: Dict = {"$top": top, "$orderby": "detectedDateTime desc"}
+        if filter_query:
+            params["$filter"] = filter_query
+        if all_pages:
+            items = self._get_all_pages("/identityProtection/riskDetections", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/identityProtection/riskDetections', params=params)
+
+    def security_risky_users(
+        self,
+        top: int = 100,
+        filter_query: Optional[str] = None,
+    ) -> Dict:
+        """Fetch risky users from Identity Protection. Requires IdentityRiskyUser.Read.All."""
+        params: Dict = {"$top": top}
+        if filter_query:
+            params["$filter"] = filter_query
+        return self._request('GET', '/identityProtection/riskyUsers', params=params)
+
+    def security_audit_logs(
+        self,
+        top: int = 100,
+        filter_query: Optional[str] = None,
+        all_pages: bool = False,
+    ) -> Dict:
+        """Fetch directory audit logs. Requires AuditLog.Read.All permission."""
+        params: Dict = {"$top": top, "$orderby": "activityDateTime desc"}
+        if filter_query:
+            params["$filter"] = filter_query
+        if all_pages:
+            items = self._get_all_pages("/auditLogs/directoryAudits", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/auditLogs/directoryAudits', params=params)
+
+    def security_auth_methods(self, upn: str) -> Dict:
+        """Fetch authentication methods for a user. Requires UserAuthenticationMethod.Read.All."""
+        return self._request('GET', f'/users/{upn}/authentication/methods')
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
@@ -665,7 +764,90 @@ Examples:
     dir_ru.add_argument('user_id', help='User ID')
     dir_ru.add_argument('--confirm', action='store_true', required=True, help='Confirm restore')
 
+    # ===== SECURITY COMMANDS =====
+    security_parser = subparsers.add_parser('security', help='Security and audit log operations')
+    security_sub = security_parser.add_subparsers(dest='security_action', required=True)
+
+    # security sign-ins
+    p = security_sub.add_parser('sign-ins', help='Fetch sign-in audit logs')
+    p.add_argument('--top', type=int, default=100, help='Number of records (default: 100)')
+    p.add_argument('--hours', type=int, help='Look back N hours')
+    p.add_argument('--since', help='ISO 8601 datetime to filter from')
+    p.add_argument('--user', help='Filter by UPN or email')
+    p.add_argument('--ip', help='Filter by IP address')
+    p.add_argument('--all', action='store_true', dest='all_pages', help='Fetch all pages')
+
+    # security risky-users
+    p = security_sub.add_parser('risky-users', help='Fetch risky users from Identity Protection')
+    p.add_argument('--top', type=int, default=100)
+    p.add_argument('--risk-level', choices=['low', 'medium', 'high', 'none'],
+                   dest='risk_level', help='Filter by risk level')
+
+    # security risk-detections
+    p = security_sub.add_parser('risk-detections', help='Fetch risk detection events')
+    p.add_argument('--top', type=int, default=100)
+    p.add_argument('--hours', type=int)
+
+    # security audit-logs
+    p = security_sub.add_parser('audit-logs', help='Fetch directory audit logs')
+    p.add_argument('--top', type=int, default=100)
+    p.add_argument('--hours', type=int)
+    p.add_argument('--user', help='Filter by initiated user UPN')
+    p.add_argument('--category', help='Filter by activity category')
+
+    # security auth-methods
+    p = security_sub.add_parser('auth-methods', help='Get authentication methods for a user')
+    p.add_argument('upn', help='User principal name')
+
     return parser
+
+
+def handle_security(api: AzureADAPI, args: argparse.Namespace) -> Optional[Dict]:
+    """Handle security subcommand dispatch."""
+    if args.security_action == 'sign-ins':
+        filter_parts = []
+        time_f = build_time_filter(
+            field='createdDateTime',
+            hours=getattr(args, 'hours', None),
+            since=getattr(args, 'since', None),
+        )
+        if time_f:
+            filter_parts.append(time_f)
+        if getattr(args, 'user', None):
+            filter_parts.append(f"userPrincipalName eq '{args.user}'")
+        if getattr(args, 'ip', None):
+            filter_parts.append(f"ipAddress eq '{args.ip}'")
+        fq = ' and '.join(filter_parts) if filter_parts else None
+        return api.security_sign_ins(
+            top=args.top,
+            filter_query=fq,
+            all_pages=getattr(args, 'all_pages', False),
+        )
+    elif args.security_action == 'risky-users':
+        fq = None
+        if getattr(args, 'risk_level', None):
+            fq = f"riskLevel eq '{args.risk_level}'"
+        return api.security_risky_users(top=args.top, filter_query=fq)
+    elif args.security_action == 'risk-detections':
+        fq = build_time_filter(field='detectedDateTime', hours=getattr(args, 'hours', None))
+        return api.security_risk_detections(top=args.top, filter_query=fq)
+    elif args.security_action == 'audit-logs':
+        filter_parts = []
+        time_f = build_time_filter(
+            field='activityDateTime',
+            hours=getattr(args, 'hours', None),
+        )
+        if time_f:
+            filter_parts.append(time_f)
+        if getattr(args, 'user', None):
+            filter_parts.append(f"initiatedBy/user/userPrincipalName eq '{args.user}'")
+        if getattr(args, 'category', None):
+            filter_parts.append(f"category eq '{args.category}'")
+        fq = ' and '.join(filter_parts) if filter_parts else None
+        return api.security_audit_logs(top=args.top, filter_query=fq)
+    elif args.security_action == 'auth-methods':
+        return api.security_auth_methods(args.upn)
+    return None
 
 
 def main():
@@ -677,7 +859,8 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    if not args.action:
+    # Security domain uses security_action instead of action
+    if args.domain != 'security' and not args.action:
         # Show domain help
         parser.parse_args([args.domain, '-h'])
         sys.exit(1)
@@ -834,6 +1017,10 @@ def main():
             elif args.action == 'restore-user':
                 result = api.directory_restore_user(args.user_id)
                 print_success(f"User restored: {args.user_id}")
+
+        # ===== SECURITY =====
+        elif args.domain == 'security':
+            result = handle_security(api, args)
 
         # Output result
         if result:

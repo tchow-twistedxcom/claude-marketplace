@@ -171,7 +171,7 @@ def collect_auth_methods(api: AzureADAPI, upn: str) -> list:
 def resolve_user_id(api: AzureADAPI, upn: str) -> str:
     """Resolve UPN to object ID. Returns empty string on failure."""
     try:
-        user = api.user_get(upn)
+        user = api.users_get(upn)
         return user.get('id', '') if isinstance(user, dict) else ''
     except Exception:
         return ''

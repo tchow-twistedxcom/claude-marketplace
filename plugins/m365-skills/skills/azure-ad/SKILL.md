@@ -8,6 +8,10 @@ description: |
   - Tenant users, directory operations
   - License management, role assignments
   - User provisioning, group memberships
+  - Compromise sweep, account compromise, MFA fatigue, suspicious sign-ins
+  - Risk detections, Identity Protection, risky users
+  - Security audit logs, sign-in logs, authentication methods
+  - Incident response, breach investigation, attacker IP sweep
 ---
 
 # Azure AD / Entra ID Skill
@@ -45,6 +49,14 @@ Comprehensive Azure AD operations using Microsoft Graph API.
 - **Licenses**: Available SKUs and assignments
 - **Roles**: Directory roles and members
 - **Deleted Items**: Restore deleted users
+
+### Security Domain (Compromise Sweep)
+- **Sign-in logs**: Query Azure AD sign-in audit logs with time/user/IP filters
+- **Risk detections**: Identity Protection risk events
+- **Risky users**: Accounts flagged by Identity Protection
+- **Directory audit logs**: All admin/user changes
+- **Auth methods**: MFA enrollment per user
+- **Compromise sweep**: 6-vector detection (IP sweep, MFA fatigue, risk events, audit anomalies, auth methods)
 
 ## Quick Start
 
@@ -102,7 +114,8 @@ azure-ad/
     ├── users_api.md
     ├── groups_api.md
     ├── devices_api.md
-    └── directory_api.md
+    ├── directory_api.md
+    └── security_api.md     # Security operations, incident response playbook
 ```
 
 ## Output Formats

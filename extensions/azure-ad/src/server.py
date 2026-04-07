@@ -44,7 +44,7 @@ def _validate_safe_name(value: str) -> str:
     """Validate display name (group, device) for OData safety."""
     if not _SAFE_NAME_RE.match(value):
         raise ValueError(f"Unsafe characters in name: {value!r}")
-    return value.replace("'", "''")
+    return value
 
 
 def _validate_kql_value(value: str) -> str:
@@ -756,25 +756,6 @@ async def azure_ad_auth_methods(user_id: str) -> str:
 
 
 @mcp.tool()
-async def azure_ad_ca_policies(filter_query: Optional[str] = None) -> str:
-    """List Conditional Access policies.
-
-    Args:
-        filter_query: OData $filter (e.g. "state eq 'enabled'" or "displayName eq 'Block legacy auth'").
-            NOTE: This parameter is passed directly to the Graph API without sanitization.
-            Intended for admin use only — do not pass untrusted user input here.
-
-    Returns CA policies with conditions (users, apps, locations, platforms),
-    grant controls (MFA, compliant device, etc.), and session controls.
-    """
-    params = {}
-    if filter_query:
-        params["$filter"] = filter_query
-    result = await _graph("GET", "/identity/conditionalAccess/policies", params=params or None)
-    return _fmt(result)
-
-
-@mcp.tool()
 async def azure_ad_named_locations() -> str:
     """List named locations (trusted IP ranges and country-based locations).
 
@@ -882,6 +863,14 @@ async def _ual_request(method: str, path: str, params: Optional[dict] = None, da
     return response.json() if response.content else {}
 
 
+def _ual_time_window(hours: int) -> tuple[str, str]:
+    """Return (start, end) strings for the UAL API given a look-back in hours (max 24)."""
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(hours=min(hours, 24))).strftime("%Y-%m-%dT%H:%M:%S")
+    end = now.strftime("%Y-%m-%dT%H:%M:%S")
+    return start, end
+
+
 async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) -> list:
     """Fetch and unpack all UAL content blobs for a time window."""
     # Ensure subscription exists — 400 is expected if already active, ignore it
@@ -933,9 +922,7 @@ async def azure_ad_ual_inbox_rules(
     Operations: New-InboxRule, Set-InboxRule, UpdateInboxRules, Enable-InboxRule,
                 Disable-InboxRule, Remove-InboxRule.
     """
-    now = datetime.now(timezone.utc)
-    start = (now - timedelta(hours=min(hours, 24))).strftime("%Y-%m-%dT%H:%M:%S")
-    end = now.strftime("%Y-%m-%dT%H:%M:%S")
+    start, end = _ual_time_window(hours)
 
     events = await _ual_fetch_blobs("Audit.Exchange", start, end)
 
@@ -998,9 +985,7 @@ async def azure_ad_ual_search(
 
     Returns matching audit events with timestamps, IPs, and operation details.
     """
-    now = datetime.now(timezone.utc)
-    start = (now - timedelta(hours=min(hours, 24))).strftime("%Y-%m-%dT%H:%M:%S")
-    end = now.strftime("%Y-%m-%dT%H:%M:%S")
+    start, end = _ual_time_window(hours)
 
     events = await _ual_fetch_blobs(content_type, start, end)
 
@@ -1038,9 +1023,7 @@ async def azure_ad_ual_mailbox_access(
     Returns MailItemsAccessed, MessageBind, and related events showing which
     folders/messages were accessed, from which IPs, and at what time.
     """
-    now = datetime.now(timezone.utc)
-    start = (now - timedelta(hours=min(hours, 24))).strftime("%Y-%m-%dT%H:%M:%S")
-    end = now.strftime("%Y-%m-%dT%H:%M:%S")
+    start, end = _ual_time_window(hours)
 
     events = await _ual_fetch_blobs("Audit.Exchange", start, end)
 
@@ -1287,15 +1270,16 @@ async def azure_ad_create_ca_policy(
         "builtInControls": ["block"] if action == "block" else ["mfa"],
     }
 
+    users_condition = (
+        {"includeUsers": ["All"]}
+        if include_users.strip() == "All"
+        else {"includeUsers": user_list}
+    )
     payload = {
         "displayName": display_name,
         "state": state,
         "conditions": {
-            "users": {
-                "includeUsers": user_list if user_list != ["All"] else [],
-                "includeGroups": [],
-                **({"includeUsers": ["All"]} if include_users.strip() == "All" else {}),
-            },
+            "users": users_condition,
             "applications": {
                 "includeApplications": app_list,
             },
@@ -1306,11 +1290,6 @@ async def azure_ad_create_ca_policy(
         },
         "grantControls": grant,
     }
-    # Flatten users correctly
-    if include_users.strip() == "All":
-        payload["conditions"]["users"] = {"includeUsers": ["All"]}
-    else:
-        payload["conditions"]["users"] = {"includeUsers": user_list}
 
     result = await _graph("POST", "/identity/conditionalAccess/policies", data=payload)
     return _fmt(result)
@@ -1726,9 +1705,7 @@ async def azure_ad_ual_sharepoint(
 
     Returns events with timestamp, user, clientIP, userAgent, objectId, siteUrl.
     """
-    now = datetime.now(timezone.utc)
-    start = (now - timedelta(hours=min(hours, 24))).strftime("%Y-%m-%dT%H:%M:%S")
-    end = now.strftime("%Y-%m-%dT%H:%M:%S")
+    start, end = _ual_time_window(hours)
 
     sp_events, gen_events = await asyncio.gather(
         _ual_fetch_blobs("Audit.SharePoint", start, end),
@@ -1813,9 +1790,7 @@ async def azure_ad_incident_triage(
     since = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Fetch UAL blobs once — shared across all users (avoids N × blob download)
-    now = datetime.now(timezone.utc)
-    ual_start = (now - timedelta(hours=min(ual_hours, 24))).strftime("%Y-%m-%dT%H:%M:%S")
-    ual_end = now.strftime("%Y-%m-%dT%H:%M:%S")
+    ual_start, ual_end = _ual_time_window(ual_hours)
     try:
         ual_events = await _ual_fetch_blobs("Audit.Exchange", ual_start, ual_end)
     except Exception:

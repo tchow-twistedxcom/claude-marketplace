@@ -287,19 +287,13 @@ def run_sweep(api: AzureADAPI, args) -> dict:
         print("[4/5] Cross-reference: no new IPs from risk detections", file=sys.stderr, flush=True)
 
     # ── Vectors 5+6: Audit anomalies + auth methods per victim ─────────────
-    audit_filter_base = build_time_filter(
-        'activityDateTime',
-        hours=getattr(args, 'hours', None),
-        days=getattr(args, 'days', None),
-        since=getattr(args, 'since', None)
-    )
     all_victims = list(victim_evidence.keys())
     if all_victims:
         print(f"[5/5] Audit logs + auth methods for {len(all_victims)} flagged account(s)...", file=sys.stderr, flush=True)
         for upn in all_victims:
             user_id = resolve_user_id(api, upn)
             if user_id:
-                audit_events = collect_suspicious_audit_events(api, upn, user_id, audit_filter_base)
+                audit_events = collect_suspicious_audit_events(api, upn, user_id, risk_filter_base)
                 if audit_events:
                     victim_evidence[upn]['audit_anomalies'].extend([
                         {'activity': e.get('activityDisplayName', ''), 'time': e.get('activityDateTime', '')}

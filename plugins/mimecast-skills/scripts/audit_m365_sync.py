@@ -107,12 +107,7 @@ def fetch_azure_users(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=180)
     if data is None:
         return []
-    # Graph API: {"value": [...]} or already a list
-    if isinstance(data, dict) and "value" in data:
-        return data["value"]
-    if isinstance(data, list):
-        return data
-    return []
+    return _extract_graph_list(data)
 
 
 def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
@@ -125,11 +120,7 @@ def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=60)
     if data is None:
         return []
-    if isinstance(data, dict) and "value" in data:
-        return data["value"]
-    if isinstance(data, list):
-        return data
-    return []
+    return _extract_graph_list(data)
 
 
 def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
@@ -142,11 +133,7 @@ def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=60)
     if data is None:
         return []
-    if isinstance(data, dict) and "value" in data:
-        return data["value"]
-    if isinstance(data, list):
-        return data
-    return []
+    return _extract_graph_list(data)
 
 
 def filter_azure_users(users: list[dict]) -> dict:
@@ -222,12 +209,12 @@ def _is_mimecast_infra(user: dict) -> bool:
     """Return True if this Mimecast account is domain infrastructure, not a person."""
     email = (user.get("emailAddress") or "").lower()
     name = (user.get("name") or "").lower()
-    local_at = email.split("@")[0] + "@" if "@" in email else ""
+    local_prefix = email.split("@")[0] + "@" if "@" in email else ""
 
     return (
         any(email.startswith(p) for p in MIMECAST_INFRA_PREFIXES)
         or any(s in name for s in MIMECAST_INFRA_NAMES)
-        or any(local_at.startswith(p) for p in MIMECAST_INTERNAL_PREFIXES)
+        or any(local_prefix.startswith(p) for p in MIMECAST_INTERNAL_PREFIXES)
     )
 
 
@@ -276,13 +263,23 @@ def segment_mimecast_users(users: list[dict]) -> dict:
     }
 
 
+def _extract_graph_list(data) -> list:
+    """Unwrap a Graph API response envelope or pass through a plain list."""
+    return data["value"] if isinstance(data, dict) and "value" in data else (data if isinstance(data, list) else [])
+
+
+def _mimecast_run(cmd: list, profile: str, verbose: bool) -> dict | list | None:
+    """Run a Mimecast CLI command with standard profile/output flags."""
+    return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
+
+
 def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
     """Run all Mimecast config checks in parallel and return results."""
     if verbose:
         print("Fetching Mimecast configuration...", file=sys.stderr)
 
     def _run(cmd):
-        return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
+        return _mimecast_run(cmd, profile, verbose)
 
     checks = {
         "dkim": ["dkim", "status"],
@@ -310,12 +307,9 @@ def fetch_sync_health(profile: str, verbose: bool) -> dict:
     if verbose:
         print("Fetching directory sync health...", file=sys.stderr)
 
-    def _run(cmd):
-        return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
-
     return {
-        "connection": _run(["sync", "status"]),
-        "history": _run(["sync", "history", "--days", "2"]),
+        "connection": _mimecast_run(["sync", "status"], profile, verbose),
+        "history": _mimecast_run(["sync", "history", "--days", "2"], profile, verbose),
     }
 
 

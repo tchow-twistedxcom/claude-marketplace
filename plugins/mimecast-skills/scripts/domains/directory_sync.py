@@ -9,6 +9,7 @@ Uses:
 
 from __future__ import annotations
 
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
@@ -50,7 +51,7 @@ class DirectorySyncDomain(BaseDomain):
 
     def cmd_status(self, args: argparse.Namespace) -> None:
         """Show directory sync connection config and current status."""
-        import json as _json
+        from mimecast_formatter import format_output
 
         r = self.get_connection()
         connections = r.get("data", [])
@@ -59,8 +60,9 @@ class DirectorySyncDomain(BaseDomain):
             print("No directory sync connections found.")
             return
 
-        if getattr(args, "output", "table") == "json":
-            print(_json.dumps(connections, indent=2))
+        output_fmt = getattr(args, "output", "table")
+        if output_fmt != "table":
+            format_output(connections, output_fmt, 'sync-connections')
             return
 
         for conn in connections:
@@ -91,13 +93,14 @@ class DirectorySyncDomain(BaseDomain):
 
     def cmd_history(self, args: argparse.Namespace) -> None:
         """Show recent sync event history."""
-        import json as _json
+        from mimecast_formatter import format_output
 
         days = getattr(args, "days", 7)
         events = self.get_sync_events(days=days)
 
-        if getattr(args, "output", "table") == "json":
-            print(_json.dumps(events, indent=2))
+        output_fmt = getattr(args, "output", "table")
+        if output_fmt != "table":
+            format_output(events, output_fmt, 'sync-history')
             return
 
         if not events:
@@ -124,7 +127,6 @@ class DirectorySyncDomain(BaseDomain):
             # Truncate info for table view
             if "Processed" in info:
                 # Extract key counts
-                import re
                 m = re.search(r"Processed (.+?)by", info)
                 detail = m.group(1).strip() if m else info[:60]
             elif "No changes" in info:

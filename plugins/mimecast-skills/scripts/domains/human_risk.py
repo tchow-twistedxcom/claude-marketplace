@@ -51,15 +51,17 @@ class HumanRiskDomain(BaseDomain):
 
     def cmd_summary(self, args: argparse.Namespace) -> None:
         """Print grade distribution across all risk components."""
+        from mimecast_formatter import format_output
+
         users = self.get_safe_score_details()
         if not users:
             print("No user data returned.", file=sys.stderr)
             return
 
-        if getattr(args, "output", "table") == "json":
-            import json
+        output_fmt = getattr(args, "output", "table")
+        if output_fmt != "table":
             summary = _build_summary(users)
-            print(json.dumps(summary, indent=2))
+            format_output(summary, output_fmt, 'human-risk-summary')
             return
 
         total = len(users)
@@ -104,9 +106,10 @@ class HumanRiskDomain(BaseDomain):
         users = sorted(users, key=lambda u: GRADE_ORDER.index(u.get(component, "F"))
                        if u.get(component) in GRADE_ORDER else 99)
 
-        if getattr(args, "output", "table") == "json":
-            import json
-            print(json.dumps(users, indent=2))
+        output_fmt = getattr(args, "output", "table")
+        if output_fmt != "table":
+            from mimecast_formatter import format_output
+            format_output(users, output_fmt, 'human-risk-users')
             return
 
         if not users:

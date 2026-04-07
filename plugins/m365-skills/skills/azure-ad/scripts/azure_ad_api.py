@@ -131,11 +131,14 @@ class AzureADAPI:
         except requests.exceptions.RequestException as e:
             raise GraphAPIError(f"Request failed: {e}")
 
+    # Allowed base URL for @odata.nextLink validation (SSRF guard)
+    GRAPH_BASE = "https://graph.microsoft.com/"
+
     def _get_all_pages(
         self,
         endpoint: str,
         params: Optional[Dict] = None,
-        max_pages: int = 100
+        max_pages: int = 500
     ) -> List[Dict]:
         """Get all pages of results."""
         all_items = []
@@ -143,14 +146,29 @@ class AzureADAPI:
 
         while endpoint and page_count < max_pages:
             if endpoint.startswith('http'):
-                # Handle @odata.nextLink URLs
-                response = requests.get(
-                    endpoint,
-                    headers=self.auth.get_auth_headers(),
-                    timeout=self.config.get('defaults', {}).get('timeout', 30)
-                )
-                response.raise_for_status()
-                result = response.json()
+                # Validate @odata.nextLink URL to prevent SSRF token exfiltration
+                if not endpoint.startswith(self.GRAPH_BASE):
+                    raise ValueError(
+                        f"Unexpected nextLink host (possible SSRF): {endpoint[:100]}"
+                    )
+                try:
+                    response = requests.get(
+                        endpoint,
+                        headers=self.auth.get_auth_headers(),
+                        timeout=self.config.get('defaults', {}).get('timeout', 30)
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                except requests.exceptions.HTTPError as e:
+                    error_detail = ""
+                    try:
+                        error_body = e.response.json()
+                        error_detail = error_body.get('error', {}).get('message', str(e))
+                    except Exception:
+                        error_detail = e.response.text[:500] if e.response.text else str(e)
+                    raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}")
+                except requests.exceptions.RequestException as e:
+                    raise GraphAPIError(f"Request failed: {e}")
             else:
                 result = self._request('GET', endpoint, params=params)
 
@@ -161,6 +179,12 @@ class AzureADAPI:
             endpoint = result.get('@odata.nextLink')
             params = None  # nextLink includes all params
             page_count += 1
+
+        if page_count >= max_pages and endpoint:
+            print(
+                f"WARNING: _get_all_pages hit max_pages={max_pages} — results are TRUNCATED",
+                file=sys.stderr
+            )
 
         return all_items
 

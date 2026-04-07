@@ -12,6 +12,15 @@ description: |
   - Risk detections, Identity Protection, risky users
   - Security audit logs, sign-in logs, authentication methods
   - Incident response, breach investigation, attacker IP sweep
+  - Incident triage, full compromise triage, orchestrated security investigation
+  - Email forensics, sent mail analysis, phishing investigation, SaveToSentItems
+  - Inbox rules, forwarding rules, attacker-created rules, auto-forward detection
+  - Unified Audit Log, UAL, Office 365 Management Activity API
+  - Defender hunting, KQL, Advanced Hunting, EmailEvents, threat hunting
+  - OAuth persistence, OAuth app grants, app consent, token persistence
+  - Conditional Access policy management, CA policy, named locations, trusted IPs
+  - SharePoint forensics, OneDrive exfiltration, Teams forensics
+  - MFA changes, auth method registration, privilege escalation, role changes
 ---
 
 # Azure AD / Entra ID Skill
@@ -57,6 +66,87 @@ Comprehensive Azure AD operations using Microsoft Graph API.
 - **Directory audit logs**: All admin/user changes
 - **Auth methods**: MFA enrollment per user
 - **Compromise sweep**: 6-vector detection (IP sweep, MFA fatigue, risk events, audit anomalies, auth methods)
+
+### MCP Extension Tools (Agent-Native)
+
+These tools are exposed by the `azure-ad` MCP server and are available to agents when the server
+is running. They require the MCP server to be configured — either via `plugins/m365-skills/.mcp.json`
+(auto-registered by the plugin system) or by manually installing `extensions/azure-ad.dxt`.
+
+#### Incident Response
+
+- **`azure_ad_incident_triage`** — Orchestrates a complete compromise triage in one call: sign-in
+  analysis, inbox rule inspection, sent mail forensics (via Defender EmailEvents), auth method
+  review, UAL forensics, mailbox forwarding check, and OAuth grant review. Returns a structured
+  report per user with a HIGH/MEDIUM/CLEAN risk summary. Start here for any account compromise
+  investigation.
+
+#### Email Forensics
+
+- **`azure_ad_sent_emails`** — List emails sent from a user's mailbox in a time window; identifies
+  phishing/spam sent via stolen tokens. Use `include_body=True` to see message content.
+- **`azure_ad_search_mail`** — Search a mailbox folder by subject keyword or sender address using
+  OData `$filter`; supports `from:address` prefix syntax.
+- **`azure_ad_get_email`** — Get full detail of a specific email message (complete body, all
+  headers, attachments flag) by message ID from `azure_ad_sent_emails` results.
+
+#### Unified Audit Log (UAL) Forensics
+
+These tools query the Office 365 Management Activity API and require the `ActivityFeed.Read`
+permission (Office 365 Management APIs scope) with admin consent.
+
+- **`azure_ad_ual_inbox_rules`** — Query UAL for inbox rule creation and modification events;
+  returns forensic attribution (creator IP, timestamp, user agent, rule parameters) to prove
+  attacker-created rules.
+- **`azure_ad_ual_mailbox_access`** — Query UAL for mailbox access events (MailItemsAccessed,
+  MessageBind, FolderBind, SendAs) to identify if an attacker read mailbox contents after token
+  theft.
+- **`azure_ad_ual_search`** — Search the UAL for any Exchange or Azure AD operations; supports
+  arbitrary operation filter and content type (`Audit.Exchange`, `Audit.AzureActiveDirectory`,
+  `Audit.General`).
+- **`azure_ad_ual_sharepoint`** — Query UAL for SharePoint, OneDrive, and Teams forensics;
+  detects post-compromise data exfiltration via file downloads, anonymous link creation, external
+  sharing, and Teams session activity.
+
+#### Defender / Advanced Hunting (KQL)
+
+These tools require `ThreatHunting.Read.All` permission with admin consent and Microsoft 365
+Defender Plan 1/2 (included in M365 E3/E5/Business Premium).
+
+- **`azure_ad_advanced_hunt`** — Run an arbitrary KQL query against Microsoft 365 Defender
+  Advanced Hunting; covers EmailEvents, EmailAttachmentInfo, EmailUrlInfo, IdentityLogonEvents,
+  DeviceLogonEvents, CloudAppEvents. The ONLY way to see emails sent with
+  `SaveToSentItems=false`.
+- **`azure_ad_email_events`** — Query the Defender `EmailEvents` table for complete email
+  forensics; captures all sends including `SaveToSentItems=false` (invisible to Graph Mail API,
+  UAL, and Mimecast). Returns message-level summary grouped by NetworkMessageId.
+- **`azure_ad_email_attachments`** — Query the Defender `EmailAttachmentInfo` table; returns
+  file names, types, SHA256 hashes, malware family tags, and NetworkMessageId for correlation.
+  Captures attachments from `SaveToSentItems=false` emails.
+
+#### Post-Compromise Persistence Detection
+
+- **`azure_ad_user_oauth_grants`** — List OAuth delegated permission grants for a user; detects
+  attacker persistence via malicious app consent (OAuth grants survive password resets and session
+  revocations).
+- **`azure_ad_mailbox_settings`** — Get mailbox-level settings including SMTP forwarding address
+  and auto-reply config; detects forwarding exfiltration that survives inbox rule deletion.
+- **`azure_ad_mfa_changes`** — Query audit logs for MFA and authentication method changes;
+  detects unauthorized MFA registrations (attacker adds their own authenticator or phone number).
+- **`azure_ad_role_changes`** — Query audit logs for directory role assignment changes; detects
+  privilege escalation (attacker adding themselves to Global Admin or other privileged roles).
+
+#### Conditional Access Policy Management
+
+- **`azure_ad_list_ca_policies`** — List all Conditional Access policies with state, conditions
+  summary (users, locations, grant controls).
+- **`azure_ad_create_ca_policy`** — Create a Conditional Access policy (block or require MFA from
+  non-trusted locations); takes user list, excluded Named Location IDs, and action.
+- **`azure_ad_update_ca_policy`** — Enable, disable, or rename an existing CA policy by ID.
+- **`azure_ad_delete_ca_policy`** — Permanently delete a CA policy; requires `confirm=True` for
+  safety.
+- **`azure_ad_create_named_location`** — Create an IP-based Named Location (trusted CIDR ranges)
+  for use as a CA policy exclusion (e.g., block-except-corporate-IP pattern).
 
 ## MCP Server (48 Agent-Native Tools)
 

@@ -91,3 +91,6 @@ plugins/slack-skills/.mcp.json
 TODO.md
 NOTES.md
 scratch/
+
+# Local-only config/notes (not for version control)
+*.local.md

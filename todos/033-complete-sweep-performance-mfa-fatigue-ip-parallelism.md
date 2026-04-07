@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "033"
 tags: [code-review, performance, azure-ad, sweep]
@@ -54,9 +54,10 @@ Option A — standard Python optimizations, no new dependencies required.
 
 ## Acceptance Criteria
 
-- [ ] `failures_by_upn` pre-grouped before the MFA fatigue loop
-- [ ] Vector 1 and Vector 4 IP sweep calls parallelized with `ThreadPoolExecutor`
+- [x] `failures_by_upn` pre-grouped before the MFA fatigue loop
+- [x] Vector 1 and Vector 4 IP sweep calls parallelized with `ThreadPoolExecutor`
 
 ## Work Log
 
 - 2026-04-07: Identified by performance-oracle
+- 2026-04-07: Fixed — (1) Added `failures_by_upn: dict = defaultdict(list)` pre-grouping in `collect_mfa_fatigue_victims()` before the UPN loop, replacing the O(n) per-UPN list comprehension with an O(1) dict lookup. (2) Added `from concurrent.futures import ThreadPoolExecutor, as_completed` import. (3) Vector 1 IP sweep (`run_sweep()` lines ~215-235) now uses `ThreadPoolExecutor(max_workers=min(len(suspect_ips), 10))` to fire all IP queries in parallel. (4) Vector 4 cross-reference sweep (~265-285) similarly parallelized with `ThreadPoolExecutor`. Both use `as_completed()` for result collection with per-IP error handling to stderr. Committed in 94b6d3c as part of fix(sweep) commit covering todos 032 and 033.

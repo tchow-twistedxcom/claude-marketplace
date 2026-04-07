@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "032"
 tags: [code-review, bug, azure-ad, sweep]
@@ -47,9 +47,10 @@ Option A — route all progress/status output to `stderr`. `--json` mode is expl
 
 ## Acceptance Criteria
 
-- [ ] All progress lines in `run_sweep()` use `file=sys.stderr`
-- [ ] `python3 sweep.py --hours 48 --json | python3 -c "import sys,json; json.load(sys.stdin)"` succeeds
+- [x] All progress lines in `run_sweep()` use `file=sys.stderr`
+- [x] `python3 sweep.py --hours 48 --json | python3 -c "import sys,json; json.load(sys.stdin)"` succeeds
 
 ## Work Log
 
 - 2026-04-07: Identified by agent-native-reviewer
+- 2026-04-07: Fixed — added `file=sys.stderr` to all six `print()` progress statements in `run_sweep()` (lines covering [1/5] through [5/5] steps, both the active and skipped/empty branches). Also improved bare `except: continue` to `except Exception as e:` with stderr logging. Committed in 94b6d3c as part of fix(sweep) commit covering todos 032 and 033.

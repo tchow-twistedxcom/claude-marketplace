@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "070"
 tags: [code-review, performance, azure-ad]
@@ -73,12 +73,13 @@ Three `set()` constructions on the same list. Assign once: `unique_countries = s
 
 ## Acceptance Criteria
 
-- [ ] `fetch_sync_health` runs both subprocess calls concurrently via ThreadPoolExecutor
-- [ ] `azure_ad_user_oauth_grants` SP enrichment capped at ≤10 concurrent `_graph` calls
-- [ ] Recipient deduplication uses `set`-based accumulation in `azure_ad_email_events` and `_triage_one`
-- [ ] `segment_mimecast_users` uses single-pass partition (no double `_is_mimecast_infra` call)
-- [ ] `success_countries` declared as `set`, `set()` call removed from output block
+- [x] `fetch_sync_health` runs both subprocess calls concurrently via ThreadPoolExecutor
+- [x] `azure_ad_user_oauth_grants` SP enrichment capped at ≤10 concurrent `_graph` calls
+- [x] Recipient deduplication uses `set`-based accumulation in `azure_ad_email_events` and `_triage_one`
+- [x] `segment_mimecast_users` uses single-pass partition (no double `_is_mimecast_infra` call)
+- [x] `success_countries` declared as `set`, `set()` call removed from output block
 
 ## Work Log
 
 - 2026-04-08: Identified by performance-oracle (5th review pass)
+- 2026-04-08: All 5 changes implemented. Commit: 6032a48 on feat/mimecast-m365-audit.

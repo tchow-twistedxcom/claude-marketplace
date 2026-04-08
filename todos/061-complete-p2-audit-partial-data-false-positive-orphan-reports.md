@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "061"
 tags: [code-review, quality, architecture]
@@ -38,9 +38,15 @@ Option A (Recommended):
 Option B: Add `--strict` flag — only exit(1) when all data sources returned successfully. Simpler but doesn't surface the incomplete data in the report.
 
 ## Acceptance Criteria
-- [ ] `sync_results` dict includes `fetch_errors` tracking which fetches failed
-- [ ] Markdown report shows a "Data Quality" warning when any fetch returned empty due to error
-- [ ] `sys.exit()` code distinguishes data fetch failures (exit 2) from real sync issues (exit 1)
+- [x] `sync_results` dict includes `fetch_errors` tracking which fetches failed
+- [x] Markdown report shows a "Data Quality" warning when any fetch returned empty due to error
+- [x] `sys.exit()` code distinguishes data fetch failures (exit 2) from real sync issues (exit 1)
 
 ## Work Log
 - 2026-04-08: Found by architecture-strategist in 4th review pass
+- 2026-04-08: Resolved. Added fetch_errors: dict[str, str] initialized in main(). Both the
+  initial ThreadPoolExecutor block (azure/mimecast fetches) and the config+health parallel block
+  now populate fetch_errors on exception. generate_markdown_report accepts fetch_errors kwarg and
+  renders a "Data Quality Warning" table at the top of the report when any are present. sys.exit()
+  now uses code 2 (fetch errors + issues found) vs 1 (clean data + issues found) vs 0 (no issues).
+  fetch_errors also included in --json output.

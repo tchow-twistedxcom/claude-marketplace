@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "065"
 tags: [code-review, architecture]
@@ -42,10 +42,14 @@ Option B: Leave as-is with a comment documenting the coupling assumption. Accept
 
 ## Acceptance Criteria
 
-- [ ] `AZURE_CLI` path derives from `AZURE_AD_CLI_PATH` env var if set (falls back to current path derivation)
-- [ ] SKILL.md documents `AZURE_AD_CLI_PATH` as an optional override env var
-- [ ] `--svc-prefixes` CLI arg (or equivalent) allows overriding service account prefix patterns without source edits
+- [x] `AZURE_CLI` path derives from `AZURE_AD_CLI_PATH` env var if set (falls back to current path derivation)
+- [x] SKILL.md documents `AZURE_AD_CLI_PATH` as an optional override env var
+- [x] `--svc-prefixes` CLI arg (or equivalent) allows overriding service account prefix patterns without source edits
 
 ## Work Log
 
 - 2026-04-08: Found by architecture-strategist in 4th review pass
+- 2026-04-08: Resolved. AZURE_CLI now uses Path(os.environ.get("AZURE_AD_CLI_PATH", <default>)).
+  Added --svc-prefixes argparse argument (comma-separated, overrides AZURE_SVC_PREFIXES global).
+  Both documented in SKILL.md under new "Environment Variable Overrides" and
+  "Service Account Exclusion" sections.

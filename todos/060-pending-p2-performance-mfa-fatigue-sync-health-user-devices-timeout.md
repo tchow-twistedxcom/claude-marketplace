@@ -32,7 +32,7 @@ Option A (Recommended):
 
 ## Acceptance Criteria
 - [x] `collect_mfa_fatigue_victims` success queries parallelized with ThreadPoolExecutor
-- [ ] `fetch_mimecast_config` and `fetch_sync_health` run concurrently
+- [x] `fetch_mimecast_config` and `fetch_sync_health` run concurrently
 - [x] `azure_ad_user_devices` uses `asyncio.gather` for the two device calls
 - [x] `_get_all_pages` nextLink timeout default is 60s
 
@@ -41,4 +41,6 @@ Option A (Recommended):
 - 2026-04-08: server.py asyncio.gather fix applied by pr-comment-resolver. In azure_ad_user_devices, the two sequential awaits for /ownedDevices and /registeredDevices are now replaced with asyncio.gather. Committed in: fix(azure-ad): standardize confirm param, events return key, asyncio.gather for user_devices. Remaining items (sweep.py mfa fatigue parallelism, audit_m365_sync.py sequential fetch, azure_ad_api.py timeout default) handled by other agents.
 - 2026-04-08: sweep.py MFA fatigue parallelism done — extracted `_query_mfa_success` inner helper, replaced sequential `for upn in upns_with_failures` loop with `ThreadPoolExecutor(max_workers=10)` fan-out + `as_completed` result collection, matching the Vector 5 `_process_victim` pattern; 50-UPN scan drops from ~25s sequential to ~3s parallel (commit c555da1)
 - 2026-04-08: azure_ad_api.py timeout done — `_get_all_pages` nextLink timeout default changed 30 → 60s to align with MCP server httpx client timeout, preventing CLI failures on large paginated exports (commit c555da1)
-- audit_m365_sync.py `fetch_mimecast_config` + `fetch_sync_health` concurrency item pending — handled by other agent
+- 2026-04-08: audit_m365_sync.py part complete — fetch_mimecast_config + fetch_sync_health now run
+  concurrently in ThreadPoolExecutor(max_workers=2). Exceptions from either future tracked in
+  fetch_errors dict. All 4 acceptance criteria now satisfied.

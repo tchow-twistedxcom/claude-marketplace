@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "054"
 tags: [code-review, quality, azure-ad]
@@ -38,9 +38,10 @@ Option B: Replace `break` with `continue` — but this still does not make sense
 
 ## Acceptance Criteria
 
-- [ ] Outer `break` on line 146 of `sweep.py` removed
-- [ ] MFA fatigue victim collection checks all failures per user, not just the first
+- [x] Outer `break` on line 146 of `sweep.py` removed
+- [x] MFA fatigue victim collection checks all failures per user, not just the first
 
 ## Work Log
 
 - 2026-04-08: Found by kieran-python-reviewer in 4th review pass
+- 2026-04-08: Removed the two-line `if evidence: break` block (outer loop break) from `collect_mfa_fatigue_victims`. The inner `break` inside `for succ in successes:` was preserved. Committed as `be01f95` on branch `feat/mimecast-m365-audit`.

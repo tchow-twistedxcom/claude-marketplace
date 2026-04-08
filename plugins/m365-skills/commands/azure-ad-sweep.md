@@ -19,19 +19,21 @@ Run a multi-vector security sweep across Azure AD / Entra ID to detect indicator
 ## Usage
 
 ```bash
-cd plugins/m365-skills/skills/azure-ad/scripts
-
 # Sweep last 48 hours
-python3 sweep.py --hours 48
+PYTHONPATH="${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts" \
+  python3 "${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts/sweep.py" --hours 48
 
 # Sweep with known attacker IPs
-python3 sweep.py --ips 203.0.113.50,198.51.100.20 --hours 48
+PYTHONPATH="${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts" \
+  python3 "${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts/sweep.py" --ips 203.0.113.50,198.51.100.20 --hours 48
 
 # Sweep from specific start time
-python3 sweep.py --since 2026-03-30T00:00:00Z
+PYTHONPATH="${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts" \
+  python3 "${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts/sweep.py" --since 2026-03-30T00:00:00Z
 
 # JSON output for further analysis
-python3 sweep.py --hours 72 --mfa-window 15 --json > sweep_report.json
+PYTHONPATH="${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts" \
+  python3 "${HOME}/.claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/scripts/sweep.py" --hours 72 --mfa-window 15 --json > sweep_report.json
 ```
 
 ## Options

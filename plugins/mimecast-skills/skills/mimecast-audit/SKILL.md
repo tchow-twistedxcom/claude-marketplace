@@ -111,11 +111,21 @@ python3 scripts/mimecast_api.py awareness watchlist
 python3 scripts/mimecast_api.py awareness safe-score-summary
 ```
 
-## Prerequisites
+## Prerequisites (verify before running)
 
-- Mimecast CLI configured: `plugins/mimecast-skills/scripts/mimecast_api.py`
-- Azure AD CLI configured: `plugins/m365-skills/skills/azure-ad/scripts/azure_ad_api.py`
-- Both plugins authenticated with valid credentials
+1. **Mimecast credentials**: Test with:
+   ```bash
+   python3 plugins/mimecast-skills/scripts/mimecast_api.py users list --output json
+   ```
+   If this fails, run `/mimecast-setup` first.
+
+2. **Azure AD credentials**: Test with:
+   ```bash
+   python3 plugins/m365-skills/skills/azure-ad/scripts/azure_ad_api.py users list --format json
+   ```
+   If this fails, configure `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` environment variables.
+
+Both must succeed before running the audit. The audit will silently return empty results if either side is unconfigured.
 
 ## Workflow
 

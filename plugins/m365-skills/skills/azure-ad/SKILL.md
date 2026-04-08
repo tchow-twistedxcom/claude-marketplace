@@ -148,9 +148,43 @@ Defender Plan 1/2 (included in M365 E3/E5/Business Premium).
 - **`azure_ad_create_named_location`** — Create an IP-based Named Location (trusted CIDR ranges)
   for use as a CA policy exclusion (e.g., block-except-corporate-IP pattern).
 
-## MCP Server (48 Agent-Native Tools)
+### Basic Operations MCP Tools
 
-The `azure-ad` MCP server exposes 48 tools including `azure_ad_incident_triage`, email forensics
+These 26 tools are available but not individually documented above. Use them for general directory queries and investigation:
+
+| Tool | Purpose |
+|------|---------|
+| `azure_ad_list_users` | List all users in the tenant |
+| `azure_ad_get_user` | Get a single user by ID or UPN |
+| `azure_ad_search_users` | Search users by name, UPN, or email |
+| `azure_ad_user_member_of` | List groups a user is a member of |
+| `azure_ad_user_manager` | Get a user's manager |
+| `azure_ad_user_direct_reports` | Get a user's direct reports |
+| `azure_ad_user_devices` | Get devices registered to a user |
+| `azure_ad_list_groups` | List all groups |
+| `azure_ad_get_group` | Get a group by ID or name |
+| `azure_ad_group_members` | List members of a group |
+| `azure_ad_group_owners` | List owners of a group |
+| `azure_ad_list_devices` | List all registered devices |
+| `azure_ad_get_device` | Get a device by ID |
+| `azure_ad_organization` | Get tenant/organization info |
+| `azure_ad_domains` | List verified domains |
+| `azure_ad_licenses` | List assigned license plans |
+| `azure_ad_directory_roles` | List directory roles and members |
+| `azure_ad_sign_ins` | Query sign-in logs |
+| `azure_ad_sign_in_get` | Get a specific sign-in by ID |
+| `azure_ad_risk_detections` | Query risk detection events |
+| `azure_ad_risky_users` | List risky users |
+| `azure_ad_risky_user_history` | Get risk history for a user |
+| `azure_ad_audit_logs` | Query Azure AD audit logs |
+| `azure_ad_auth_methods` | List a user's authentication methods |
+| `azure_ad_named_locations` | List Conditional Access named locations |
+| `azure_ad_revoke_sessions` | **Revoke all sessions for a user (dry_run=True default)** |
+| `azure_ad_confirm_compromised` | **Mark users as confirmed compromised (confirm=False default)** |
+
+## MCP Server (47 Agent-Native Tools)
+
+The `azure-ad` MCP server exposes 47 tools including `azure_ad_incident_triage`, email forensics
 (`azure_ad_sent_emails`, `azure_ad_email_events`), Defender Advanced Hunting (`azure_ad_advanced_hunt`),
 CA policy management, and OAuth grant detection. These tools are registered automatically when
 `m365-skills` is installed via the plugin system.
@@ -183,6 +217,21 @@ interactively. Use this method if you prefer not to set environment variables ma
 
 The DXT manifest is at `extensions/azure-ad/manifest.json`. The server entry point is
 `extensions/azure-ad/src/server.py`.
+
+## MCP Tools vs CLI Scripts
+
+If the `azure-ad` MCP server is connected (test by calling `azure_ad_list_users` — if it responds, the server is up), **prefer MCP tools**:
+- No `cwd` setup required
+- Return structured JSON directly
+- Cover all 47 operations
+- Support concurrent tool calls
+
+Use `scripts/azure_ad_api.py` CLI only when:
+- The MCP server is not available
+- You need CSV/table output for human-readable reports
+- You're running from a script that can't use MCP
+
+**Quick test**: Call `azure_ad_list_users` with no arguments. If it works, use MCP.
 
 ## Quick Start (CLI Interface)
 

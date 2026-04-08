@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "056"
 tags: [code-review, security, azure-ad]
@@ -49,11 +49,12 @@ Option B: Remove `compliantDevice`/`compliantApplication` from `VALID_CA_ACTIONS
 
 ## Acceptance Criteria
 
-- [ ] `_validate_enum` correctly accepts `"enabledForReportingButNotEnforced"` (case-insensitive match)
-- [ ] `azure_ad_create_ca_policy` with `action="compliantDevice"` creates a compliant-device policy, not an MFA policy
-- [ ] `azure_ad_create_ca_policy` with `action="compliantApplication"` creates an approved-application policy, not an MFA policy
-- [ ] All 4 VALID_CA_ACTIONS values are handled in grant construction
+- [x] `_validate_enum` correctly accepts `"enabledForReportingButNotEnforced"` (case-insensitive match)
+- [x] `azure_ad_create_ca_policy` with `action="compliantDevice"` creates a compliant-device policy, not an MFA policy
+- [x] `azure_ad_create_ca_policy` with `action="compliantApplication"` creates an approved-application policy, not an MFA policy
+- [x] All 4 VALID_CA_ACTIONS values are handled in grant construction
 
 ## Work Log
 
 - 2026-04-08: Found by kieran-python-reviewer and agent-native-reviewer in 4th review pass
+- 2026-04-08: Fixed both bugs — (056a) `VALID_CA_STATES` changed to all-lowercase `enabledforreportingbutnotenforced` so `value.lower()` in `_validate_enum` matches correctly. (056b) Binary `["block"] if action == "block" else ["mfa"]` replaced with `_action_map` dict mapping all four `VALID_CA_ACTIONS` values to their correct Graph API `builtInControls` strings (`compliantApplication` maps to `approvedApplication` per MS Graph spec). Commit 9be9e78.

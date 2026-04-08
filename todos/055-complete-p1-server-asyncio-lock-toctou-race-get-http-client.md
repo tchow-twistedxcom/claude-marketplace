@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "055"
 tags: [code-review, security, azure-ad]
@@ -43,11 +43,12 @@ Option B: Use `asyncio.ensure_future` or startup hook — more invasive and unne
 
 ## Acceptance Criteria
 
-- [ ] `_http_client_lock` created at module level (not lazily)
-- [ ] Type annotation changed from `asyncio.Lock | None` to `asyncio.Lock`
-- [ ] `if _http_client_lock is None:` branch removed
-- [ ] `_get_http_client` still correctly serializes client creation with the lock
+- [x] `_http_client_lock` created at module level (not lazily)
+- [x] Type annotation changed from `asyncio.Lock | None` to `asyncio.Lock`
+- [x] `if _http_client_lock is None:` branch removed
+- [x] `_get_http_client` still correctly serializes client creation with the lock
 
 ## Work Log
 
 - 2026-04-08: Found by kieran-python-reviewer in 4th review pass
+- 2026-04-08: Fixed — `_http_client_lock` moved to module level with `asyncio.Lock()`, lazy init branch removed, `global` declaration narrowed to `_http_client` only. Commit 9be9e78.

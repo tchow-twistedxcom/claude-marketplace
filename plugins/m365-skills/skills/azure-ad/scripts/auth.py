@@ -22,6 +22,7 @@ Usage:
 import json
 import os
 import sys
+import tempfile
 import time
 import argparse
 from pathlib import Path
@@ -135,10 +136,10 @@ class AzureAuth:
 
         return tenant_config
 
-    def _get_token_cache_path(self) -> str:
+    def _get_token_cache_path(self) -> Path:
         """Get path for token cache file."""
         config_dir = Path(self.config_path).parent
-        return str(config_dir / ".azure_tokens.json")
+        return config_dir / ".azure_tokens.json"
 
     def _create_msal_app(self) -> ConfidentialClientApplication:
         """Create MSAL confidential client application."""
@@ -161,14 +162,24 @@ class AzureAuth:
         return {}
 
     def _save_token_cache(self, cache: dict[str, Any]):
-        """Save token cache to file."""
+        """Save token cache to file atomically with secure permissions."""
         try:
-            with open(self.token_cache_path, 'w') as f:
-                json.dump(cache, f, indent=2)
-            # Set restrictive permissions
-            os.chmod(self.token_cache_path, 0o600)
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                dir=self.token_cache_path.parent, suffix='.tmp'
+            )
+            try:
+                os.chmod(tmp_path, 0o600)
+                with os.fdopen(tmp_fd, 'w') as f:
+                    json.dump(cache, f, indent=2)
+                os.replace(tmp_path, self.token_cache_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except Exception as e:
-            print(f"Warning: Could not save token cache: {e}", file=sys.stderr)
+            print(f"Warning: Failed to save token cache: {e}", file=sys.stderr)
 
     def _get_cached_token(self) -> dict[str, Any] | None:
         """Get cached token for current tenant."""

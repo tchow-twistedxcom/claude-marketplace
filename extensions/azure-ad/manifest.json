@@ -12,7 +12,17 @@
     "url": "https://github.com/tchow-twistedxcom/claude-marketplace"
   },
   "license": "MIT",
-  "keywords": ["azure", "entra", "microsoft", "m365", "graph", "identity", "security", "sso", "mfa"],
+  "keywords": [
+    "azure",
+    "entra",
+    "microsoft",
+    "m365",
+    "graph",
+    "identity",
+    "security",
+    "sso",
+    "mfa"
+  ],
   "server": {
     "type": "python",
     "entry_point": "src/server.py",
@@ -20,9 +30,12 @@
       "command": "uv",
       "args": [
         "run",
-        "--with", "mcp>=1.0.0",
-        "--with", "httpx>=0.27.0",
-        "--with", "msal>=1.20.0",
+        "--with",
+        "mcp>=1.0.0",
+        "--with",
+        "httpx>=0.27.0",
+        "--with",
+        "msal>=1.20.0",
         "${__dirname}/src/server.py"
       ],
       "env": {
@@ -36,74 +49,227 @@
     "tenant_id": {
       "type": "string",
       "title": "Tenant ID",
-      "description": "Your Azure AD tenant ID (Directory ID). Find it in Azure Portal → Azure Active Directory → Overview.",
+      "description": "Your Azure AD tenant ID (Directory ID). Find it in Azure Portal \u2192 Azure Active Directory \u2192 Overview.",
       "required": true
     },
     "client_id": {
       "type": "string",
       "title": "Client (App) ID",
-      "description": "App registration client ID. IMPORTANT: All permissions must be Application type (not Delegated) with admin consent granted — this app uses client credentials (no user sign-in). Microsoft Graph Application permissions needed: AuditLog.Read.All, Directory.Read.All, IdentityRiskyUser.ReadWrite.All, IdentityRiskEvent.ReadWrite.All, Mail.Read (Application — required to read any user's mailbox), MailboxSettings.Read, Policy.Read.All, Policy.ReadWrite.ConditionalAccess, ThreatHunting.Read.All, User.Read.All, User.RevokeSessions.All, UserAuthenticationMethod.Read.All. Also needs Office 365 Management APIs: ActivityFeed.Read. NOTE: Mail.Read as Delegated (not Application) will only allow access to one mailbox and cause ErrorItemNotFound on all others.",
+      "description": "App registration client ID. IMPORTANT: All permissions must be Application type (not Delegated) with admin consent granted \u2014 this app uses client credentials (no user sign-in). Microsoft Graph Application permissions needed: AuditLog.Read.All, Directory.Read.All, IdentityRiskyUser.ReadWrite.All, IdentityRiskEvent.ReadWrite.All, Mail.Read (Application \u2014 required to read any user's mailbox), MailboxSettings.Read, Policy.Read.All, Policy.ReadWrite.ConditionalAccess, ThreatHunting.Read.All, User.Read.All, User.RevokeSessions.All, UserAuthenticationMethod.Read.All. Also needs Office 365 Management APIs: ActivityFeed.Read. NOTE: Mail.Read as Delegated (not Application) will only allow access to one mailbox and cause ErrorItemNotFound on all others.",
       "required": true
     },
     "client_secret": {
       "type": "string",
       "title": "Client Secret",
-      "description": "App registration client secret. Create one in Azure Portal → App registrations → Certificates & secrets.",
+      "description": "App registration client secret. Create one in Azure Portal \u2192 App registrations \u2192 Certificates & secrets.",
       "sensitive": true,
       "required": true
     }
   },
   "tools": [
-    { "name": "azure_ad_list_users", "description": "List Azure AD users with optional filter, search, and field selection" },
-    { "name": "azure_ad_get_user", "description": "Get a user by UPN or object ID" },
-    { "name": "azure_ad_search_users", "description": "Search users by display name, UPN, or email" },
-    { "name": "azure_ad_user_member_of", "description": "Get groups and directory roles a user belongs to" },
-    { "name": "azure_ad_user_manager", "description": "Get a user's manager" },
-    { "name": "azure_ad_user_direct_reports", "description": "Get a user's direct reports" },
-    { "name": "azure_ad_user_devices", "description": "Get devices owned or registered by a user" },
-    { "name": "azure_ad_list_groups", "description": "List Azure AD groups with optional filter" },
-    { "name": "azure_ad_get_group", "description": "Get a group by name or object ID" },
-    { "name": "azure_ad_group_members", "description": "List members of a group" },
-    { "name": "azure_ad_group_owners", "description": "List owners of a group" },
-    { "name": "azure_ad_list_devices", "description": "List Azure AD registered devices with optional filter" },
-    { "name": "azure_ad_get_device", "description": "Get a device by display name or object ID" },
-    { "name": "azure_ad_organization", "description": "Get tenant/organization information" },
-    { "name": "azure_ad_domains", "description": "List verified domains in the tenant" },
-    { "name": "azure_ad_licenses", "description": "List subscribed SKUs (license counts and consumption)" },
-    { "name": "azure_ad_directory_roles", "description": "List active directory roles and their members" },
-    { "name": "azure_ad_sign_ins", "description": "Query sign-in logs — filter by user, IP, app, error code, risk level, or time window. Essential for compromise investigation." },
-    { "name": "azure_ad_sign_in_get", "description": "Get full detail for a specific sign-in event by ID" },
-    { "name": "azure_ad_risk_detections", "description": "Query identity risk detection events (leaked credentials, impossible travel, attacker IPs, etc.)" },
-    { "name": "azure_ad_risky_users", "description": "List users currently flagged as risky by Identity Protection" },
-    { "name": "azure_ad_risky_user_history", "description": "Get risk history for a specific user (risk level changes, detections)" },
-    { "name": "azure_ad_audit_logs", "description": "Query directory audit logs — filter by user, activity, category, or time window" },
-    { "name": "azure_ad_auth_methods", "description": "List authentication methods registered for a user (MFA methods, passkeys, etc.)" },
-    { "name": "azure_ad_named_locations", "description": "List named locations (trusted IP ranges, country allow/deny lists)" },
-    { "name": "azure_ad_revoke_sessions", "description": "Revoke all active sign-in sessions for a user (incident response)" },
-    { "name": "azure_ad_confirm_compromised", "description": "Mark users as confirmed compromised in Identity Protection (triggers remediation)" },
-    { "name": "azure_ad_sent_emails", "description": "List emails sent from a user's mailbox — identifies phishing/spam sent via stolen tokens. Filter by time window." },
-    { "name": "azure_ad_search_mail", "description": "Search a mailbox folder by subject keyword or sender. Uses $filter (works on any mailbox with Mail.Read Application permission). Prefix query with 'from:email' to filter by sender. Supports hours parameter for time window." },
-    { "name": "azure_ad_get_email", "description": "Get full detail of a specific email message including complete body — drill into suspicious messages found via azure_ad_sent_emails" },
-    { "name": "azure_ad_ual_inbox_rules", "description": "Query Unified Audit Log for inbox rule creation/modification events — forensic attribution with creator IP and session ID" },
-    { "name": "azure_ad_ual_mailbox_access", "description": "Query Unified Audit Log for mailbox access events — shows if attacker read emails or accessed folders after token theft" },
-    { "name": "azure_ad_ual_search", "description": "Search the Unified Audit Log for any Exchange or Azure AD operations by operation name, user, or time window" },
-    { "name": "azure_ad_list_ca_policies", "description": "List all Conditional Access policies with state and conditions summary" },
-    { "name": "azure_ad_create_named_location", "description": "Create an IP-based Named Location (trusted IP range) for use in CA policies" },
-    { "name": "azure_ad_create_ca_policy", "description": "Create a Conditional Access policy — block or require MFA for specific users from non-trusted locations (incident response)" },
-    { "name": "azure_ad_update_ca_policy", "description": "Enable, disable, or rename an existing Conditional Access policy" },
-    { "name": "azure_ad_delete_ca_policy", "description": "Delete a Conditional Access policy" },
-    { "name": "azure_ad_advanced_hunt", "description": "Run a KQL query against Microsoft 365 Defender Advanced Hunting (EmailEvents, IdentityLogonEvents, DeviceLogonEvents, etc). Captures events invisible to Graph API and UAL — including SaveToSentItems=false sends. Requires ThreatHunting.Read.All." },
-    { "name": "azure_ad_email_events", "description": "Query EmailEvents via Defender Advanced Hunting — the ONLY API that captures emails sent with SaveToSentItems=false (attacker phishing blasts). Aggregates by NetworkMessageId to show full recipient lists. Requires ThreatHunting.Read.All." },
-    { "name": "azure_ad_user_oauth_grants", "description": "List OAuth delegated permission grants for a user — detects attacker persistence via OAuth app grants that survive password resets and session revocations. Returns app names, scopes, and expiry." },
-    { "name": "azure_ad_mailbox_settings", "description": "Get mailbox settings including SMTP forwarding address and auto-reply config — detects post-compromise exfiltration via forwarding rules set outside inbox rules (survives inbox rule cleanup)." },
-    { "name": "azure_ad_mfa_changes", "description": "Query audit logs for MFA/authentication method changes — detects attacker adding their own phone or authenticator app to maintain access after password reset. Covers register/delete security info events." },
-    { "name": "azure_ad_role_changes", "description": "Query audit logs for role assignment changes — detect privilege escalation (Add/Remove member to/from role). Identifies if attacker added themselves or a backdoor account to Global Admin or other privileged roles." },
-    { "name": "azure_ad_email_attachments", "description": "Query EmailAttachmentInfo via Defender Advanced Hunting — identifies files sent by compromised accounts (file name, type, SHA256, malware family). Captures attachments from SaveToSentItems=false emails. Requires ThreatHunting.Read.All." },
-    { "name": "azure_ad_ual_sharepoint", "description": "Query UAL for SharePoint, OneDrive, and Teams activity — detects post-compromise data exfiltration: file downloads, anonymous link creation, external sharing, Teams access from attacker IPs." },
-    { "name": "azure_ad_incident_triage", "description": "Full security triage for one or more compromised accounts — orchestrates sign-in analysis, inbox rule inspection (UAL-validated), sent mail forensics via EmailEvents (captures SaveToSentItems=false), mailbox forwarding check, OAuth grants check, auth methods, and UAL forensics in one call. Produces HIGH/MEDIUM/CLEAN risk summary per user." }
+    {
+      "name": "azure_ad_list_users",
+      "description": "List Azure AD users with optional filter, search, and field selection"
+    },
+    {
+      "name": "azure_ad_get_user",
+      "description": "Get a user by UPN or object ID"
+    },
+    {
+      "name": "azure_ad_search_users",
+      "description": "Search users by display name, UPN, or email"
+    },
+    {
+      "name": "azure_ad_user_member_of",
+      "description": "Get groups and directory roles a user belongs to"
+    },
+    {
+      "name": "azure_ad_user_manager",
+      "description": "Get a user's manager"
+    },
+    {
+      "name": "azure_ad_user_direct_reports",
+      "description": "Get a user's direct reports"
+    },
+    {
+      "name": "azure_ad_user_devices",
+      "description": "Get devices owned or registered by a user"
+    },
+    {
+      "name": "azure_ad_list_groups",
+      "description": "List Azure AD groups with optional filter"
+    },
+    {
+      "name": "azure_ad_get_group",
+      "description": "Get a group by name or object ID"
+    },
+    {
+      "name": "azure_ad_group_members",
+      "description": "List members of a group"
+    },
+    {
+      "name": "azure_ad_group_owners",
+      "description": "List owners of a group"
+    },
+    {
+      "name": "azure_ad_list_devices",
+      "description": "List Azure AD registered devices with optional filter"
+    },
+    {
+      "name": "azure_ad_get_device",
+      "description": "Get a device by display name or object ID"
+    },
+    {
+      "name": "azure_ad_organization",
+      "description": "Get tenant/organization information"
+    },
+    {
+      "name": "azure_ad_domains",
+      "description": "List verified domains in the tenant"
+    },
+    {
+      "name": "azure_ad_licenses",
+      "description": "List subscribed SKUs (license counts and consumption)"
+    },
+    {
+      "name": "azure_ad_directory_roles",
+      "description": "List active directory roles and their members"
+    },
+    {
+      "name": "azure_ad_sign_ins",
+      "description": "Query sign-in logs \u2014 filter by user, IP, app, error code, risk level, or time window. Essential for compromise investigation."
+    },
+    {
+      "name": "azure_ad_sign_in_get",
+      "description": "Get full detail for a specific sign-in event by ID"
+    },
+    {
+      "name": "azure_ad_risk_detections",
+      "description": "Query identity risk detection events (leaked credentials, impossible travel, attacker IPs, etc.)"
+    },
+    {
+      "name": "azure_ad_risky_users",
+      "description": "List users currently flagged as risky by Identity Protection"
+    },
+    {
+      "name": "azure_ad_risky_user_history",
+      "description": "Get risk history for a specific user (risk level changes, detections)"
+    },
+    {
+      "name": "azure_ad_audit_logs",
+      "description": "Query directory audit logs \u2014 filter by user, activity, category, or time window"
+    },
+    {
+      "name": "azure_ad_auth_methods",
+      "description": "List authentication methods registered for a user (MFA methods, passkeys, etc.)"
+    },
+    {
+      "name": "azure_ad_named_locations",
+      "description": "List named locations (trusted IP ranges, country allow/deny lists)"
+    },
+    {
+      "name": "azure_ad_revoke_sessions",
+      "description": "Revoke all active sign-in sessions for a user (incident response). Requires confirm=True to actually revoke; returns preview of affected sessions when confirm=False."
+    },
+    {
+      "name": "azure_ad_confirm_compromised",
+      "description": "Mark users as confirmed compromised in Identity Protection (triggers remediation). Requires confirm=True to execute; returns preview when confirm=False. Immediately locks the user account."
+    },
+    {
+      "name": "azure_ad_sent_emails",
+      "description": "List emails sent from a user's mailbox \u2014 identifies phishing/spam sent via stolen tokens. Filter by time window."
+    },
+    {
+      "name": "azure_ad_search_mail",
+      "description": "Search a mailbox folder by subject keyword or sender. Uses $filter (works on any mailbox with Mail.Read Application permission). Prefix query with 'from:email' to filter by sender. Supports hours parameter for time window."
+    },
+    {
+      "name": "azure_ad_get_email",
+      "description": "Get full detail of a specific email message including complete body \u2014 drill into suspicious messages found via azure_ad_sent_emails"
+    },
+    {
+      "name": "azure_ad_ual_inbox_rules",
+      "description": "Query Unified Audit Log for inbox rule creation/modification events \u2014 forensic attribution with creator IP and session ID"
+    },
+    {
+      "name": "azure_ad_ual_mailbox_access",
+      "description": "Query Unified Audit Log for mailbox access events \u2014 shows if attacker read emails or accessed folders after token theft"
+    },
+    {
+      "name": "azure_ad_ual_search",
+      "description": "Search the Unified Audit Log for any Exchange or Azure AD operations by operation name, user, or time window"
+    },
+    {
+      "name": "azure_ad_list_ca_policies",
+      "description": "List all Conditional Access policies with state and conditions summary"
+    },
+    {
+      "name": "azure_ad_create_named_location",
+      "description": "Create an IP-based Named Location (trusted IP range) for use in CA policies"
+    },
+    {
+      "name": "azure_ad_create_ca_policy",
+      "description": "Create a Conditional Access policy \u2014 block or require MFA for specific users from non-trusted locations (incident response)"
+    },
+    {
+      "name": "azure_ad_update_ca_policy",
+      "description": "Enable, disable, or rename an existing Conditional Access policy"
+    },
+    {
+      "name": "azure_ad_delete_ca_policy",
+      "description": "Delete a Conditional Access policy. Requires confirm=True to execute; returns preview when confirm=False. This action is irreversible."
+    },
+    {
+      "name": "azure_ad_advanced_hunt",
+      "description": "Run a KQL query against Microsoft 365 Defender Advanced Hunting (EmailEvents, IdentityLogonEvents, DeviceLogonEvents, etc). Captures events invisible to Graph API and UAL \u2014 including SaveToSentItems=false sends. Requires ThreatHunting.Read.All. Requires confirm=True to execute; returns preview dict with confirm=False (dry run by default)."
+    },
+    {
+      "name": "azure_ad_email_events",
+      "description": "Query EmailEvents via Defender Advanced Hunting \u2014 the ONLY API that captures emails sent with SaveToSentItems=false (attacker phishing blasts). Aggregates by NetworkMessageId to show full recipient lists. Requires ThreatHunting.Read.All."
+    },
+    {
+      "name": "azure_ad_user_oauth_grants",
+      "description": "List OAuth delegated permission grants for a user \u2014 detects attacker persistence via OAuth app grants that survive password resets and session revocations. Returns app names, scopes, and expiry."
+    },
+    {
+      "name": "azure_ad_mailbox_settings",
+      "description": "Get mailbox settings including SMTP forwarding address and auto-reply config \u2014 detects post-compromise exfiltration via forwarding rules set outside inbox rules (survives inbox rule cleanup)."
+    },
+    {
+      "name": "azure_ad_mfa_changes",
+      "description": "Query audit logs for MFA/authentication method changes \u2014 detects attacker adding their own phone or authenticator app to maintain access after password reset. Covers register/delete security info events."
+    },
+    {
+      "name": "azure_ad_role_changes",
+      "description": "Query audit logs for role assignment changes \u2014 detect privilege escalation (Add/Remove member to/from role). Identifies if attacker added themselves or a backdoor account to Global Admin or other privileged roles."
+    },
+    {
+      "name": "azure_ad_email_attachments",
+      "description": "Query EmailAttachmentInfo via Defender Advanced Hunting \u2014 identifies files sent by compromised accounts (file name, type, SHA256, malware family). Captures attachments from SaveToSentItems=false emails. Requires ThreatHunting.Read.All."
+    },
+    {
+      "name": "azure_ad_ual_sharepoint",
+      "description": "Query UAL for SharePoint, OneDrive, and Teams activity \u2014 detects post-compromise data exfiltration: file downloads, anonymous link creation, external sharing, Teams access from attacker IPs."
+    },
+    {
+      "name": "azure_ad_delete_inbox_rule",
+      "description": "Delete a specific inbox rule from a user mailbox (incident response remediation). Requires confirm=True to execute; returns preview when confirm=False. Use rule IDs from azure_ad_ual_inbox_rules or azure_ad_incident_triage."
+    },
+    {
+      "name": "azure_ad_dismiss_risky_users",
+      "description": "Dismiss the risk state for one or more risky users in Identity Protection (call after remediation: password reset + sessions revoked + MFA re-enrolled). Requires confirm=True to execute; returns preview when confirm=False."
+    },
+    {
+      "name": "azure_ad_incident_triage",
+      "description": "Full security triage for one or more compromised accounts \u2014 orchestrates sign-in analysis, inbox rule inspection (UAL-validated), sent mail forensics via EmailEvents (captures SaveToSentItems=false), mailbox forwarding check, OAuth grants check, auth methods, and UAL forensics in one call. Produces HIGH/MEDIUM/CLEAN risk summary per user."
+    }
   ],
   "compatibility": {
-    "platforms": ["darwin", "linux", "win32"],
+    "platforms": [
+      "darwin",
+      "linux",
+      "win32"
+    ],
     "runtimes": {
       "python": ">=3.10"
     }

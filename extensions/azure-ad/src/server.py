@@ -102,6 +102,7 @@ VALID_RESULT_FILTERS = {"success", "failure", "timeout"}
 VALID_CA_STATES = {"enabled", "disabled", "enabledforreportingbutnotenforced"}
 VALID_CA_ACTIONS = {"block", "mfa", "compliantDevice", "compliantApplication"}
 VALID_UAL_CONTENT_TYPES = {"Audit.Exchange", "Audit.AzureActiveDirectory", "Audit.General"}
+VALID_MAIL_FOLDERS = {"inbox", "sentitems", "drafts", "deleteditems", "junkemail", "outbox", "archive"}
 
 
 def _validate_enum(value: str, valid_set: set, field: str) -> str:
@@ -245,6 +246,13 @@ def _hours_filter(hours: int, field: str = "createdDateTime") -> str:
     return f"{field} ge {since}"
 
 
+def _gather_values(result) -> list:
+    """Extract .value list from a Graph API result, handling exceptions and non-dicts."""
+    if isinstance(result, Exception):
+        return []
+    return result.get("value", []) if isinstance(result, dict) else []
+
+
 # ─── Users ────────────────────────────────────────────────────────────────────
 
 @mcp.tool()
@@ -268,6 +276,8 @@ async def azure_ad_list_users(
 
     Returns list of user objects. Use azure_ad_get_user for full user details.
     """
+    if filter_query and len(filter_query) > 2000:
+        raise ValueError(f"filter_query is too long ({len(filter_query)} chars). Maximum is 2000 characters.")
     params: dict = {"$top": min(top, 999)}
     params["$select"] = select or "id,displayName,userPrincipalName,mail,jobTitle,department,accountEnabled,createdDateTime"
     if filter_query:
@@ -297,7 +307,7 @@ async def azure_ad_get_user(user_id: str, select: str | None = None) -> str:
     params = {}
     if select:
         params["$select"] = select
-    result = await _graph("GET", f"/users/{user_id}", params=params or None)
+    result = await _graph("GET", f"/users/{user_id}", params=params)
     return _fmt(result)
 
 
@@ -377,6 +387,7 @@ async def azure_ad_user_devices(user_id: str) -> str:
     return _fmt({
         "ownedDevices": owned.get("value", []),
         "registeredDevices": registered.get("value", []),
+        "count": len(owned.get("value", [])) + len(registered.get("value", [])),
     })
 
 
@@ -481,6 +492,8 @@ async def azure_ad_list_devices(
 
     Returns list of device objects with OS, trust type, compliance, and last sign-in.
     """
+    if filter_query and len(filter_query) > 2000:
+        raise ValueError(f"filter_query is too long ({len(filter_query)} chars). Maximum is 2000 characters.")
     params: dict = {
         "$top": min(top, 999),
         "$select": "id,displayName,deviceId,operatingSystem,operatingSystemVersion,trustType,isManaged,isCompliant,approximateLastSignInDateTime",
@@ -621,7 +634,7 @@ async def azure_ad_sign_ins(
 
 
 @mcp.tool()
-async def azure_ad_sign_in_get(sign_in_id: str) -> str:
+async def azure_ad_get_sign_in(sign_in_id: str) -> str:
     """Get full detail for a specific sign-in event.
 
     Args:
@@ -1051,10 +1064,10 @@ async def azure_ad_ual_search(
 
 @mcp.tool()
 async def azure_ad_ual_mailbox_access(
-    users: str,
+    users: str | None = None,
     hours: int = 6,
 ) -> str:
-    """Query the UAL for mailbox access events on specific users.
+    """Query the UAL for mailbox access events on specific users or the full tenant.
 
     Identifies if an attacker accessed mailbox contents (read emails, searched,
     downloaded attachments) after stealing a token.
@@ -1063,6 +1076,7 @@ async def azure_ad_ual_mailbox_access(
 
     Args:
         users: Comma-separated UPNs to check (e.g. 'john@contoso.com,jane@contoso.com').
+            Leave blank to return all mailbox access events in the tenant for the time window.
         hours: Time window in hours (default 6h, max 24h per API limit).
 
     Returns MailItemsAccessed, MessageBind, and related events showing which
@@ -1076,13 +1090,13 @@ async def azure_ad_ual_mailbox_access(
         "MailItemsAccessed", "MessageBind", "FolderBind",
         "SendAs", "SendOnBehalf", "Create", "Move", "Copy",
     }
-    filter_users = {u.strip().lower() for u in users.split(",")}
+    filter_users = {u.strip().lower() for u in users.split(",")} if users else set()
 
     results = []
     for evt in events:
         if evt.get("Operation", "") not in access_ops:
             continue
-        if evt.get("UserId", "").lower() not in filter_users:
+        if filter_users and evt.get("UserId", "").lower() not in filter_users:
             continue
         results.append({
             "time": evt.get("CreationTime"),
@@ -1118,6 +1132,10 @@ async def azure_ad_sent_emails(
         hours: Look back N hours (default 48). Max 168 (7 days).
         top: Max messages to return (default 100).
         include_body: Include bodyPreview (first 255 chars) in results.
+
+    Returns:
+        dict: {"user": str, "count": int, "messages": [{"sentDateTime": str, "subject": str,
+            "to": [str], "cc": [str], "hasAttachments": bool, "messageId": str}]}
     """
     since = (datetime.now(timezone.utc) - timedelta(hours=min(hours, 168))).strftime('%Y-%m-%dT%H:%M:%SZ')
     select = "id,subject,sentDateTime,from,toRecipients,ccRecipients,bccRecipients,hasAttachments,internetMessageId"
@@ -1172,7 +1190,6 @@ async def azure_ad_search_mail(
         top: Max results (default 50).
         hours: Look-back window in hours (default 168 = 7 days).
     """
-    VALID_MAIL_FOLDERS = {"inbox", "sentitems", "drafts", "deleteditems", "junkemail", "outbox", "archive"}
     folder_safe = folder.lower()
     if folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
         raise ValueError(f"Invalid folder: {folder!r}. Use a known folder name or a folder ID (GUID).")
@@ -1220,6 +1237,10 @@ async def azure_ad_get_email(user_id: str, message_id: str) -> str:
     Args:
         user_id: User UPN or object ID.
         message_id: Message ID from azure_ad_sent_emails results.
+
+    Returns:
+        dict: {"sentDateTime": str, "subject": str, "from": str, "to": [str], "cc": [str],
+            "hasAttachments": bool, "bodyPreview": str, "body": str (first 5000 chars)}
     """
     result = await _graph("GET", f"/users/{user_id}/messages/{message_id}")
     body = result.get("body", {}).get("content", "")
@@ -1242,7 +1263,12 @@ async def azure_ad_get_email(user_id: str, message_id: str) -> str:
 
 @mcp.tool()
 async def azure_ad_list_ca_policies() -> str:
-    """List all Conditional Access policies with state and conditions summary."""
+    """List all Conditional Access policies with state and conditions summary.
+
+    Returns:
+        dict: {"count": int, "policies": [{"id": str, "displayName": str, "state": str,
+            "includeUsers": list, "includeGroups": list, "grantControls": dict}]}
+    """
     result = await _graph("GET", "/identity/conditionalAccess/policies")
     policies = result.get("value", [])
     summary = []
@@ -1449,6 +1475,7 @@ async def azure_ad_advanced_hunt(query: str, top: int = 1000, confirm: bool = Fa
             Intended for admin use only — do not pass untrusted user input here.
             A '| limit N' clause is appended automatically if 'limit'/'take' is absent.
         top: Implicit LIMIT appended if query has no 'limit' or 'take' clause (default 1000).
+            Capped at 10,000 internally — values above 10,000 are silently truncated.
         confirm: Must be set to True to execute. Defaults to False (dry-run) as a reminder
             that raw KQL is passed directly to the Defender API. This tool is for
             admin/analyst use only — do not pass untrusted user input as the query.
@@ -1496,6 +1523,7 @@ async def azure_ad_email_events(
         direction: 'Outbound' (default), 'Inbound', or omit for both.
         top: Max results — note: one row per recipient, so a blast to 385 people
             is 385 rows. Default 1000 covers most single-attacker campaigns.
+            Capped at 10,000 internally — values above 10,000 are silently truncated.
 
     Returns:
         dict with keys:
@@ -1851,6 +1879,75 @@ async def azure_ad_ual_sharepoint(
     return _fmt({"count": len(results), "events": results})
 
 
+# ─── Incident Response Remediation ──────────────────────────────────────────
+
+@mcp.tool()
+async def azure_ad_delete_inbox_rule(
+    user_id: str,
+    rule_id: str,
+    confirm: bool = False,
+) -> str:
+    """Delete a specific inbox rule from a user's mailbox (incident response remediation).
+
+    Use after azure_ad_ual_inbox_rules or azure_ad_incident_triage to remove attacker-created
+    rules that forward, delete, or move email. Rule IDs are returned in the maliciousRules
+    field of azure_ad_incident_triage output.
+
+    Args:
+        user_id: User UPN (e.g. user@domain.com) or object ID whose mailbox contains the rule.
+        rule_id: Inbox rule ID from azure_ad_ual_inbox_rules or azure_ad_incident_triage results.
+        confirm: Must be set to True to execute. Defaults to False for safety.
+
+    Returns:
+        dict: {"success": True, "deleted_rule_id": str, "user": str} on success,
+            or preview dict when confirm=False.
+    """
+    if not confirm:
+        return _fmt({
+            "confirm": False,
+            "would_delete_rule": rule_id,
+            "user": user_id,
+            "message": "Pass confirm=True to permanently delete this inbox rule.",
+        })
+    print(f"[azure-ad-server] DESTRUCTIVE OP: deleteInboxRule user={user_id} rule_id={rule_id}", file=sys.stderr)
+    await _graph("DELETE", f"/users/{user_id}/mailFolders/inbox/messageRules/{rule_id}")
+    return _fmt({"success": True, "deleted_rule_id": rule_id, "user": user_id})
+
+
+@mcp.tool()
+async def azure_ad_dismiss_risky_users(
+    user_ids: list[str],
+    confirm: bool = False,
+) -> str:
+    """Dismiss Identity Protection risk state for remediated users.
+
+    Call after completing full remediation: password reset + sessions revoked + MFA
+    re-enrolled. Clears the confirmedCompromised or other risk state so the user no
+    longer appears in risky user reports.
+
+    Args:
+        user_ids: List of Azure AD object IDs to dismiss. Get IDs from azure_ad_risky_users
+            or azure_ad_get_user. Note: UPNs are NOT accepted — must be object IDs.
+        confirm: Must be set to True to execute. Defaults to False for safety.
+
+    Returns:
+        dict: {"success": True, "dismissed_count": int, "dismissed_user_ids": [str]} on success,
+            or preview dict when confirm=False.
+    """
+    if not confirm:
+        return _fmt({
+            "confirm": False,
+            "would_dismiss_risk_for": user_ids,
+            "message": "Pass confirm=True to dismiss risk state for these users. Ensure full remediation (password reset + sessions revoked + MFA re-enrolled) is complete first.",
+        })
+    print(f"[azure-ad-server] DESTRUCTIVE OP: dismissRiskyUsers user_ids={user_ids}", file=sys.stderr)
+    await _graph(
+        "POST",
+        "/identityProtection/riskyUsers/dismiss",
+        data={"userIds": user_ids},
+    )
+    return _fmt({"success": True, "dismissed_count": len(user_ids), "dismissed_user_ids": user_ids})
+
 @mcp.tool()
 async def azure_ad_incident_triage(
     users: str,
@@ -1993,10 +2090,7 @@ async def azure_ad_incident_triage(
             sent_messages = list(msg_by_id.values())
 
         # ── Account state ──
-        risky_list = (
-            (risky_data.get("value", []) if isinstance(risky_data, dict) else [])
-            if not isinstance(risky_data, Exception) else []
-        )
+        risky_list = _gather_values(risky_data)
         risky = risky_list[0] if risky_list else {}
         if isinstance(user_data, dict) and "id" in user_data:
             account: dict = {
@@ -2011,10 +2105,7 @@ async def azure_ad_incident_triage(
             account = {"error": str(user_data) if isinstance(user_data, Exception) else "user not found"}
 
         # ── Suspicious sign-ins ──
-        signins = (
-            (signins_data.get("value", []) if isinstance(signins_data, dict) else [])
-            if not isinstance(signins_data, Exception) else []
-        )
+        signins = _gather_values(signins_data)
         suspicious_signins: list = []
         success_countries: list = []
         for s in signins:
@@ -2071,10 +2162,7 @@ async def azure_ad_incident_triage(
             })
 
         # ── Malicious inbox rules (UAL-validated or high-confidence pattern) ──
-        rules = (
-            (rules_data.get("value", []) if isinstance(rules_data, dict) else [])
-            if not isinstance(rules_data, Exception) else []
-        )
+        rules = _gather_values(rules_data)
         malicious_rules: list = []
         for rule in rules:
             name = rule.get("displayName", "")
@@ -2100,10 +2188,7 @@ async def azure_ad_incident_triage(
                 })
 
         # ── Auth methods ──
-        methods_raw = (
-            (methods_data.get("value", []) if isinstance(methods_data, dict) else [])
-            if not isinstance(methods_data, Exception) else []
-        )
+        methods_raw = _gather_values(methods_data)
         auth_methods: list = []
         for m in methods_raw:
             t = m.get("@odata.type", "").split(".")[-1].replace("AuthenticationMethod", "")
@@ -2118,10 +2203,7 @@ async def azure_ad_incident_triage(
 
         # ── OAuth grants (survives password reset + session revocation) ──
         oauth_grants: list = []
-        grants_raw = (
-            (oauth_data.get("value", []) if isinstance(oauth_data, dict) else [])
-            if not isinstance(oauth_data, Exception) else []
-        )
+        grants_raw = _gather_values(oauth_data)
         for g in grants_raw:
             oauth_grants.append({
                 "clientId": g.get("clientId"),

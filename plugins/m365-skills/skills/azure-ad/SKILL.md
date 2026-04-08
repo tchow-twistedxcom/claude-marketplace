@@ -29,28 +29,34 @@ Comprehensive Azure AD operations using Microsoft Graph API.
 
 ## Capabilities
 
-### Users Domain
-- **List/Search**: Query all users with OData filters
-- **Get Details**: Retrieve specific user by ID or UPN
-- **Create/Update/Delete**: Full user lifecycle management
-- **Relationships**: Manager, direct reports, group memberships
-- **Devices**: Owned and registered devices
-- **Licensing**: Assign and revoke licenses
+> **Note: User lifecycle operations (create/update/delete), licensing, and device management are
+> CLI-only via `azure_ad_api.py` — no MCP tools exist for these operations.** MCP tools cover
+> read-only directory/security queries plus session revocation, compromised-user marking, inbox
+> rule deletion, risky-user dismissal, and Conditional Access policy operations (all with
+> `confirm` guards).
 
-### Groups Domain
-- **List/Search**: Query all groups with filters
-- **Get Details**: Retrieve specific group information
-- **Create/Update/Delete**: Full group lifecycle
-- **Members**: List, add, remove group members
-- **Owners**: Manage group owners
-- **Nesting**: Get parent group memberships
+### Users Domain (MCP: read-only; write ops: CLI-only)
+- **List/Search**: Query all users with OData filters (MCP)
+- **Get Details**: Retrieve specific user by ID or UPN (MCP)
+- **Create/Update/Delete**: Full user lifecycle management — **CLI-only (`azure_ad_api.py`)**
+- **Relationships**: Manager, direct reports, group memberships (MCP)
+- **Devices**: Owned and registered devices (MCP)
+- **Licensing**: Assign and revoke licenses — **CLI-only (`azure_ad_api.py`)**
 
-### Devices Domain
-- **List/Search**: Query all registered devices
-- **Get Details**: Device properties and status
-- **Update/Delete**: Device management
-- **Owners/Users**: Registered owners and users
-- **Memberships**: Device group memberships
+### Groups Domain (MCP: read-only)
+- **List/Search**: Query all groups with filters (MCP)
+- **Get Details**: Retrieve specific group information (MCP)
+- **Create/Update/Delete**: Full group lifecycle — **CLI-only (`azure_ad_api.py`)**
+- **Members**: List group members (MCP); add/remove members — **CLI-only**
+- **Owners**: List group owners (MCP)
+- **Nesting**: Get parent group memberships (MCP)
+
+### Devices Domain (MCP: read-only)
+- **List/Search**: Query all registered devices (MCP)
+- **Get Details**: Device properties and status (MCP)
+- **Update/Delete**: Device management — **CLI-only (`azure_ad_api.py`)**
+- **Owners/Users**: Registered owners and users (MCP)
+- **Memberships**: Device group memberships (MCP)
 
 ### Directory Domain
 - **Organization**: Tenant information
@@ -75,13 +81,22 @@ is running. They require the MCP server to be configured — either via `plugins
 
 #### Incident Response
 
+- **`azure_ad_delete_inbox_rule`** — Delete a specific malicious inbox rule from a user's mailbox.
+  Use rule IDs returned by `azure_ad_ual_inbox_rules` or `azure_ad_incident_triage`. Requires
+  `confirm=True` to execute; returns preview when `confirm=False`.
+
+- **`azure_ad_dismiss_risky_users`** — Dismiss the Identity Protection risk state for one or more
+  users after full remediation (password reset + sessions revoked + MFA re-enrolled). Calls
+  `POST /identityProtection/riskyUsers/dismiss`. Requires `confirm=True` to execute; returns
+  preview when `confirm=False`.
+
 - **`azure_ad_incident_triage`** — Orchestrates a complete compromise triage in one call: sign-in
   analysis, inbox rule inspection, sent mail forensics (via Defender EmailEvents), auth method
   review, UAL forensics, mailbox forwarding check, and OAuth grant review. Returns a structured
   report per user with a HIGH/MEDIUM/CLEAN risk summary. Top-level output fields include:
-  `signIns`, `inboxRules`, `sentMail`, `authMethods`, `ualEvents`, `forwardingAddress`,
-  `oauthGrants`, `sentMailSource`, `cloudAppFindings`. Start here for any account compromise
-  investigation.
+  `account`, `riskSummary`, `suspiciousSignIns`, `maliciousRules`, `suspiciousSentMail`,
+  `authMethods`, `ualFindings`, `forwardingAddress`, `oauthGrants`, `sentMailSource`,
+  `cloudAppFindings`. Start here for any account compromise investigation.
 
 #### Email Forensics
 
@@ -152,7 +167,7 @@ Defender Plan 1/2 (included in M365 E3/E5/Business Premium).
 
 ### Basic Operations MCP Tools
 
-These 27 tools are available but not individually documented above. Use them for general directory queries and investigation:
+These tools are available but not individually documented above. Use them for general directory queries and investigation:
 
 | Tool | Purpose |
 |------|---------|
@@ -184,12 +199,12 @@ These 27 tools are available but not individually documented above. Use them for
 | `azure_ad_revoke_sessions` | **Revoke all sessions for a user (dry_run=True default)** |
 | `azure_ad_confirm_compromised` | **Mark users as confirmed compromised (confirm=False default)** |
 
-## MCP Server (47 Agent-Native Tools)
+## MCP Server (49 Agent-Native Tools)
 
-The `azure-ad` MCP server exposes 47 tools including `azure_ad_incident_triage`, email forensics
+The `azure-ad` MCP server exposes 49 tools including `azure_ad_incident_triage`, email forensics
 (`azure_ad_sent_emails`, `azure_ad_email_events`), Defender Advanced Hunting (`azure_ad_advanced_hunt`),
-CA policy management, and OAuth grant detection. These tools are registered automatically when
-`m365-skills` is installed via the plugin system.
+CA policy management, OAuth grant detection, inbox rule deletion, and risky user dismissal. These
+tools are registered automatically when `m365-skills` is installed via the plugin system.
 
 ### Method 1: Environment Variables (Plugin Auto-Registration)
 

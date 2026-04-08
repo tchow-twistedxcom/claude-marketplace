@@ -33,8 +33,9 @@ Option A (Recommended):
 ## Acceptance Criteria
 - [ ] `collect_mfa_fatigue_victims` success queries parallelized with ThreadPoolExecutor
 - [ ] `fetch_mimecast_config` and `fetch_sync_health` run concurrently
-- [ ] `azure_ad_user_devices` uses `asyncio.gather` for the two device calls
+- [x] `azure_ad_user_devices` uses `asyncio.gather` for the two device calls
 - [ ] `_get_all_pages` nextLink timeout default is 60s
 
 ## Work Log
 - 2026-04-08: Found by performance-oracle in 4th review pass
+- 2026-04-08: server.py asyncio.gather fix applied by pr-comment-resolver. In azure_ad_user_devices, the two sequential awaits for /ownedDevices and /registeredDevices are now replaced with asyncio.gather. Committed in: fix(azure-ad): standardize confirm param, events return key, asyncio.gather for user_devices. Remaining items (sweep.py mfa fatigue parallelism, audit_m365_sync.py sequential fetch, azure_ad_api.py timeout default) handled by other agents.

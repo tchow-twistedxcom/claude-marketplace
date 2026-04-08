@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "072"
 tags: [code-review, quality, azure-ad]
@@ -66,3 +66,4 @@ Python convention: `raise AuthError(...) from e` preserves the original `Permiss
 ## Work Log
 
 - 2026-04-08: Identified by kieran-python-reviewer (FINDING-5/6/7/8), architecture-strategist (FINDING-3), security-sentinel (FINDING-07) in 5th review pass
+- 2026-04-08: Completed by pr-comment-resolver agent. server.py: get_event_loop→get_running_loop (committed by sibling agent) + 47 Optional[X]→X|None + Optional removed from imports. auth.py: Dict/Optional→dict/str|None, add raise...from e to 4 exception chains. azure_ad_api.py: add raise...from e to 4 GraphAPIError raises. Commit: 9b53ee9

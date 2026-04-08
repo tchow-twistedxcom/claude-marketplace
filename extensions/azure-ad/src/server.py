@@ -1174,7 +1174,7 @@ async def azure_ad_search_mail(
     """
     VALID_MAIL_FOLDERS = {"inbox", "sentitems", "drafts", "deleteditems", "junkemail", "outbox", "archive"}
     folder_safe = folder.lower()
-    if folder_safe not in VALID_MAIL_FOLDERS and not re.match(r'^[0-9a-f\-]{8,}$', folder):
+    if folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
         raise ValueError(f"Invalid folder: {folder!r}. Use a known folder name or a folder ID (GUID).")
 
     since = (datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))).strftime('%Y-%m-%dT%H:%M:%SZ')
@@ -1510,6 +1510,7 @@ async def azure_ad_email_events(
               - threatTypes: list[str]
               - recipients: list[str]
     """
+    hours = max(1, min(int(hours), 720))
     filters = [f"Timestamp >= ago({hours}h)"]
     if direction:
         filters.append(f"EmailDirection == '{_validate_kql_value(direction)}'")

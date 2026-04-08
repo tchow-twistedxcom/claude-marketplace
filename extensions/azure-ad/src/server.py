@@ -1547,11 +1547,13 @@ async def azure_ad_email_events(
                     "direction": row.get("EmailDirection"),
                     "deliveryStatus": row.get("DeliveryStatus"),
                     "threatTypes": row.get("ThreatTypes"),
-                    "recipients": [],
+                    "recipients_set": set(),
                 }
             recip = row.get("RecipientEmailAddress", "")
-            if recip and recip not in msg_map[mid]["recipients"]:
-                msg_map[mid]["recipients"].append(recip)
+            if recip:
+                msg_map[mid]["recipients_set"].add(recip)
+        for entry in msg_map.values():
+            entry["recipients"] = sorted(entry.pop("recipients_set"))
         messages = list(msg_map.values())
         return _fmt({
             "totalRows": len(rows),
@@ -1586,10 +1588,15 @@ async def azure_ad_user_oauth_grants(user_id: str) -> str:
     client_ids = list({g.get("clientId", "") for g in items if g.get("clientId")})
     sp_map: dict = {}
     if client_ids:
+        sem = asyncio.Semaphore(10)
+
+        async def _fetch_sp(cid: str):
+            async with sem:
+                return await _graph("GET", f"/servicePrincipals/{cid}",
+                                    params={"$select": "displayName,appId,publisherName"})
+
         sp_results = await asyncio.gather(
-            *[_graph("GET", f"/servicePrincipals/{cid}",
-                     params={"$select": "displayName,appId,publisherName"})
-              for cid in client_ids],
+            *[_fetch_sp(cid) for cid in client_ids],
             return_exceptions=True,
         )
         for cid, sp in zip(client_ids, sp_results):
@@ -1976,11 +1983,13 @@ async def azure_ad_incident_triage(
                         "time": row.get("Timestamp"),
                         "subject": row.get("Subject"),
                         "deliveryStatus": row.get("DeliveryStatus"),
-                        "recipients": [],
+                        "recipients_set": set(),
                     }
                 recip = row.get("RecipientEmailAddress", "")
-                if recip and recip not in msg_by_id[mid]["recipients"]:
-                    msg_by_id[mid]["recipients"].append(recip)
+                if recip:
+                    msg_by_id[mid]["recipients_set"].add(recip)
+            for entry in msg_by_id.values():
+                entry["recipients"] = sorted(entry.pop("recipients_set"))
             sent_messages = list(msg_by_id.values())
 
         # ── Account state ──
@@ -2030,11 +2039,12 @@ async def azure_ad_incident_triage(
                     "errorCode": ec,
                     "flags": flags,
                 })
-        if len(set(success_countries)) > 1:
+        unique_countries = set(success_countries)
+        if len(unique_countries) > 1:
             suspicious_signins.insert(0, {
                 "flag": "IMPOSSIBLE_TRAVEL",
-                "countries": sorted(set(success_countries)),
-                "note": f"Successful sign-ins from {len(set(success_countries))} countries in {hours}h",
+                "countries": sorted(unique_countries),
+                "note": f"Successful sign-ins from {len(unique_countries)} countries in {hours}h",
             })
 
         # ── UAL inbox rule events (forensic ground truth) ──

@@ -285,8 +285,9 @@ def segment_mimecast_users(users: list[dict]) -> dict:
         if not u.get("alias")
         and u.get("addressType") not in ("dl_from_ldap", "created_by_email")
     ]
-    infra = [u for u in candidates if _is_mimecast_infra(u)]
-    real_users = [u for u in candidates if not _is_mimecast_infra(u)]
+    infra, real_users = [], []
+    for u in candidates:
+        (infra if _is_mimecast_infra(u) else real_users).append(u)
 
     return {
         "real_users": real_users,
@@ -371,10 +372,26 @@ def fetch_sync_health(profile: str, verbose: bool) -> dict:
             return None
         return data
 
-    return {
-        "connection": _safe(_mimecast_run(["sync", "status"], profile, verbose), "connection"),
-        "history": _safe(_mimecast_run(["sync", "history", "--days", "2"], profile, verbose), "history"),
+    checks = {
+        "connection": ["sync", "status"],
+        "history":    ["sync", "history", "--days", "2"],
     }
+
+    def _run(cmd):
+        return _mimecast_run(cmd, profile, verbose)
+
+    raw: dict = {}
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {executor.submit(_run, cmd): key for key, cmd in checks.items()}
+        for future in as_completed(futures):
+            key = futures[future]
+            try:
+                raw[key] = future.result()
+            except Exception as e:
+                print(f"WARNING: sync health worker failed for {key}: {e}", file=sys.stderr)
+                raw[key] = None
+
+    return {k: _safe(raw.get(k), k) for k in checks}
 
 
 # ── Email Normalization ────────────────────────────────────────────────────────

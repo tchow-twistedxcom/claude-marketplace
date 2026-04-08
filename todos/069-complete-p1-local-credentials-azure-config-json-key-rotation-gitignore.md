@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "069"
 tags: [code-review, security, azure-ad]
@@ -54,3 +54,5 @@ Root `.gitignore` lines 80 and 88 cover `**/azure_config.json` and `**/.azure_to
 ## Work Log
 
 - 2026-04-08: Identified by security-sentinel (FINDING-01, FINDING-02) in 5th review pass. Token expired; git history clean (file never committed).
+- 2026-04-08: Created config/.gitignore as second-layer gitignore protection. Secret rotation in Azure portal requires manual user action.
+- 2026-04-08: Created config/.gitignore with azure_config.json and .azure_tokens.json exclusions. Secret rotation requires manual user action in Azure AD portal.

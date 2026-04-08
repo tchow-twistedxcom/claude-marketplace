@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "058"
 tags: [code-review, security, azure-ad]
@@ -29,10 +29,11 @@ Option A (Recommended):
 - Effort: Small. Risk: Low.
 
 ## Acceptance Criteria
-- [ ] `--user`, `--app`, `--country`, `--category` values quote-escaped before OData interpolation in `handle_security`
-- [ ] `--ip` values validated against IP format pattern
-- [ ] `--since` value validated as ISO 8601 datetime pattern
-- [ ] `sweep.py` IPs from Graph API risk events validated before OData filter construction
+- [x] `--user`, `--app`, `--country`, `--category` values quote-escaped before OData interpolation in `handle_security`
+- [x] `--ip` values validated against IP format pattern
+- [x] `--since` value validated as ISO 8601 datetime pattern
+- [x] `sweep.py` IPs from Graph API risk events validated before OData filter construction
 
 ## Work Log
 - 2026-04-08: Found by security-sentinel in 4th review pass
+- 2026-04-08: Resolved. Applied `.replace("'", "''")` to `--user`, `--app`, `--country`, `--category` in `handle_security` (sign-ins and audit-logs branches). Added `re.match` IP regex validation for `--ip` CLI arg with `ValueError` on bad format. Added ISO 8601 `re.match` validation in `build_time_filter` for `--since` with `ValueError` on bad format. Added `import re` to both `azure_ad_api.py` and `sweep.py`. In `sweep.py`: added IP regex guard in `collect_sign_ins_by_ip` (warns and returns `[]` on invalid IP), and replaced bare `suspect_ips.add(ip)` with validated `if ip and re.match(...)` guard for risk-event IPs. Committed: `0aae666`.

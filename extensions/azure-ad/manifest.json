@@ -78,7 +78,6 @@
     { "name": "azure_ad_risky_user_history", "description": "Get risk history for a specific user (risk level changes, detections)" },
     { "name": "azure_ad_audit_logs", "description": "Query directory audit logs — filter by user, activity, category, or time window" },
     { "name": "azure_ad_auth_methods", "description": "List authentication methods registered for a user (MFA methods, passkeys, etc.)" },
-    { "name": "azure_ad_ca_policies", "description": "List Conditional Access policies" },
     { "name": "azure_ad_named_locations", "description": "List named locations (trusted IP ranges, country allow/deny lists)" },
     { "name": "azure_ad_revoke_sessions", "description": "Revoke all active sign-in sessions for a user (incident response)" },
     { "name": "azure_ad_confirm_compromised", "description": "Mark users as confirmed compromised in Identity Protection (triggers remediation)" },

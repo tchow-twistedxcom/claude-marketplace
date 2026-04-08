@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "057"
 tags: [code-review, architecture, azure-ad]
@@ -32,10 +32,11 @@ Then rebuild the DXT: `cd extensions/azure-ad && zip -r ../azure-ad.dxt manifest
 
 ## Acceptance Criteria
 
-- [ ] `manifest.json` has `azure_ad_list_ca_policies` (not `azure_ad_ca_policies`)
-- [ ] DXT rebuilt from updated manifest
-- [ ] `unzip -p extensions/azure-ad.dxt manifest.json | python3 -c "import json,sys; tools=json.load(sys.stdin)['tools']; print([t['name'] for t in tools if 'ca_policies' in t['name']])"` shows `['azure_ad_list_ca_policies']`
+- [x] `manifest.json` has `azure_ad_list_ca_policies` (not `azure_ad_ca_policies`)
+- [x] DXT rebuilt from updated manifest
+- [x] `unzip -p extensions/azure-ad.dxt manifest.json | python3 -c "import json,sys; tools=json.load(sys.stdin)['tools']; print([t['name'] for t in tools if 'ca_policies' in t['name']])"` shows `['azure_ad_list_ca_policies']`
 
 ## Work Log
 
 - 2026-04-08: Found by architecture-strategist in 4th review pass. Previously removed the duplicate function but forgot to update the manifest.
+- 2026-04-08: Resolved. Removed ghost entry `{ "name": "azure_ad_ca_policies", ... }` from `manifest.json`. Correct entry `azure_ad_list_ca_policies` already present at line 91 — manifest had a duplicate/stale entry, not a rename. Rebuilt DXT. Verification confirmed: `['azure_ad_list_ca_policies']`.

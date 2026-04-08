@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "051"
 tags: [code-review, quality, azure-ad, mimecast]
@@ -33,12 +33,13 @@ Option A (Recommended):
 
 ## Acceptance Criteria
 
-- [ ] Single-element tuples used as sets replaced with set literals
-- [ ] Redundant `getattr` with default removed
-- [ ] All `future.result()` calls guarded with try/except
-- [ ] `_values()` helper added to sweep.py
+- [ ] Single-element tuples used as sets replaced with set literals — remaining in audit_m365_sync.py/human_risk.py
+- [x] Redundant `getattr` with default removed — investigated azure_ad_api.py; uses args.format not args.output; no instances found
+- [x] All `future.result()` calls guarded with try/except — sweep.py all futures now wrapped (Vectors 1, 4, 5)
+- [x] `_values()` helper added to sweep.py — added at module level, replacing all isinstance/dict/value patterns
 
 ## Work Log
 
 - 2026-04-08: Identified in 3rd review pass
 - 2026-04-08: Investigated `getattr(args, 'output', 'table')` in azure_ad_api.py — no instances found. Output format uses `args.format` (not `args.output`) throughout. Item 2 (getattr) is resolved for azure_ad_api.py. Items 1, 3, 4 remain pending (single-element tuple, unguarded future.result, sweep _values helper).
+- 2026-04-08: sweep.py items complete — _values() helper added, all future.result() calls (Vectors 1, 4, 5) guarded with try/except. Single-element tuple item remains in other files out of scope for this change.

@@ -56,3 +56,4 @@ MSAL authentication failures return the full `error_description` which may inclu
 ## Work Log
 
 - 2026-04-08: Identified in 3rd review pass
+- 2026-04-08: sweep.py UPN OData escaping complete — applied safe_upn = upn.replace("'", "''") before filter interpolation in collect_mfa_fatigue_victims and collect_suspicious_audit_events. Remaining items (folder, CIDR, content_type, MSAL error) are in server.py.

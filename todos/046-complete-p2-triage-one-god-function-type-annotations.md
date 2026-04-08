@@ -46,3 +46,4 @@ Approximately 40 function parameters and return types still use `Optional[X]` (p
 ## Work Log
 
 - 2026-04-08: Identified in 3rd review pass
+- 2026-04-08: Type annotation sweep (`Optional[X]` → `X | None`) deferred — global find+replace across ~40 existing occurrences carries risk of silent breakage (e.g. places where `Optional` is imported but not re-exported). New code written in this PR pass already uses `X | None` style. Full sweep tracked here as remaining work. `_triage_one` decomposition also deferred — no correctness issue, leaving as future refactor.

@@ -107,7 +107,7 @@ def fetch_azure_users(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=180)
     if data is None:
         return []
-    return _extract_graph_list(data)
+    return _mc_data(data)
 
 
 def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
@@ -120,7 +120,7 @@ def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=60)
     if data is None:
         return []
-    return _extract_graph_list(data)
+    return _mc_data(data)
 
 
 def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
@@ -133,7 +133,7 @@ def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=60)
     if data is None:
         return []
-    return _extract_graph_list(data)
+    return _mc_data(data)
 
 
 def filter_azure_users(users: list[dict]) -> dict:
@@ -263,14 +263,43 @@ def segment_mimecast_users(users: list[dict]) -> dict:
     }
 
 
-def _extract_graph_list(data) -> list:
-    """Unwrap a Graph API response envelope or pass through a plain list."""
-    return data["value"] if isinstance(data, dict) and "value" in data else (data if isinstance(data, list) else [])
+def _mc_data(response: dict | list | None) -> list:
+    """Extract the 'value' list from a Graph API response, or return the list directly."""
+    if response is None:
+        return []
+    if isinstance(response, list):
+        return response
+    if isinstance(response, dict):
+        return response.get("value", [])
+    return []
 
 
 def _mimecast_run(cmd: list, profile: str, verbose: bool) -> dict | list | None:
     """Run a Mimecast CLI command with standard profile/output flags."""
-    return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
+    full_cmd = [MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd
+    try:
+        result = subprocess.run(
+            [sys.executable] + [str(c) for c in full_cmd],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode != 0:
+            print(
+                f"WARNING: mimecast command failed: {result.returncode}\n{result.stderr.strip()[:300]}",
+                file=sys.stderr,
+            )
+            return None
+        if not result.stdout.strip():
+            return None
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        print(f"WARNING: mimecast JSON parse error for {cmd}: {e}", file=sys.stderr)
+        return None
+    except subprocess.TimeoutExpired:
+        print(f"WARNING: mimecast command timed out: {cmd}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"WARNING: mimecast command error: {e}", file=sys.stderr)
+        return None
 
 
 def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
@@ -298,7 +327,11 @@ def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
         futures = {executor.submit(_run, cmd): key for key, cmd in checks.items()}
         for future in as_completed(futures):
             key = futures[future]
-            results[key] = future.result()
+            try:
+                results[key] = future.result()
+            except Exception as e:
+                print(f"WARNING: worker failed for {key}: {e}", file=sys.stderr)
+                results[key] = None
     return results
 
 
@@ -424,8 +457,13 @@ def cross_reference(
             if created_str:
                 try:
                     created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                    # Using createdDateTime as a proxy for disable date.
-                    # For precise classification, Azure AD audit logs would provide the actual disabledDateTime.
+                    # NOTE: Using createdDateTime as a proxy for "recently disabled" date.
+                    # This is imprecise — long-tenured employees disabled last week will have
+                    # an old createdDateTime and will NOT appear in the grace bucket.
+                    # A more accurate approach would use signInActivity.lastSignInDateTime
+                    # (requires additional Graph API $select=signInActivity) but that field
+                    # requires AuditLog.Read.All permission and is optional.
+                    # TODO(044): Consider switching to lastSignInDateTime for better accuracy.
                     if created_dt > grace_cutoff:
                         results["grace_period"].append(disabled_entry)
                     else:
@@ -927,7 +965,7 @@ def generate_markdown_report(
 
     # Footer
     all_findings = sync_health_findings + config_findings
-    high_config = [f for f in all_findings if f["severity"] in ("HIGH",)]
+    high_config = [f for f in all_findings if f["severity"] in {"HIGH"}]
     if high_config:
         lines.append("### ⚠️ High-Severity Configuration Issues\n")
         for f in high_config:
@@ -989,7 +1027,11 @@ def main():
         futures = {executor.submit(fn): key for key, fn in fetch_tasks.items()}
         for future in as_completed(futures):
             key = futures[future]
-            fetch_results[key] = future.result()
+            try:
+                fetch_results[key] = future.result()
+            except Exception as e:
+                print(f"WARNING: worker failed for {key}: {e}", file=sys.stderr)
+                fetch_results[key] = []
     azure_users_raw = fetch_results["azure_users_raw"]
     deleted_users = fetch_results["deleted_users"]
     mimecast_raw = fetch_results["mimecast_raw"]
@@ -1043,7 +1085,7 @@ def main():
     print(f"  Config issues: {len(all_config_issues)}", file=sys.stderr)
 
     # Generate output
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M %Z").strip()
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M %Z").strip()
 
     if args.json:
         output = json.dumps({

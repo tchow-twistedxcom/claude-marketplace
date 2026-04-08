@@ -65,6 +65,12 @@ python3 scripts/audit_m365_sync.py --grace-days 60
 | ℹ️ Grace period | Disabled within N days (transition) | Monitor |
 | 🔴 Stale grace | Disabled > N days ago, still in Mimecast | Remove |
 
+**Grace Period Limitation**: The grace/stale buckets use `createdDateTime` (account creation date) as a proxy
+for "recently disabled". This is imprecise — long-tenured employees disabled last week will have an old
+`createdDateTime` and will appear as stale or orphaned rather than in the grace bucket. For accurate
+classification, `signInActivity.lastSignInDateTime` would be a better signal but requires `AuditLog.Read.All`
+permission. Always manually verify the grace bucket against HR offboarding records. (See TODO 044.)
+
 ### Security Configuration
 
 - **DKIM** — signing enabled for all configured domains

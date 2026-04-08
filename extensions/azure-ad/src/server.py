@@ -910,8 +910,12 @@ def _ual_time_window(hours: int) -> tuple[str, str]:
     return start, end
 
 
-async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) -> list:
-    """Fetch and unpack all UAL content blobs for a time window."""
+async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) -> tuple[list, bool]:
+    """Fetch and unpack all UAL content blobs for a time window.
+
+    Returns a (events, incomplete) tuple where incomplete=True if any blob
+    downloads failed (e.g. throttling, token expiry, network errors).
+    """
     if content_type not in VALID_UAL_CONTENT_TYPES:
         raise ValueError(f"Invalid content_type '{content_type}'. Must be one of: {sorted(VALID_UAL_CONTENT_TYPES)}")
     # Ensure subscription exists — 400 is expected if already active, ignore it
@@ -928,7 +932,7 @@ async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) ->
         "endTime": end_time,
     })
     if not isinstance(result, list):
-        return []
+        return [], False
 
     # Download each blob (parallel, with SSRF host validation)
     token = await _get_token(UAL_SCOPE)
@@ -944,9 +948,11 @@ async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) ->
             continue  # Skip untrusted URIs silently
         tasks.append(client.get(uri, headers=headers))
     responses = await asyncio.gather(*tasks, return_exceptions=True)
-    for resp in responses:
-        if isinstance(resp, Exception):
-            continue
+    errors = [str(r) for r in responses if isinstance(r, Exception)]
+    if errors:
+        print(f"WARNING: {len(errors)}/{len(tasks)} UAL blob downloads failed", file=sys.stderr)
+    blobs = [r for r in responses if not isinstance(r, Exception)]
+    for resp in blobs:
         if resp.status_code == 200:
             try:
                 all_events.extend(resp.json())
@@ -954,7 +960,7 @@ async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) ->
                 print(f"WARNING: UAL blob parse failed: {e}", file=sys.stderr)
             except TypeError as e:
                 print(f"WARNING: UAL blob unexpected shape: {e}", file=sys.stderr)
-    return all_events
+    return all_events, bool(errors)
 
 
 @mcp.tool()
@@ -980,7 +986,7 @@ async def azure_ad_ual_inbox_rules(
     """
     start, end = _ual_time_window(hours)
 
-    events = await _ual_fetch_blobs("Audit.Exchange", start, end)
+    events, _ = await _ual_fetch_blobs("Audit.Exchange", start, end)
 
     rule_ops = {
         "New-InboxRule", "Set-InboxRule", "UpdateInboxRules",
@@ -1045,7 +1051,7 @@ async def azure_ad_ual_search(
         raise ValueError(f"Invalid content_type '{content_type}'. Must be one of: {sorted(VALID_UAL_CONTENT_TYPES)}")
     start, end = _ual_time_window(hours)
 
-    events = await _ual_fetch_blobs(content_type, start, end)
+    events, _ = await _ual_fetch_blobs(content_type, start, end)
 
     filter_ops = {o.strip() for o in operations.split(",")} if operations else set()
     filter_users = {u.strip().lower() for u in users.split(",")} if users else set()
@@ -1084,7 +1090,7 @@ async def azure_ad_ual_mailbox_access(
     """
     start, end = _ual_time_window(hours)
 
-    events = await _ual_fetch_blobs("Audit.Exchange", start, end)
+    events, _ = await _ual_fetch_blobs("Audit.Exchange", start, end)
 
     access_ops = {
         "MailItemsAccessed", "MessageBind", "FolderBind",
@@ -1841,13 +1847,14 @@ async def azure_ad_ual_sharepoint(
     """
     start, end = _ual_time_window(hours)
 
-    sp_events, gen_events = await asyncio.gather(
+    sp_result, gen_result = await asyncio.gather(
         _ual_fetch_blobs("Audit.SharePoint", start, end),
         _ual_fetch_blobs("Audit.General", start, end),
         return_exceptions=True,
     )
-    all_events = (sp_events if isinstance(sp_events, list) else []) + \
-                 (gen_events if isinstance(gen_events, list) else [])
+    sp_events = sp_result[0] if isinstance(sp_result, tuple) else []
+    gen_events = gen_result[0] if isinstance(gen_result, tuple) else []
+    all_events = sp_events + gen_events
 
     default_ops = {
         "FileDownloaded", "FileSyncDownloadedFull", "FileAccessed", "FileDeleted",
@@ -1995,10 +2002,11 @@ async def azure_ad_incident_triage(
     # Fetch UAL blobs once — shared across all users (avoids N × blob download)
     ual_start, ual_end = _ual_time_window(ual_hours)
     try:
-        ual_events = await _ual_fetch_blobs("Audit.Exchange", ual_start, ual_end)
+        ual_events, ual_incomplete = await _ual_fetch_blobs("Audit.Exchange", ual_start, ual_end)
     except Exception as e:
         print(f"WARNING: UAL fetch failed for triage: {e}", file=sys.stderr)
         ual_events = []
+        ual_incomplete = True
 
     PHISHING_SUBJECTS = {"sharedfile", "invoice", "urgent", "wire", "payment", "verify", "confirm"}
 
@@ -2337,6 +2345,7 @@ async def azure_ad_incident_triage(
             "ualFindings": {
                 "inboxRuleChanges": ual_rule_events,
                 "mailboxAccess": ual_access[:10],
+                "ualDataIncomplete": ual_incomplete,
             },
             "riskSummary": risk_summary,
         }

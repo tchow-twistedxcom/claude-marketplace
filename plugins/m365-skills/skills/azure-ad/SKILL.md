@@ -189,7 +189,7 @@ These tools are available but not individually documented above. Use them for ge
 | `azure_ad_licenses` | List assigned license plans |
 | `azure_ad_directory_roles` | List directory roles and members |
 | `azure_ad_sign_ins` | Query sign-in logs |
-| `azure_ad_sign_in_get` | Get a specific sign-in by ID |
+| `azure_ad_get_sign_in` | Get a specific sign-in by ID |
 | `azure_ad_risk_detections` | Query risk detection events |
 | `azure_ad_risky_users` | List risky users |
 | `azure_ad_risky_user_history` | Get risk history for a user |

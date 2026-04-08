@@ -140,7 +140,7 @@
       "description": "Query sign-in logs \u2014 filter by user, IP, app, error code, risk level, or time window. Essential for compromise investigation."
     },
     {
-      "name": "azure_ad_sign_in_get",
+      "name": "azure_ad_get_sign_in",
       "description": "Get full detail for a specific sign-in event by ID"
     },
     {

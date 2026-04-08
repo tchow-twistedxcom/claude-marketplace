@@ -638,7 +638,7 @@ def analyze_config(config: dict, azure_domains: list[dict]) -> list[dict]:
     if policies_data is not None:
         items = policies_data.get("data", []) if isinstance(policies_data, dict) else []
         has_antispoofing = any(
-            p.get("policy", {}).get("definition", {}).get("description", "").lower().find("spoof") >= 0
+            "spoof" in p.get("policy", {}).get("definition", {}).get("description", "").lower()
             or "antispoofing" in str(p).lower()
             for p in items
         )

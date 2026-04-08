@@ -58,7 +58,7 @@ class HumanRiskDomain(BaseDomain):
             print("No user data returned.", file=sys.stderr)
             return
 
-        output_fmt = getattr(args, "output", "table")
+        output_fmt = args.output
         if output_fmt != "table":
             summary = _build_summary(users)
             format_output(summary, output_fmt, 'human-risk-summary')
@@ -106,7 +106,7 @@ class HumanRiskDomain(BaseDomain):
         users = sorted(users, key=lambda u: GRADE_ORDER.index(u.get(component, "F"))
                        if u.get(component) in GRADE_ORDER else 99)
 
-        output_fmt = getattr(args, "output", "table")
+        output_fmt = args.output
         if output_fmt != "table":
             from mimecast_formatter import format_output
             format_output(users, output_fmt, 'human-risk-users')

@@ -21,6 +21,7 @@ Usage:
 """
 
 import argparse
+import ipaddress
 import json
 import re
 import sys
@@ -31,6 +32,23 @@ from datetime import datetime, timedelta, timezone
 # Reuse existing modules
 from azure_ad_api import AzureADAPI, build_time_filter
 from formatters import print_error, print_warning
+
+
+# Scoring weights for compute_confidence
+_SCORE_MFA_FATIGUE = 3      # Strongest signal — confirmed MFA bypass
+_SCORE_RISK_DETECTION = 2   # Risk detection event
+_SCORE_IP_AUDIT = 1         # IP-based or audit anomaly signal
+_THRESHOLD_HIGH = 3
+_THRESHOLD_MEDIUM = 2
+
+
+def _is_valid_ip(ip: str) -> bool:
+    """Return True if ip is a valid IPv4 or IPv6 address."""
+    try:
+        ipaddress.ip_address(ip.split('%')[0])  # strip IPv6 zone ID before parsing
+        return True
+    except ValueError:
+        return False
 
 
 # Audit activity names that indicate post-compromise actions
@@ -48,7 +66,7 @@ SUSPICIOUS_AUDIT_ACTIVITIES = [
 ]
 
 
-def _values(response) -> list:
+def _values(response: dict) -> list:
     """Extract 'value' list from Graph API response or return list directly."""
     if isinstance(response, list):
         return response
@@ -59,7 +77,7 @@ def _values(response) -> list:
 
 def collect_sign_ins_by_ip(api: AzureADAPI, ip: str, filter_base: str) -> list:
     """Fetch all sign-ins from a specific IP address."""
-    if not re.match(r'^[\d.:/\[\]a-fA-F%]+$', ip):
+    if not _is_valid_ip(ip):
         print_warning(f"Skipping invalid IP address format: {ip!r}")
         return []
     f = f"ipAddress eq '{ip}'"
@@ -228,7 +246,7 @@ def resolve_user_id(api: AzureADAPI, upn: str) -> str:
         return ''
 
 
-def _process_victim(api: AzureADAPI, upn: str, risk_filter_base: str) -> tuple:
+def _process_victim(api: AzureADAPI, upn: str, risk_filter_base: str) -> tuple[str, list[dict], list[dict]]:
     """
     Fetch audit anomalies and auth methods for a single victim account.
 
@@ -242,7 +260,7 @@ def _process_victim(api: AzureADAPI, upn: str, risk_filter_base: str) -> tuple:
     return (upn, audit_events, auth_methods)
 
 
-def run_sweep(api: AzureADAPI, args) -> dict:
+def run_sweep(api: AzureADAPI, args: argparse.Namespace) -> dict:
     """
     Execute the full sweep and return a structured results dict.
     """
@@ -313,7 +331,7 @@ def run_sweep(api: AzureADAPI, args) -> dict:
             })
             # Collect IPs from risk events for cross-reference
             ip = event.get('ipAddress', '')
-            if ip and re.match(r'^[\d.:/\[\]a-fA-F%]+$', ip):
+            if ip and _is_valid_ip(ip):
                 suspect_ips.add(ip)
 
     # ── Vector 4: Risk IP cross-reference ──────────────────────────────────
@@ -376,16 +394,16 @@ def compute_confidence(evidence: dict) -> str:
     """Return HIGH/MEDIUM/LOW based on evidence weight."""
     score = 0
     if evidence.get('mfa_fatigue'):
-        score += 3  # Strongest signal — confirmed MFA bypass
+        score += _SCORE_MFA_FATIGUE
     if evidence.get('risk_detection'):
-        score += 2
+        score += _SCORE_RISK_DETECTION
     if evidence.get('ip_sweep') or evidence.get('ip_crossref'):
-        score += 1
+        score += _SCORE_IP_AUDIT
     if evidence.get('audit_anomalies'):
-        score += 1
-    if score >= 3:
+        score += _SCORE_IP_AUDIT
+    if score >= _THRESHOLD_HIGH:
         return 'HIGH'
-    elif score >= 2:
+    elif score >= _THRESHOLD_MEDIUM:
         return 'MEDIUM'
     return 'LOW'
 

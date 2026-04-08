@@ -60,7 +60,7 @@ class DirectorySyncDomain(BaseDomain):
             print("No directory sync connections found.")
             return
 
-        output_fmt = getattr(args, "output", "table")
+        output_fmt = args.output
         if output_fmt != "table":
             format_output(connections, output_fmt, 'sync-connections')
             return
@@ -98,7 +98,7 @@ class DirectorySyncDomain(BaseDomain):
         days = getattr(args, "days", 7)
         events = self.get_sync_events(days=days)
 
-        output_fmt = getattr(args, "output", "table")
+        output_fmt = args.output
         if output_fmt != "table":
             format_output(events, output_fmt, 'sync-history')
             return

@@ -20,7 +20,9 @@ Usage:
 """
 
 import argparse
+import getpass
 import json
+import os
 import re
 import sys
 from datetime import datetime, timedelta, timezone
@@ -607,7 +609,7 @@ Examples:
     users_create.add_argument('--display-name', required=True, help='Display name')
     users_create.add_argument('--upn', required=True, help='User principal name')
     users_create.add_argument('--mail-nickname', required=True, help='Mail nickname')
-    users_create.add_argument('--password', required=True, help='Initial password')
+    users_create.add_argument('--password', help='Initial password (or set AZURE_INITIAL_PASSWORD env var; prompted if omitted)')
     users_create.add_argument('--force-change', action='store_true', help='Force password change on sign-in')
 
     # users update
@@ -944,7 +946,7 @@ def main():
                     'mailNickname': args.mail_nickname,
                     'userPrincipalName': args.upn,
                     'passwordProfile': {
-                        'password': args.password,
+                        'password': args.password or os.environ.get('AZURE_INITIAL_PASSWORD') or getpass.getpass('Initial password: '),
                         'forceChangePasswordNextSignIn': args.force_change
                     },
                     'accountEnabled': True

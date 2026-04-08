@@ -8,7 +8,7 @@ import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -65,11 +65,11 @@ TOKEN_REFRESH_BUFFER = 300  # Refresh 5 min before expiry
 
 # In-memory token cache: {"graph:{client_id}": ..., "ual:{client_id}": ...}
 _token_cache: dict = {}
-_msal_app: Optional[ConfidentialClientApplication] = None
+_msal_app: ConfidentialClientApplication | None = None
 
 # ─── HTTP client singleton ────────────────────────────────────────────────────
 
-_http_client: Optional[httpx.AsyncClient] = None
+_http_client: httpx.AsyncClient | None = None
 _http_client_lock: asyncio.Lock = asyncio.Lock()
 _token_lock: asyncio.Lock = asyncio.Lock()
 
@@ -174,8 +174,8 @@ async def _get_token(scope: str = GRAPH_SCOPE) -> str:
 async def _graph(
     method: str,
     endpoint: str,
-    params: Optional[dict] = None,
-    data: Optional[dict] = None,
+    params: dict | None = None,
+    data: dict | None = None,
 ) -> Any:
     """Make an authenticated request to Microsoft Graph API."""
     token = await _get_token()
@@ -210,7 +210,7 @@ async def _graph(
     return response.json() if response.content else {}
 
 
-async def _get_all_pages(endpoint: str, params: Optional[dict] = None, max_pages: int = 500) -> list:
+async def _get_all_pages(endpoint: str, params: dict | None = None, max_pages: int = 500) -> list:
     """Collect all pages of a paginated Graph API result."""
     all_items = []
     page = 0
@@ -249,9 +249,9 @@ def _hours_filter(hours: int, field: str = "createdDateTime") -> str:
 
 @mcp.tool()
 async def azure_ad_list_users(
-    filter_query: Optional[str] = None,
-    search: Optional[str] = None,
-    select: Optional[str] = None,
+    filter_query: str | None = None,
+    search: str | None = None,
+    select: str | None = None,
     top: int = 100,
     all_pages: bool = False,
 ) -> str:
@@ -285,7 +285,7 @@ async def azure_ad_list_users(
 
 
 @mcp.tool()
-async def azure_ad_get_user(user_id: str, select: Optional[str] = None) -> str:
+async def azure_ad_get_user(user_id: str, select: str | None = None) -> str:
     """Get a user by UPN or object ID.
 
     Args:
@@ -311,6 +311,7 @@ async def azure_ad_search_users(query: str, top: int = 25) -> str:
 
     Returns matching user objects sorted by relevance.
     """
+    query = query.replace('"', '').strip()
     params = {
         "$search": f'"displayName:{query}" OR "mail:{query}" OR "userPrincipalName:{query}"',
         "$select": "id,displayName,userPrincipalName,mail,jobTitle,department,accountEnabled",
@@ -383,8 +384,8 @@ async def azure_ad_user_devices(user_id: str) -> str:
 
 @mcp.tool()
 async def azure_ad_list_groups(
-    filter_query: Optional[str] = None,
-    search: Optional[str] = None,
+    filter_query: str | None = None,
+    search: str | None = None,
     top: int = 100,
 ) -> str:
     """List Azure AD groups with optional filtering.
@@ -465,8 +466,8 @@ async def azure_ad_group_owners(group_id: str) -> str:
 
 @mcp.tool()
 async def azure_ad_list_devices(
-    filter_query: Optional[str] = None,
-    search: Optional[str] = None,
+    filter_query: str | None = None,
+    search: str | None = None,
     top: int = 100,
 ) -> str:
     """List Azure AD registered devices.
@@ -549,7 +550,9 @@ async def azure_ad_directory_roles() -> str:
     """List active directory roles and their members.
 
     Returns role definitions (Global Administrator, Security Administrator, etc.)
-    with member counts. Call azure_ad_group_members with role ID to see who holds a role.
+    with member counts. To see who holds a role, use azure_ad_role_changes (recent assignments)
+    or azure_ad_audit_logs with category 'RoleManagement'. Note: directory role IDs are NOT
+    group IDs — calling azure_ad_group_members with a role ID returns 404.
     """
     result = await _graph("GET", "/directoryRoles")
     return _fmt(result)
@@ -559,12 +562,12 @@ async def azure_ad_directory_roles() -> str:
 
 @mcp.tool()
 async def azure_ad_sign_ins(
-    user: Optional[str] = None,
-    ip: Optional[str] = None,
-    app: Optional[str] = None,
-    error_code: Optional[int] = None,
-    risk_level: Optional[str] = None,
-    country: Optional[str] = None,
+    user: str | None = None,
+    ip: str | None = None,
+    app: str | None = None,
+    error_code: int | None = None,
+    risk_level: str | None = None,
+    country: str | None = None,
     hours: int = 24,
     top: int = 100,
     all_pages: bool = False,
@@ -578,7 +581,7 @@ async def azure_ad_sign_ins(
         ip: Filter by source IP address (e.g. '203.0.113.50').
         app: Filter by application display name (e.g. 'Microsoft Teams').
         error_code: Filter by status error code:
-            0 = success, 50126 = bad password, 50199 = device code pending,
+            0 = success, 50126 = bad password, 50199 = MFA interrupted/fatigue indicator (adversary-in-the-middle phishing, repeated MFA push denial). See azure_ad_incident_triage for detection logic.,
             50053 = account locked, 53003 = Conditional Access blocked.
         risk_level: Filter by risk level: 'low', 'medium', 'high', 'none'.
         country: Filter by country code (e.g. 'US', 'RU', 'CN').
@@ -634,9 +637,9 @@ async def azure_ad_sign_in_get(sign_in_id: str) -> str:
 
 @mcp.tool()
 async def azure_ad_risk_detections(
-    risk_level: Optional[str] = None,
-    risk_event_type: Optional[str] = None,
-    user: Optional[str] = None,
+    risk_level: str | None = None,
+    risk_event_type: str | None = None,
+    user: str | None = None,
     hours: int = 72,
     top: int = 100,
 ) -> str:
@@ -671,8 +674,8 @@ async def azure_ad_risk_detections(
 
 @mcp.tool()
 async def azure_ad_risky_users(
-    risk_level: Optional[str] = None,
-    risk_state: Optional[str] = None,
+    risk_level: str | None = None,
+    risk_state: str | None = None,
     top: int = 100,
 ) -> str:
     """List users currently flagged as risky by Identity Protection.
@@ -714,10 +717,10 @@ async def azure_ad_risky_user_history(user_id: str) -> str:
 
 @mcp.tool()
 async def azure_ad_audit_logs(
-    activity: Optional[str] = None,
-    category: Optional[str] = None,
-    user: Optional[str] = None,
-    result_filter: Optional[str] = None,
+    activity: str | None = None,
+    category: str | None = None,
+    user: str | None = None,
+    result_filter: str | None = None,
     hours: int = 24,
     top: int = 100,
     all_pages: bool = False,
@@ -865,7 +868,7 @@ async def azure_ad_confirm_compromised(
 
 # ─── Unified Audit Log (Office 365 Management Activity API) ──────────────────
 
-async def _ual_request(method: str, path: str, params: Optional[dict] = None, data: Optional[dict] = None) -> Any:
+async def _ual_request(method: str, path: str, params: dict | None = None, data: dict | None = None) -> Any:
     """Make an authenticated request to the O365 Management Activity API."""
     tenant_id, _, _ = _get_credentials()
     token = await _get_token(UAL_SCOPE)
@@ -896,6 +899,8 @@ def _ual_time_window(hours: int) -> tuple[str, str]:
 
 async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) -> list:
     """Fetch and unpack all UAL content blobs for a time window."""
+    if content_type not in VALID_UAL_CONTENT_TYPES:
+        raise ValueError(f"Invalid content_type '{content_type}'. Must be one of: {sorted(VALID_UAL_CONTENT_TYPES)}")
     # Ensure subscription exists — 400 is expected if already active, ignore it
     try:
         await _ual_request("POST", f"/subscriptions/start?contentType={content_type}", data={})
@@ -942,7 +947,7 @@ async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) ->
 @mcp.tool()
 async def azure_ad_ual_inbox_rules(
     hours: int = 6,
-    users: Optional[str] = None,
+    users: str | None = None,
 ) -> str:
     """Query the Unified Audit Log for inbox rule creation and modification events.
 
@@ -997,8 +1002,8 @@ async def azure_ad_ual_inbox_rules(
 
 @mcp.tool()
 async def azure_ad_ual_search(
-    operations: Optional[str] = None,
-    users: Optional[str] = None,
+    operations: str | None = None,
+    users: str | None = None,
     content_type: str = "Audit.Exchange",
     hours: int = 6,
 ) -> str:
@@ -1023,6 +1028,8 @@ async def azure_ad_ual_search(
 
     Returns matching audit events with timestamps, IPs, and operation details.
     """
+    if content_type not in VALID_UAL_CONTENT_TYPES:
+        raise ValueError(f"Invalid content_type '{content_type}'. Must be one of: {sorted(VALID_UAL_CONTENT_TYPES)}")
     start, end = _ual_time_window(hours)
 
     events = await _ual_fetch_blobs(content_type, start, end)
@@ -1270,6 +1277,8 @@ async def azure_ad_create_named_location(
         ip_ranges: Comma-separated CIDR ranges (e.g. '203.0.113.0/24,198.51.100.5/32').
         is_trusted: Mark as trusted location (default True).
     """
+    if display_name and len(display_name) > 256:
+        raise ValueError("display_name must not exceed 256 characters")
     validated_ranges = []
     for cidr in ip_ranges.split(","):
         cidr = cidr.strip()
@@ -1316,6 +1325,8 @@ async def azure_ad_create_ca_policy(
         state: 'enabled', 'disabled', or 'enabledForReportingButNotEnforced'.
         include_apps: 'All' or comma-separated app IDs.
     """
+    if display_name and len(display_name) > 256:
+        raise ValueError("display_name must not exceed 256 characters")
     _validate_enum(state, VALID_CA_STATES, "state")
     _validate_enum(action, VALID_CA_ACTIONS, "action")
 
@@ -1362,8 +1373,8 @@ async def azure_ad_create_ca_policy(
 @mcp.tool()
 async def azure_ad_update_ca_policy(
     policy_id: str,
-    state: Optional[str] = None,
-    display_name: Optional[str] = None,
+    state: str | None = None,
+    display_name: str | None = None,
 ) -> str:
     """Update a Conditional Access policy (enable, disable, rename).
 
@@ -1372,6 +1383,8 @@ async def azure_ad_update_ca_policy(
         state: New state: 'enabled', 'disabled', or 'enabledForReportingButNotEnforced'.
         display_name: New display name.
     """
+    if display_name and len(display_name) > 256:
+        raise ValueError("display_name must not exceed 256 characters")
     payload: dict = {}
     if state:
         _validate_enum(state, VALID_CA_STATES, "state")
@@ -1444,9 +1457,8 @@ async def azure_ad_advanced_hunt(query: str, top: int = 1000, confirm: bool = Fa
     """
     if not confirm:
         return _fmt({
-            "status": "dry_run",
-            "message": "azure_ad_advanced_hunt passes KQL directly to the Defender API — potential injection risk. "
-                       "Set confirm=True after reviewing your query. This tool is for admin/analyst use only.",
+            "confirm": False,
+            "message": "Pass confirm=True to execute this query. azure_ad_advanced_hunt passes KQL directly to the Defender API — review your query before executing.",
             "query_preview": query[:200],
         })
     q = query.rstrip()
@@ -1458,10 +1470,10 @@ async def azure_ad_advanced_hunt(query: str, top: int = 1000, confirm: bool = Fa
 
 @mcp.tool()
 async def azure_ad_email_events(
-    sender: Optional[str] = None,
-    recipient: Optional[str] = None,
-    subject: Optional[str] = None,
-    network_message_id: Optional[str] = None,
+    sender: str | None = None,
+    recipient: str | None = None,
+    subject: str | None = None,
+    network_message_id: str | None = None,
     hours: int = 24,
     direction: str = "Outbound",
     top: int = 1000,
@@ -1485,8 +1497,18 @@ async def azure_ad_email_events(
         top: Max results — note: one row per recipient, so a blast to 385 people
             is 385 rows. Default 1000 covers most single-attacker campaigns.
 
-    Returns rows with: Timestamp, SenderFromAddress, RecipientEmailAddress, Subject,
-    NetworkMessageId, DeliveryStatus, LatestDeliveryAction, ThreatTypes.
+    Returns:
+        dict with keys:
+          - totalRows: int — total raw Defender rows processed
+          - totalMessages: int — distinct messages (by NetworkMessageId)
+          - messages: list of dicts, each with:
+              - time: ISO timestamp
+              - subject: str
+              - sender: str
+              - direction: str
+              - deliveryStatus: str
+              - threatTypes: list[str]
+              - recipients: list[str]
     """
     filters = [f"Timestamp >= ago({hours}h)"]
     if direction:
@@ -1625,7 +1647,7 @@ async def azure_ad_mailbox_settings(user_id: str) -> str:
 
 @mcp.tool()
 async def azure_ad_mfa_changes(
-    user: Optional[str] = None,
+    user: str | None = None,
     hours: int = 72,
     top: int = 200,
 ) -> str:
@@ -1676,7 +1698,7 @@ async def azure_ad_mfa_changes(
 
 @mcp.tool()
 async def azure_ad_role_changes(
-    user: Optional[str] = None,
+    user: str | None = None,
     hours: int = 72,
     top: int = 100,
 ) -> str:
@@ -1713,9 +1735,9 @@ async def azure_ad_role_changes(
 
 @mcp.tool()
 async def azure_ad_email_attachments(
-    sender: Optional[str] = None,
-    recipient: Optional[str] = None,
-    file_name: Optional[str] = None,
+    sender: str | None = None,
+    recipient: str | None = None,
+    file_name: str | None = None,
     hours: int = 24,
     top: int = 500,
 ) -> str:
@@ -1738,6 +1760,7 @@ async def azure_ad_email_attachments(
     Returns file name, type, size, SHA256, malware family (if detected),
     and NetworkMessageId for correlation with EmailEvents.
     """
+    hours = max(1, min(int(hours), 720))
     filters = [f"Timestamp >= ago({hours}h)"]
     if sender:
         filters.append(f"SenderFromAddress =~ '{_validate_kql_value(sender)}'")
@@ -1761,9 +1784,9 @@ async def azure_ad_email_attachments(
 
 @mcp.tool()
 async def azure_ad_ual_sharepoint(
-    users: Optional[str] = None,
+    users: str | None = None,
     hours: int = 6,
-    operations: Optional[str] = None,
+    operations: str | None = None,
 ) -> str:
     """Query UAL for SharePoint, OneDrive, and Teams forensics.
 
@@ -1823,7 +1846,7 @@ async def azure_ad_ual_sharepoint(
 @mcp.tool()
 async def azure_ad_incident_triage(
     users: str,
-    trusted_ips: Optional[str] = None,
+    trusted_ips: str | None = None,
     hours: int = 24,
     ual_hours: int = 6,
 ) -> str:
@@ -1883,15 +1906,16 @@ async def azure_ad_incident_triage(
         # CloudAppEvents: Exchange Online activity visible to MCAS/Defender — mailbox access, sends,
         #   deletes from attacker IPs. Available without Defender for O365 Plan 2.
         _upn_kql = _validate_kql_value(upn)
+        _hours_capped = max(1, min(int(hours), 720))
         email_kql = (
             f"EmailEvents | where SenderFromAddress =~ '{_upn_kql}' "
-            f"and Timestamp >= ago({hours}h) and EmailDirection == 'Outbound' "
+            f"and Timestamp >= ago({_hours_capped}h) and EmailDirection == 'Outbound' "
             "| project Timestamp, RecipientEmailAddress, Subject, NetworkMessageId, DeliveryStatus "
             "| order by Timestamp desc | limit 1000"
         )
         cloud_kql = (
             f"CloudAppEvents | where AccountUpn =~ '{_upn_kql}' "
-            f"and Timestamp >= ago({hours}h) "
+            f"and Timestamp >= ago({_hours_capped}h) "
             "and Application == 'Microsoft Exchange Online' "
             "| project Timestamp, ActionType, IPAddress, CountryCode, ISP, UserAgent, ObjectName "
             "| order by Timestamp desc | limit 300"
@@ -2076,7 +2100,7 @@ async def azure_ad_incident_triage(
             auth_methods.append(f"{t}:{detail}" if detail else t)
 
         # ── Mailbox forwarding (attacker persistence) ──
-        forwarding_address: Optional[str] = None
+        forwarding_address: str | None = None
         if isinstance(mailbox_data, dict) and not isinstance(mailbox_data, Exception):
             forwarding_address = (mailbox_data.get("forwardingSmtpAddress")
                                   or mailbox_data.get("forwardTo") or None)

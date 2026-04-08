@@ -71,6 +71,7 @@ _msal_app: Optional[ConfidentialClientApplication] = None
 
 _http_client: Optional[httpx.AsyncClient] = None
 _http_client_lock: asyncio.Lock = asyncio.Lock()
+_token_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def _get_http_client() -> httpx.AsyncClient:
@@ -100,6 +101,7 @@ VALID_RISK_EVENT_TYPES = {
 VALID_RESULT_FILTERS = {"success", "failure", "timeout"}
 VALID_CA_STATES = {"enabled", "disabled", "enabledforreportingbutnotenforced"}
 VALID_CA_ACTIONS = {"block", "mfa", "compliantDevice", "compliantApplication"}
+VALID_UAL_CONTENT_TYPES = {"Audit.Exchange", "Audit.AzureActiveDirectory", "Audit.General"}
 
 
 def _validate_enum(value: str, valid_set: set, field: str) -> str:
@@ -121,10 +123,14 @@ def _get_credentials() -> tuple[str, str, str]:
     return tenant_id, client_id, client_secret
 
 
-def _get_msal_app() -> ConfidentialClientApplication:
-    """Get or create MSAL app (cached for process lifetime)."""
+async def _get_msal_app() -> ConfidentialClientApplication:
+    """Get or create MSAL app (cached for process lifetime), with double-checked locking."""
     global _msal_app
-    if _msal_app is None:
+    if _msal_app is not None:
+        return _msal_app
+    async with _token_lock:
+        if _msal_app is not None:
+            return _msal_app
         tenant_id, client_id, client_secret = _get_credentials()
         authority = f"https://login.microsoftonline.com/{tenant_id}"
         _msal_app = ConfidentialClientApplication(
@@ -132,28 +138,37 @@ def _get_msal_app() -> ConfidentialClientApplication:
             client_credential=client_secret,
             authority=authority,
         )
-    return _msal_app
+        return _msal_app
 
 
 async def _get_token(scope: str = GRAPH_SCOPE) -> str:
-    """Get a valid access token for the given scope, using in-memory cache."""
+    """Get a valid access token for the given scope, using in-memory cache.
+
+    Uses double-checked locking to prevent TOCTOU races when multiple coroutines
+    concurrently encounter an expired (or absent) cache entry.
+    """
     _, client_id, _ = _get_credentials()
     cache_key = f"{scope}:{client_id}"
+    # Fast path: check without lock
     cached = _token_cache.get(cache_key)
     if cached and time.time() < cached["expires_at"] - TOKEN_REFRESH_BUFFER:
         return cached["access_token"]
-
-    app = _get_msal_app()
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, lambda: app.acquire_token_for_client(scopes=[scope]))
-    if "access_token" not in result:
-        error = result.get("error", "unknown")
-        raise ValueError(f"Token acquisition failed for {scope}: {error}")
-    _token_cache[cache_key] = {
-        "access_token": result["access_token"],
-        "expires_at": time.time() + result.get("expires_in", 3600),
-    }
-    return result["access_token"]
+    # Slow path: acquire lock, re-check, then refresh
+    async with _token_lock:
+        cached = _token_cache.get(cache_key)
+        if cached and time.time() < cached["expires_at"] - TOKEN_REFRESH_BUFFER:
+            return cached["access_token"]
+        app = await _get_msal_app()
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, lambda: app.acquire_token_for_client(scopes=[scope]))
+        if "access_token" not in result:
+            error = result.get("error", "unknown")
+            raise ValueError(f"Token acquisition failed for {scope}: {error}")
+        _token_cache[cache_key] = {
+            "access_token": result["access_token"],
+            "expires_at": time.time() + result.get("expires_in", 3600),
+        }
+        return result["access_token"]
 
 
 async def _graph(

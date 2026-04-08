@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "071"
 tags: [code-review, architecture, quality, azure-ad]
@@ -62,11 +62,16 @@ Have `run_cli()` raise a typed `CLIError` (or return a `Result` tuple `(data, er
 
 ## Acceptance Criteria
 
-- [ ] `analyze_sync_health` iterates all connections (not just index 0)
-- [ ] `cross_reference` uses `signInActivity.lastSignInDateTime` for grace period boundary (falls back to `createdDateTime`)
-- [ ] `global AZURE_SVC_PREFIXES` removed; `filter_azure_users` accepts `svc_prefixes` parameter
-- [ ] `run_cli()` distinguishes non-zero exit from empty result; auth failures surface in `fetch_errors`
+- [x] `analyze_sync_health` iterates all connections (not just index 0)
+- [x] `cross_reference` uses `signInActivity.lastSignInDateTime` for grace period boundary (falls back to `createdDateTime`)
+- [x] `global AZURE_SVC_PREFIXES` removed; `filter_azure_users` accepts `svc_prefixes` parameter
+- [x] `run_cli()` distinguishes non-zero exit from empty result; auth failures surface in `fetch_errors`
 
 ## Work Log
 
 - 2026-04-08: Identified by architecture-strategist (FINDING-4/5/6/7) and kieran-python-reviewer (FINDING-1) in 5th review pass
+- 2026-04-08: Implemented all 4 fixes in `plugins/mimecast-skills/scripts/audit_m365_sync.py`:
+  1. `analyze_sync_health`: replaced `conn = connections[0]` with `for i, conn in enumerate(connections):`, prefixed all `check` keys with `connection_{i}` so multi-forest tenants see per-connection health findings.
+  2. Grace period boundary: added `signInActivity` to `$select` in `fetch_azure_users`; `cross_reference` now uses `signInActivity.lastSignInDateTime or createdDateTime` as boundary date, removing the false-positive `stale_grace` classification for recently-offboarded long-tenured employees.
+  3. Global mutation: removed `global AZURE_SVC_PREFIXES` statement; `filter_azure_users` now accepts `svc_prefixes=AZURE_SVC_PREFIXES` parameter; `main()` computes `svc_prefixes` locally and passes it as a kwarg.
+  4. Error differentiation: `run_cli()` now returns typed sentinel dicts `{"_error": True, "_error_type": ..., "_error_msg": ...}` for non-zero exit, JSON parse failure, timeout, and exception cases. Added `_is_cli_error()` helper. Fetch functions (`fetch_azure_users`, `fetch_azure_deleted_users`, `fetch_azure_domains`, `fetch_mimecast_users`) raise `RuntimeError` on error sentinels so the ThreadPoolExecutor catch in `main()` populates `fetch_errors`. Config/health sub-commands convert sentinels to `None` with a warning log.

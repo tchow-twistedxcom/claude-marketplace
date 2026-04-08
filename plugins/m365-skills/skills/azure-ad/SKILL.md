@@ -82,8 +82,10 @@ is running. They require the MCP server to be configured — either via `plugins
 #### Incident Response
 
 - **`azure_ad_delete_inbox_rule`** — Delete a specific malicious inbox rule from a user's mailbox.
-  Use rule IDs returned by `azure_ad_ual_inbox_rules` or `azure_ad_incident_triage`. Requires
-  `confirm=True` to execute; returns preview when `confirm=False`.
+  Get rule ID from `azure_ad_incident_triage` output (`maliciousRules[].id`).
+  `azure_ad_ual_inbox_rules` provides forensic attribution (creator IP, timestamp) but NOT the
+  Graph rule ID needed for deletion. Requires `confirm=True` to execute; returns preview when
+  `confirm=False`.
 
 - **`azure_ad_dismiss_risky_users`** — Dismiss the Identity Protection risk state for one or more
   users after full remediation (password reset + sessions revoked + MFA re-enrolled). Calls
@@ -240,7 +242,7 @@ The DXT manifest is at `extensions/azure-ad/manifest.json`. The server entry poi
 If the `azure-ad` MCP server is connected (test by calling `azure_ad_list_users` — if it responds, the server is up), **prefer MCP tools**:
 - No `cwd` setup required
 - Return structured JSON directly
-- Cover all 47 operations
+- Cover all 49 operations
 - Support concurrent tool calls
 
 Use `scripts/azure_ad_api.py` CLI only when:

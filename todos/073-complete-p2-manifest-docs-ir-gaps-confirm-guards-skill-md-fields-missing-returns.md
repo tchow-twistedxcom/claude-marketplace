@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "073"
 tags: [code-review, azure-ad, agent-native, quality]
@@ -75,3 +75,4 @@ Lists "Create/Update/Delete: Full user lifecycle management", "Licensing", "Devi
 ## Work Log
 
 - 2026-04-08: Identified by agent-native-reviewer (FINDING-4/5/6/7/8/9/10/11/12/13/14) and pattern-recognition-specialist (FINDING-7/8/9/10) in 5th review pass
+- 2026-04-08: Resolved — all 7 acceptance criteria addressed. manifest.json: appended confirm guard text to all 4 tools; registered azure_ad_delete_inbox_rule and azure_ad_dismiss_risky_users. SKILL.md: fixed incident_triage output field names (suspiciousSignIns, maliciousRules, suspiciousSentMail, ualFindings) and added account/riskSummary; rewrote Capabilities section with MCP vs CLI-only distinction; documented new tools. server.py: added Returns sections to azure_ad_sent_emails, azure_ad_get_email, azure_ad_list_ca_policies; documented 10,000 top cap in azure_ad_advanced_hunt and azure_ad_email_events; implemented azure_ad_delete_inbox_rule (DELETE /users/{id}/mailFolders/inbox/messageRules/{rule_id}) and azure_ad_dismiss_risky_users (POST /identityProtection/riskyUsers/dismiss). Commit: d7e92b1.

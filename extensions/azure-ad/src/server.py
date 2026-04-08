@@ -64,14 +64,19 @@ UAL_SCOPE = "https://manage.office.com/.default"
 TOKEN_REFRESH_BUFFER = 300  # Refresh 5 min before expiry  # NOTE: This value must match the corresponding constant in auth.py
 
 # In-memory token cache: {"graph:{client_id}": ..., "ual:{client_id}": ...}
-_token_cache: dict = {}
+_token_cache: dict[str, Any] = {}
 _msal_app: ConfidentialClientApplication | None = None
 
 # ─── HTTP client singleton ────────────────────────────────────────────────────
 
 _http_client: httpx.AsyncClient | None = None
+# Module-level locks: safe in Python 3.10+ (no event loop binding at creation).
+# FastMCP uses a single event loop per process. Test suites should re-import this
+# module per test process to get fresh lock instances.
 _http_client_lock: asyncio.Lock = asyncio.Lock()
 _token_lock: asyncio.Lock = asyncio.Lock()
+# Cap concurrent user triages to avoid Graph API throttling (each user = 9 Graph calls)
+_TRIAGE_SEMAPHORE = asyncio.Semaphore(10)
 
 
 async def _get_http_client() -> httpx.AsyncClient:
@@ -101,10 +106,13 @@ VALID_RISK_EVENT_TYPES = {
 VALID_RESULT_FILTERS = {"success", "failure", "timeout"}
 VALID_CA_STATES = {"enabled", "disabled", "enabledforreportingbutnotenforced"}
 VALID_CA_ACTIONS = {"block", "mfa", "compliantDevice", "compliantApplication"}
-VALID_UAL_CONTENT_TYPES = {"Audit.Exchange", "Audit.AzureActiveDirectory", "Audit.General"}
+VALID_UAL_CONTENT_TYPES = {"Audit.Exchange", "Audit.AzureActiveDirectory", "Audit.General", "Audit.SharePoint"}
 VALID_MAIL_FOLDERS = {"inbox", "sentitems", "drafts", "deleteditems", "junkemail", "outbox", "archive"}
-PHISHING_SUBJECTS: frozenset = frozenset({
+PHISHING_SUBJECTS: frozenset[str] = frozenset({
     "sharedfile", "invoice", "urgent", "wire", "payment", "verify", "confirm",
+})
+SUSPICIOUS_CLOUD_OPS: frozenset[str] = frozenset({
+    "HardDelete", "SoftDelete", "MoveToDeletedItems", "Send", "SendAs", "SendOnBehalf",
 })
 
 
@@ -249,7 +257,7 @@ def _hours_filter(hours: int, field: str = "createdDateTime") -> str:
     return f"{field} ge {since}"
 
 
-def _gather_values(result) -> list:
+def _gather_values(result: Any) -> list:
     """Extract .value list from a Graph API result, handling exceptions and non-dicts."""
     if isinstance(result, Exception):
         return []
@@ -616,13 +624,13 @@ async def azure_ad_sign_ins(
     if ip:
         filters.append(f"ipAddress eq '{_validate_ip(ip)}'")
     if app:
-        filters.append(f"appDisplayName eq '{app.replace(chr(39), chr(39)*2)}'")
+        filters.append("appDisplayName eq '" + app.replace("'", "''") + "'")
     if error_code is not None:
         filters.append(f"status/errorCode eq {error_code}")
     if risk_level:
         filters.append(f"riskLevelDuringSignIn eq '{_validate_enum(risk_level, VALID_RISK_LEVELS, 'risk_level')}'")
     if country:
-        filters.append(f"location/countryOrRegion eq '{country.replace(chr(39), chr(39)*2)}'")
+        filters.append("location/countryOrRegion eq '" + country.replace("'", "''") + "'")
 
     params = {
         "$filter": " and ".join(filters),
@@ -677,7 +685,7 @@ async def azure_ad_risk_detections(
     if risk_level:
         filters.append(f"riskLevel eq '{_validate_enum(risk_level, VALID_RISK_LEVELS, 'risk_level')}'")
     if risk_event_type:
-        filters.append(f"riskEventType eq '{risk_event_type.replace(chr(39), chr(39)*2)}'")
+        filters.append("riskEventType eq '" + risk_event_type.replace("'", "''") + "'")
     if user:
         filters.append(f"userPrincipalName eq '{_validate_email(user)}'")
 
@@ -760,9 +768,9 @@ async def azure_ad_audit_logs(
     """
     filters = [_hours_filter(hours, "activityDateTime")]
     if activity:
-        filters.append(f"activityDisplayName eq '{activity.replace(chr(39), chr(39)*2)}'")
+        filters.append("activityDisplayName eq '" + activity.replace("'", "''") + "'")
     if category:
-        filters.append(f"category eq '{category.replace(chr(39), chr(39)*2)}'")
+        filters.append("category eq '" + category.replace("'", "''") + "'")
     if result_filter:
         filters.append(f"result eq '{_validate_enum(result_filter, VALID_RESULT_FILTERS, 'result_filter')}'")
     if user:
@@ -833,7 +841,7 @@ async def azure_ad_revoke_sessions(
     use azure_ad_confirm_compromised to also flag them in Identity Protection.
     """
     if not confirm:
-        return json.dumps({
+        return _fmt({
             "confirm": False,
             "would_revoke_sessions_for": user,
             "message": "Pass confirm=True to execute. This will immediately sign out the user from all devices.",
@@ -869,12 +877,14 @@ async def azure_ad_confirm_compromised(
     Affected users will appear in azure_ad_risky_users with riskState = 'confirmedCompromised'.
     """
     if not confirm:
-        return json.dumps({
+        return _fmt({
             "confirm": False,
             "would_flag_as_compromised": users,
             "warning": "This operation is irreversible via API and may immediately lock out accounts.",
             "message": "Pass confirm=True to execute.",
         })
+    if len(users) > 60:
+        raise ValueError(f"Graph API limit: max 60 user IDs per call, got {len(users)}. Split into batches.")
     print(f"[azure-ad-server] DESTRUCTIVE OP: confirmCompromised users={users}", file=sys.stderr)
     result = await _graph(
         "POST",
@@ -991,7 +1001,7 @@ async def azure_ad_ual_inbox_rules(
     """
     start, end = _ual_time_window(hours)
 
-    events, _ = await _ual_fetch_blobs("Audit.Exchange", start, end)
+    events, incomplete = await _ual_fetch_blobs("Audit.Exchange", start, end)
 
     rule_ops = {
         "New-InboxRule", "Set-InboxRule", "UpdateInboxRules",
@@ -1021,7 +1031,11 @@ async def azure_ad_ual_inbox_rules(
         })
 
     results.sort(key=lambda x: x["time"] or "")
-    return _fmt({"count": len(results), "events": results})
+    result: dict = {"count": len(results), "events": results}
+    if incomplete:
+        result["ualDataIncomplete"] = True
+        result["warning"] = "UAL blob cursor limit reached; results may be truncated"
+    return _fmt(result)
 
 
 @mcp.tool()
@@ -1056,7 +1070,7 @@ async def azure_ad_ual_search(
         raise ValueError(f"Invalid content_type '{content_type}'. Must be one of: {sorted(VALID_UAL_CONTENT_TYPES)}")
     start, end = _ual_time_window(hours)
 
-    events, _ = await _ual_fetch_blobs(content_type, start, end)
+    events, incomplete = await _ual_fetch_blobs(content_type, start, end)
 
     filter_ops = {o.strip() for o in operations.split(",")} if operations else set()
     filter_users = {u.strip().lower() for u in users.split(",")} if users else set()
@@ -1070,7 +1084,11 @@ async def azure_ad_ual_search(
         results.append(evt)
 
     results.sort(key=lambda x: x.get("CreationTime") or "")
-    return _fmt({"count": len(results), "events": results})
+    result: dict = {"count": len(results), "events": results}
+    if incomplete:
+        result["ualDataIncomplete"] = True
+        result["warning"] = "UAL blob cursor limit reached; results may be truncated"
+    return _fmt(result)
 
 
 @mcp.tool()
@@ -1088,6 +1106,9 @@ async def azure_ad_ual_mailbox_access(
     Args:
         users: Comma-separated UPNs to check (e.g. 'john@contoso.com,jane@contoso.com').
             Leave blank to return all mailbox access events in the tenant for the time window.
+            **Note**: User filtering is applied client-side after downloading all events. The O365
+            Management API has no server-side user filter — passing `users` reduces returned results
+            but not download volume.
         hours: Time window in hours (default 6h, max 24h per API limit).
 
     Returns MailItemsAccessed, MessageBind, and related events showing which
@@ -1095,7 +1116,7 @@ async def azure_ad_ual_mailbox_access(
     """
     start, end = _ual_time_window(hours)
 
-    events, _ = await _ual_fetch_blobs("Audit.Exchange", start, end)
+    events, incomplete = await _ual_fetch_blobs("Audit.Exchange", start, end)
 
     access_ops = {
         "MailItemsAccessed", "MessageBind", "FolderBind",
@@ -1121,7 +1142,11 @@ async def azure_ad_ual_mailbox_access(
         })
 
     results.sort(key=lambda x: x["time"] or "")
-    return _fmt({"count": len(results), "events": results})
+    result: dict = {"count": len(results), "events": results}
+    if incomplete:
+        result["ualDataIncomplete"] = True
+        result["warning"] = "UAL blob cursor limit reached; results may be truncated"
+    return _fmt(result)
 
 
 # ─── Mail (Forensic) ──────────────────────────────────────────────────────────
@@ -1361,6 +1386,12 @@ async def azure_ad_create_ca_policy(
         action: Grant control: 'block', 'mfa', 'compliantDevice', or 'compliantApplication'.
         state: 'enabled', 'disabled', or 'enabledForReportingButNotEnforced'.
         include_apps: 'All' or comma-separated app IDs.
+
+    Returns:
+        Created CA policy object including:
+        - id: Policy GUID — use with azure_ad_update_ca_policy or azure_ad_delete_ca_policy
+        - displayName: Policy name
+        - state: "enabled", "disabled", or "enabledForReportingButNotEnforced"
     """
     if display_name and len(display_name) > 256:
         raise ValueError("display_name must not exceed 256 characters")
@@ -1857,8 +1888,10 @@ async def azure_ad_ual_sharepoint(
         _ual_fetch_blobs("Audit.General", start, end),
         return_exceptions=True,
     )
-    sp_events = sp_result[0] if isinstance(sp_result, tuple) else []
-    gen_events = gen_result[0] if isinstance(gen_result, tuple) else []
+    sp_events: list = sp_result[0] if isinstance(sp_result, tuple) else []
+    sp_incomplete: bool = sp_result[1] if isinstance(sp_result, tuple) else True
+    gen_events: list = gen_result[0] if isinstance(gen_result, tuple) else []
+    gen_incomplete: bool = gen_result[1] if isinstance(gen_result, tuple) else True
     all_events = sp_events + gen_events
 
     default_ops = {
@@ -1888,7 +1921,11 @@ async def azure_ad_ual_sharepoint(
             "workload": evt.get("Workload", ""),
         })
     results.sort(key=lambda x: x.get("time") or "")
-    return _fmt({"count": len(results), "events": results})
+    out: dict = {"count": len(results), "events": results}
+    if sp_incomplete or gen_incomplete:
+        out["ualDataIncomplete"] = True
+        out["warning"] = "UAL blob cursor limit reached; results may be truncated"
+    return _fmt(out)
 
 
 # ─── Incident Response Remediation ──────────────────────────────────────────
@@ -1901,13 +1938,16 @@ async def azure_ad_delete_inbox_rule(
 ) -> str:
     """Delete a specific inbox rule from a user's mailbox (incident response remediation).
 
-    Use after azure_ad_ual_inbox_rules or azure_ad_incident_triage to remove attacker-created
-    rules that forward, delete, or move email. Rule IDs are returned in the maliciousRules
-    field of azure_ad_incident_triage output.
+    Use after azure_ad_incident_triage to remove attacker-created rules that forward, delete,
+    or move email. Rule IDs are returned in the maliciousRules field of azure_ad_incident_triage
+    output. Note: azure_ad_ual_inbox_rules provides forensic attribution but does NOT return
+    rule IDs — use azure_ad_incident_triage or Graph API messageRules endpoint for IDs.
 
     Args:
         user_id: User UPN (e.g. user@domain.com) or object ID whose mailbox contains the rule.
-        rule_id: Inbox rule ID from azure_ad_ual_inbox_rules or azure_ad_incident_triage results.
+        rule_id: Inbox rule ID. Get rule ID from `azure_ad_incident_triage` output
+            (`maliciousRules[].id`) or by calling `GET /users/{user}/mailFolders/inbox/messageRules`
+            directly. `azure_ad_ual_inbox_rules` returns forensic attribution but NOT rule IDs.
         confirm: Must be set to True to execute. Defaults to False for safety.
 
     Returns:
@@ -1921,6 +1961,8 @@ async def azure_ad_delete_inbox_rule(
             "user": user_id,
             "message": "Pass confirm=True to permanently delete this inbox rule.",
         })
+    if not re.match(r'^[A-Za-z0-9+/=_\-]{4,500}$', rule_id):
+        raise ValueError(f"Invalid rule_id format: {rule_id!r}")
     print(f"[azure-ad-server] DESTRUCTIVE OP: deleteInboxRule user={user_id} rule_id={rule_id}", file=sys.stderr)
     await _graph("DELETE", f"/users/{user_id}/mailFolders/inbox/messageRules/{rule_id}")
     return _fmt({"success": True, "deleted_rule_id": rule_id, "user": user_id})
@@ -1939,7 +1981,9 @@ async def azure_ad_dismiss_risky_users(
 
     Args:
         user_ids: List of Azure AD object IDs to dismiss. Get IDs from azure_ad_risky_users
-            or azure_ad_get_user. Note: UPNs are NOT accepted — must be object IDs.
+            or azure_ad_get_user.
+            **Object IDs (GUIDs) required** — UPNs are not accepted and return HTTP 400. Use the
+            `id` field from `azure_ad_risky_users` output.
         confirm: Must be set to True to execute. Defaults to False for safety.
 
     Returns:
@@ -1951,7 +1995,10 @@ async def azure_ad_dismiss_risky_users(
             "confirm": False,
             "would_dismiss_risk_for": user_ids,
             "message": "Pass confirm=True to dismiss risk state for these users. Ensure full remediation (password reset + sessions revoked + MFA re-enrolled) is complete first.",
+            "note": "user_ids must be object IDs (GUIDs), not UPNs. UPNs return HTTP 400.",
         })
+    if len(user_ids) > 60:
+        raise ValueError(f"Graph API limit: max 60 user IDs per call, got {len(user_ids)}. Split into batches.")
     print(f"[azure-ad-server] DESTRUCTIVE OP: dismissRiskyUsers user_ids={user_ids}", file=sys.stderr)
     await _graph(
         "POST",
@@ -2232,8 +2279,6 @@ async def _triage_one(
     cloud_events: list = []
     cloud_suspicious: list = []
     if not isinstance(cloud_events_raw, Exception) and isinstance(cloud_events_raw, dict):
-        SUSPICIOUS_CLOUD_OPS = {"HardDelete", "SoftDelete", "MoveToDeletedItems",
-                                "Send", "SendAs", "SendOnBehalf"}
         for row in cloud_events_raw.get("results", []):
             ip = row.get("IPAddress", "")
             action = row.get("ActionType", "")
@@ -2251,9 +2296,6 @@ async def _triage_one(
                 entry_flagged = dict(entry)
                 entry_flagged["flag"] = "NON_TRUSTED_IP_" + action.upper()
                 cloud_suspicious.append(entry_flagged)
-    else:
-        cloud_events = []
-        cloud_suspicious = []
 
     # ── Risk summary ──
     indicators: list = []
@@ -2368,10 +2410,14 @@ async def azure_ad_incident_triage(
         ual_incomplete = True
 
     # Run all users concurrently — delegate to module-level _triage_one
-    reports = await asyncio.gather(*[
-        _triage_one(upn, ual_events, ual_incomplete, trusted_ip_set, hours, since)
-        for upn in user_list
-    ], return_exceptions=True)
+    async def _bounded_triage(user: dict) -> dict:
+        async with _TRIAGE_SEMAPHORE:
+            return await _triage_one(user, ual_events, ual_incomplete, trusted_ip_set, hours, since)
+
+    reports = await asyncio.gather(
+        *[_bounded_triage(upn) for upn in user_list],
+        return_exceptions=True,
+    )
 
     return _fmt({
         "triageTimestamp": datetime.now(timezone.utc).isoformat(),

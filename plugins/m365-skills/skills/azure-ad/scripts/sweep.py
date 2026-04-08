@@ -47,6 +47,15 @@ SUSPICIOUS_AUDIT_ACTIVITIES = [
 ]
 
 
+def _values(response) -> list:
+    """Extract 'value' list from Graph API response or return list directly."""
+    if isinstance(response, list):
+        return response
+    if isinstance(response, dict):
+        return response.get("value", [])
+    return []
+
+
 def collect_sign_ins_by_ip(api: AzureADAPI, ip: str, filter_base: str) -> list:
     """Fetch all sign-ins from a specific IP address."""
     f = f"ipAddress eq '{ip}'"
@@ -54,7 +63,7 @@ def collect_sign_ins_by_ip(api: AzureADAPI, ip: str, filter_base: str) -> list:
         f = f"{filter_base} and {f}"
     try:
         result = api.security_sign_ins(top=500, filter_query=f, all_pages=True)
-        return result.get('value', []) if isinstance(result, dict) else []
+        return _values(result)
     except Exception as e:
         print_warning(f"IP sweep failed for {ip}: {e}")
         return []
@@ -73,7 +82,7 @@ def collect_mfa_fatigue_victims(api: AzureADAPI, filter_base: str, window_minute
         f_fail = f"{filter_base} and {f_fail}"
     try:
         fail_result = api.security_sign_ins(top=1000, filter_query=f_fail, all_pages=True)
-        failures = fail_result.get('value', []) if isinstance(fail_result, dict) else []
+        failures = _values(fail_result)
     except Exception as e:
         print_warning(f"MFA fatigue query (failures) failed: {e}")
         failures = []
@@ -93,13 +102,15 @@ def collect_mfa_fatigue_victims(api: AzureADAPI, filter_base: str, window_minute
     victims = {}
 
     for upn in upns_with_failures:
+        # Escape single quotes in UPN for OData filter safety
+        safe_upn = upn.replace("'", "''")
         # For each UPN, pull their successes in the same window
-        f_success = f"userPrincipalName eq '{upn}' and status/errorCode eq 0"
+        f_success = f"userPrincipalName eq '{safe_upn}' and status/errorCode eq 0"
         if filter_base:
             f_success = f"{filter_base} and {f_success}"
         try:
             succ_result = api.security_sign_ins(top=200, filter_query=f_success, all_pages=False)
-            successes = succ_result.get('value', []) if isinstance(succ_result, dict) else []
+            successes = _values(succ_result)
         except Exception as e:
             print(f"  [!] Success query failed for {upn}: {e}", file=sys.stderr)
             continue
@@ -148,7 +159,7 @@ def collect_risk_detections(api: AzureADAPI, filter_base: str) -> list:
             filter_query=filter_base or None,
             all_pages=True
         )
-        return result.get('value', []) if isinstance(result, dict) else []
+        return _values(result)
     except Exception as e:
         print_warning(f"Risk detections unavailable (requires P1+): {e}")
         return []
@@ -156,14 +167,17 @@ def collect_risk_detections(api: AzureADAPI, filter_base: str) -> list:
 
 def collect_suspicious_audit_events(api: AzureADAPI, upn: str, user_id: str, filter_base: str) -> list:
     """Fetch suspicious audit log entries for a specific user."""
-    f = f"initiatedBy/user/id eq '{user_id}' or targetResources/any(t: t/userPrincipalName eq '{upn}')"
+    # Escape single quotes in UPN for OData filter safety
+    safe_upn = upn.replace("'", "''")
+    f = f"initiatedBy/user/id eq '{user_id}' or targetResources/any(t: t/userPrincipalName eq '{safe_upn}')"
     if filter_base:
         f = f"{filter_base} and ({f})"
     try:
         result = api.security_audit_logs(top=100, filter_query=f, all_pages=False)
-        events = result.get('value', []) if isinstance(result, dict) else []
+        events = _values(result)
         return [e for e in events if e.get('activityDisplayName') in SUSPICIOUS_AUDIT_ACTIVITIES]
-    except Exception:
+    except Exception as e:
+        print(f"WARNING: collect_suspicious_audit_events failed for {upn}: {e}", file=sys.stderr)
         return []
 
 
@@ -171,8 +185,9 @@ def collect_auth_methods(api: AzureADAPI, upn: str) -> list:
     """Fetch current authentication methods for a user."""
     try:
         result = api.security_auth_methods(upn)
-        return result.get('value', []) if isinstance(result, dict) else []
-    except Exception:
+        return _values(result)
+    except Exception as e:
+        print(f"WARNING: collect_auth_methods failed for {upn}: {e}", file=sys.stderr)
         return []
 
 
@@ -183,6 +198,20 @@ def resolve_user_id(api: AzureADAPI, upn: str) -> str:
         return user.get('id', '') if isinstance(user, dict) else ''
     except Exception:
         return ''
+
+
+def _process_victim(api: AzureADAPI, upn: str, risk_filter_base: str) -> tuple:
+    """
+    Fetch audit anomalies and auth methods for a single victim account.
+
+    Returns: (upn, audit_events, auth_methods)
+    """
+    user_id = resolve_user_id(api, upn)
+    audit_events = []
+    if user_id:
+        audit_events = collect_suspicious_audit_events(api, upn, user_id, risk_filter_base)
+    auth_methods = collect_auth_methods(api, upn)
+    return (upn, audit_events, auth_methods)
 
 
 def run_sweep(api: AzureADAPI, args) -> dict:
@@ -290,21 +319,25 @@ def run_sweep(api: AzureADAPI, args) -> dict:
     all_victims = list(victim_evidence.keys())
     if all_victims:
         print(f"[5/5] Audit logs + auth methods for {len(all_victims)} flagged account(s)...", file=sys.stderr, flush=True)
-        for upn in all_victims:
-            user_id = resolve_user_id(api, upn)
-            if user_id:
-                audit_events = collect_suspicious_audit_events(api, upn, user_id, risk_filter_base)
-                if audit_events:
-                    victim_evidence[upn]['audit_anomalies'].extend([
-                        {'activity': e.get('activityDisplayName', ''), 'time': e.get('activityDateTime', '')}
-                        for e in audit_events
-                    ])
-            auth_methods = collect_auth_methods(api, upn)
-            if auth_methods:
-                victim_evidence[upn]['auth_methods'] = [
-                    {'type': m.get('@odata.type', ''), 'display': m.get('displayName', m.get('phoneNumber', ''))}
-                    for m in auth_methods
-                ]
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(_process_victim, api, upn, risk_filter_base): upn
+                       for upn in all_victims}
+            for future in as_completed(futures):
+                victim_upn = futures[future]
+                try:
+                    upn, audit_events, auth_methods = future.result()
+                    if audit_events:
+                        victim_evidence[upn]['audit_anomalies'].extend([
+                            {'activity': e.get('activityDisplayName', ''), 'time': e.get('activityDateTime', '')}
+                            for e in audit_events
+                        ])
+                    if auth_methods:
+                        victim_evidence[upn]['auth_methods'] = [
+                            {'type': m.get('@odata.type', ''), 'display': m.get('displayName', m.get('phoneNumber', ''))}
+                            for m in auth_methods
+                        ]
+                except Exception as e:
+                    print(f"WARNING: Vector 5 failed for {victim_upn}: {e}", file=sys.stderr)
     else:
         print("[5/5] No flagged accounts — nothing to audit", file=sys.stderr, flush=True)
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "075"
 tags: [code-review, quality, azure-ad, security]
@@ -95,3 +95,4 @@ Sync history always checked for last 2 days regardless of `--grace-days` value.
 ## Work Log
 
 - 2026-04-08: Identified by pattern-recognition-specialist (FINDING-3/5/6/10), security-sentinel (FINDING-09/06), kieran-python-reviewer (FINDING-3/4/10), code-simplicity-reviewer in 5th review pass
+- 2026-04-08: Resolved — all 9 items implemented: ual_mailbox users Optional, sign_in_get renamed, user_devices count key, IP regex → ipaddress stdlib, getpass for --password, sweep type annotations, compute_confidence named constants, spoof idiom fix, getattr(output) → args.output. Committed a4290c2.

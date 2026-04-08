@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "067"
 tags: [code-review, security, performance, azure-ad]
@@ -61,3 +61,4 @@ Use a per-scope lock dict (`_token_locks: dict[str, asyncio.Lock]`) to allow con
 ## Work Log
 
 - 2026-04-08: Identified by performance-oracle (P1) and security-sentinel (P2 FINDING-08) in 5th review pass
+- 2026-04-08: Resolved. Added `_token_lock: asyncio.Lock` at module level alongside `_http_client_lock`. Converted `_get_msal_app()` from sync to async with double-checked locking pattern. Rewrote `_get_token()` with fast path (no-lock cache hit) + slow path (lock + re-check + MSAL call + cache write). Changed `asyncio.get_event_loop()` → `asyncio.get_running_loop()` inside `_get_token()`. Commit fc40030.

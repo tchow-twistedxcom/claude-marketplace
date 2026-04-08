@@ -28,6 +28,7 @@ import sys
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 # Reuse existing modules
 from azure_ad_api import AzureADAPI, build_time_filter
@@ -37,7 +38,8 @@ from formatters import print_error, print_warning
 # Scoring weights for compute_confidence
 _SCORE_MFA_FATIGUE = 3      # Strongest signal — confirmed MFA bypass
 _SCORE_RISK_DETECTION = 2   # Risk detection event
-_SCORE_IP_AUDIT = 1         # IP-based or audit anomaly signal
+_SCORE_IP_AUDIT = 1         # IP-based sign-in signal (ip_sweep / ip_crossref)
+_SCORE_AUDIT_ANOMALY = 1    # Audit anomaly signal (can be tuned independently)
 _THRESHOLD_HIGH = 3
 _THRESHOLD_MEDIUM = 2
 
@@ -390,7 +392,7 @@ def run_sweep(api: AzureADAPI, args: argparse.Namespace) -> dict:
     return dict(victim_evidence)
 
 
-def compute_confidence(evidence: dict) -> str:
+def compute_confidence(evidence: dict[str, Any]) -> str:
     """Return HIGH/MEDIUM/LOW based on evidence weight."""
     score = 0
     if evidence.get('mfa_fatigue'):
@@ -400,7 +402,7 @@ def compute_confidence(evidence: dict) -> str:
     if evidence.get('ip_sweep') or evidence.get('ip_crossref'):
         score += _SCORE_IP_AUDIT
     if evidence.get('audit_anomalies'):
-        score += _SCORE_IP_AUDIT
+        score += _SCORE_AUDIT_ANOMALY
     if score >= _THRESHOLD_HIGH:
         return 'HIGH'
     elif score >= _THRESHOLD_MEDIUM:

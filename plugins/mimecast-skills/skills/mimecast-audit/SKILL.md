@@ -28,7 +28,7 @@ python3 scripts/audit_m365_sync.py
 ```
 
 This runs the full audit with default settings:
-- Mimecast profile: `default`
+- Mimecast profile: `production`
 - Azure AD tenant: `default`
 - Grace period: 90 days
 - Output: markdown report to stdout
@@ -38,7 +38,7 @@ This runs the full audit with default settings:
 ```bash
 # Full audit with all options
 python3 scripts/audit_m365_sync.py \
-  --mimecast-profile default \
+  --mimecast-profile production \
   --azure-tenant default \
   --grace-days 90 \
   --exclude-domains "service.local,shared.company.com" \

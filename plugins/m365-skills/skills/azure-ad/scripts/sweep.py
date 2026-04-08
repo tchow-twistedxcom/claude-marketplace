@@ -433,7 +433,7 @@ def print_report(results: dict, json_output: bool = False):
     print(f"HIGH confidence: {high}  |  MEDIUM: {med}  |  LOW: {low}")
     print()
     print("Next steps for HIGH/MEDIUM accounts:")
-    print("  python3 azure_ad_api.py security revoke-sessions <UPN> --confirm")
+    print("  azure_ad_revoke_sessions(user=UPN, confirm=True)  # via MCP (preferred)")
     print("  python3 azure_ad_api.py security auth-methods <UPN>")
     print("  python3 azure_ad_api.py security audit-logs --user <UPN> --days 7")
 

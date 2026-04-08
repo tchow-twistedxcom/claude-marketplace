@@ -1002,7 +1002,7 @@ async def azure_ad_ual_search(
             'Audit.Exchange' (mailbox/Exchange events — default),
             'Audit.AzureActiveDirectory' (AAD events),
             'Audit.General' (SharePoint, Teams, OneDrive events).
-        hours: Time window in hours (default 24, max 24h per API limit).
+        hours: Time window in hours (default 6h, max 24h per API limit).
 
     Returns matching audit events with timestamps, IPs, and operation details.
     """
@@ -1039,7 +1039,7 @@ async def azure_ad_ual_mailbox_access(
 
     Args:
         users: Comma-separated UPNs to check (e.g. 'john@contoso.com,jane@contoso.com').
-        hours: Time window in hours (default 72).
+        hours: Time window in hours (default 6h, max 24h per API limit).
 
     Returns MailItemsAccessed, MessageBind, and related events showing which
     folders/messages were accessed, from which IPs, and at what time.

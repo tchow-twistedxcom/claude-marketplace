@@ -78,7 +78,9 @@ is running. They require the MCP server to be configured — either via `plugins
 - **`azure_ad_incident_triage`** — Orchestrates a complete compromise triage in one call: sign-in
   analysis, inbox rule inspection, sent mail forensics (via Defender EmailEvents), auth method
   review, UAL forensics, mailbox forwarding check, and OAuth grant review. Returns a structured
-  report per user with a HIGH/MEDIUM/CLEAN risk summary. Start here for any account compromise
+  report per user with a HIGH/MEDIUM/CLEAN risk summary. Top-level output fields include:
+  `signIns`, `inboxRules`, `sentMail`, `authMethods`, `ualEvents`, `forwardingAddress`,
+  `oauthGrants`, `sentMailSource`, `cloudAppFindings`. Start here for any account compromise
   investigation.
 
 #### Email Forensics
@@ -116,7 +118,7 @@ Defender Plan 1/2 (included in M365 E3/E5/Business Premium).
 - **`azure_ad_advanced_hunt`** — Run an arbitrary KQL query against Microsoft 365 Defender
   Advanced Hunting; covers EmailEvents, EmailAttachmentInfo, EmailUrlInfo, IdentityLogonEvents,
   DeviceLogonEvents, CloudAppEvents. The ONLY way to see emails sent with
-  `SaveToSentItems=false`.
+  `SaveToSentItems=false`. Requires `confirm=True` to execute — defaults to dry-run for safety.
 - **`azure_ad_email_events`** — Query the Defender `EmailEvents` table for complete email
   forensics; captures all sends including `SaveToSentItems=false` (invisible to Graph Mail API,
   UAL, and Mimecast). Returns message-level summary grouped by NetworkMessageId.
@@ -150,7 +152,7 @@ Defender Plan 1/2 (included in M365 E3/E5/Business Premium).
 
 ### Basic Operations MCP Tools
 
-These 26 tools are available but not individually documented above. Use them for general directory queries and investigation:
+These 27 tools are available but not individually documented above. Use them for general directory queries and investigation:
 
 | Tool | Purpose |
 |------|---------|

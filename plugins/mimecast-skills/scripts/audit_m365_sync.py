@@ -68,8 +68,29 @@ AZURE_CLI = Path(os.environ.get(
 
 # ── CLI Runner ────────────────────────────────────────────────────────────────
 
+# Sentinel returned by run_cli() on error — distinct from a valid empty list/None result.
+# Callers check: if isinstance(result, dict) and result.get("_error"):
+_CLI_ERROR_KEY = "_error"
+
+
+def _cli_error(error_type: str, msg: str) -> dict:
+    """Return a sentinel error dict for run_cli() callers to detect."""
+    return {_CLI_ERROR_KEY: True, "_error_type": error_type, "_error_msg": msg}
+
+
+def _is_cli_error(data) -> bool:
+    """Return True if data is a run_cli() error sentinel."""
+    return isinstance(data, dict) and data.get(_CLI_ERROR_KEY) is True
+
+
 def run_cli(cmd: list[str], verbose: bool = False, timeout: int = 60) -> dict | list | None:
-    """Run a CLI command and return parsed JSON output. Returns None on error."""
+    """
+    Run a CLI command and return parsed JSON output.
+
+    On success returns the parsed JSON (dict or list).
+    On error returns a sentinel dict: {"_error": True, "_error_type": ..., "_error_msg": ...}
+    Error types: "non_zero_exit" (auth failures, API errors), "json_parse", "timeout", "exception"
+    """
     if verbose:
         print(f"  → {' '.join(str(c) for c in cmd)}", file=sys.stderr)
     try:
@@ -79,21 +100,23 @@ def run_cli(cmd: list[str], verbose: bool = False, timeout: int = 60) -> dict | 
         )
         if result.returncode != 0:
             cmd_name = Path(cmd[1]).name if len(cmd) > 1 else "unknown"
-            print(f"  ⚠ CLI error ({cmd_name}): {result.stderr.strip()[:200]}", file=sys.stderr)
-            return None
+            stderr_snippet = result.stderr.strip()[:200]
+            print(f"  ⚠ CLI error ({cmd_name}): {stderr_snippet}", file=sys.stderr)
+            return _cli_error("non_zero_exit", f"{cmd_name}: {stderr_snippet}")
         if not result.stdout.strip():
             return None
         return json.loads(result.stdout)
     except json.JSONDecodeError as e:
         print(f"  ⚠ JSON parse error: {e}", file=sys.stderr)
-        return None
+        return _cli_error("json_parse", str(e))
     except subprocess.TimeoutExpired:
         cmd_name = f"{Path(cmd[1]).name} {' '.join(str(c) for c in cmd[2:4])}" if len(cmd) > 1 else "unknown"
-        print(f"  ⚠ CLI timed out ({timeout}s): {cmd_name}", file=sys.stderr)
-        return None
+        msg = f"CLI timed out after {timeout}s: {cmd_name}"
+        print(f"  ⚠ {msg}", file=sys.stderr)
+        return _cli_error("timeout", msg)
     except Exception as e:
         print(f"  ⚠ CLI error: {e}", file=sys.stderr)
-        return None
+        return _cli_error("exception", str(e))
 
 
 # ── Data Fetchers ─────────────────────────────────────────────────────────────
@@ -105,9 +128,11 @@ def fetch_azure_users(tenant: str, verbose: bool) -> list[dict]:
     data = run_cli([
         AZURE_CLI, "-t", tenant, "-f", "json",
         "users", "list",
-        "--select", "id,displayName,userPrincipalName,mail,accountEnabled,userType,department,jobTitle,createdDateTime",
+        "--select", "id,displayName,userPrincipalName,mail,accountEnabled,userType,department,jobTitle,createdDateTime,signInActivity",
         "--all",
     ], verbose, timeout=180)
+    if _is_cli_error(data):
+        raise RuntimeError(f"[{data['_error_type']}] {data['_error_msg']}")
     if data is None:
         return []
     return _unwrap_graph_list(data)
@@ -121,6 +146,8 @@ def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
         AZURE_CLI, "-t", tenant, "-f", "json",
         "directory", "deleted-users",
     ], verbose, timeout=60)
+    if _is_cli_error(data):
+        raise RuntimeError(f"[{data['_error_type']}] {data['_error_msg']}")
     if data is None:
         return []
     return _unwrap_graph_list(data)
@@ -134,12 +161,14 @@ def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
         AZURE_CLI, "-t", tenant, "-f", "json",
         "directory", "domains",
     ], verbose, timeout=60)
+    if _is_cli_error(data):
+        raise RuntimeError(f"[{data['_error_type']}] {data['_error_msg']}")
     if data is None:
         return []
     return _unwrap_graph_list(data)
 
 
-def filter_azure_users(users: list[dict]) -> dict:
+def filter_azure_users(users: list[dict], svc_prefixes: tuple = AZURE_SVC_PREFIXES) -> dict:
     """
     Split Azure AD users into employees vs. non-employees.
 
@@ -168,7 +197,7 @@ def filter_azure_users(users: list[dict]) -> dict:
         # Service / infrastructure accounts by UPN pattern
         local = upn.split("@")[0]
         if (
-            any(local.startswith(p) for p in AZURE_SVC_PREFIXES)
+            any(local.startswith(p) for p in svc_prefixes)
             or any(s in local for s in AZURE_SVC_CONTAINS)
             or "synchronization service account" in display
         ):
@@ -191,6 +220,8 @@ def fetch_mimecast_users(profile: str, verbose: bool) -> list[dict]:
     data = run_cli([
         MIMECAST_CLI, "--profile", profile, "--output", "json", "users", "list", "--all",
     ], verbose, timeout=180)
+    if _is_cli_error(data):
+        raise RuntimeError(f"[{data['_error_type']}] {data['_error_msg']}")
     if data is None:
         return []
     # Mimecast v1: {"data": [{"users": [...]}]} — flatten nested pages
@@ -308,7 +339,16 @@ def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
         for future in as_completed(futures):
             key = futures[future]
             try:
-                results[key] = future.result()
+                data = future.result()
+                if _is_cli_error(data):
+                    print(
+                        f"WARNING: config check '{key}' failed "
+                        f"[{data['_error_type']}]: {data['_error_msg']}",
+                        file=sys.stderr,
+                    )
+                    results[key] = None
+                else:
+                    results[key] = data
             except Exception as e:
                 print(f"WARNING: worker failed for {key}: {e}", file=sys.stderr)
                 results[key] = None
@@ -320,9 +360,20 @@ def fetch_sync_health(profile: str, verbose: bool) -> dict:
     if verbose:
         print("Fetching directory sync health...", file=sys.stderr)
 
+    def _safe(data, label: str):
+        """Convert error sentinels to None so analyze_sync_health handles them consistently."""
+        if _is_cli_error(data):
+            print(
+                f"WARNING: sync health '{label}' failed "
+                f"[{data['_error_type']}]: {data['_error_msg']}",
+                file=sys.stderr,
+            )
+            return None
+        return data
+
     return {
-        "connection": _mimecast_run(["sync", "status"], profile, verbose),
-        "history": _mimecast_run(["sync", "history", "--days", "2"], profile, verbose),
+        "connection": _safe(_mimecast_run(["sync", "status"], profile, verbose), "connection"),
+        "history": _safe(_mimecast_run(["sync", "history", "--days", "2"], profile, verbose), "history"),
     }
 
 
@@ -433,18 +484,18 @@ def cross_reference(
                 "department": az_user.get("department", ""),
                 "azure_status": "disabled",
             }
-            created_str = az_user.get("createdDateTime", "")
-            if created_str:
+            # Use lastSignInDateTime as the boundary for grace period — this reflects
+            # when the user was last active, not when the account was created.
+            # Falls back to createdDateTime when signInActivity is absent (e.g. accounts
+            # that never signed in or where AuditLog.Read.All is not granted).
+            last_sign_in = (
+                az_user.get("signInActivity", {}).get("lastSignInDateTime")
+                or az_user.get("createdDateTime", "")
+            )
+            if last_sign_in:
                 try:
-                    created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                    # NOTE: Using createdDateTime as a proxy for "recently disabled" date.
-                    # This is imprecise — long-tenured employees disabled last week will have
-                    # an old createdDateTime and will NOT appear in the grace bucket.
-                    # A more accurate approach would use signInActivity.lastSignInDateTime
-                    # (requires additional Graph API $select=signInActivity) but that field
-                    # requires AuditLog.Read.All permission and is optional.
-                    # TODO(044): Consider switching to lastSignInDateTime for better accuracy.
-                    if created_dt > grace_cutoff:
+                    boundary_dt = datetime.fromisoformat(last_sign_in.replace("Z", "+00:00"))
+                    if boundary_dt > grace_cutoff:
                         results["grace_period"].append(disabled_entry)
                     else:
                         results["stale_grace"].append(disabled_entry)
@@ -668,78 +719,79 @@ def analyze_sync_health(sync_health: dict) -> list[dict]:
         })
         return findings
 
-    conn = connections[0]
-    conn_name = conn.get("description", "unknown")
+    for i, conn in enumerate(connections):
+        conn_name = conn.get("description", "unknown")
+        conn_prefix = f"connection_{i}"
 
-    # Check acknowledgeDisabledAccounts
-    if not conn.get("acknowledgeDisabledAccounts", False):
-        findings.append({
-            "check": "Acknowledge Disabled Accounts",
-            "status": "disabled",
-            "severity": "HIGH",
-            "detail": (
-                f"Connection '{conn_name}': acknowledgeDisabledAccounts=false — "
-                "Azure AD disabled users are NOT automatically disabled in Mimecast. "
-                "Fix: Administration → Services → Directory Sync → enable 'Acknowledge Disabled Accounts'"
-            ),
-        })
-    else:
-        findings.append({
-            "check": "Acknowledge Disabled Accounts",
-            "status": "enabled",
-            "severity": "OK",
-            "detail": f"Connection '{conn_name}': disabled Azure AD users are auto-disabled in Mimecast",
-        })
+        # Check acknowledgeDisabledAccounts
+        if not conn.get("acknowledgeDisabledAccounts", False):
+            findings.append({
+                "check": f"{conn_prefix}: Acknowledge Disabled Accounts",
+                "status": "disabled",
+                "severity": "HIGH",
+                "detail": (
+                    f"Connection '{conn_name}': acknowledgeDisabledAccounts=false — "
+                    "Azure AD disabled users are NOT automatically disabled in Mimecast. "
+                    "Fix: Administration → Services → Directory Sync → enable 'Acknowledge Disabled Accounts'"
+                ),
+            })
+        else:
+            findings.append({
+                "check": f"{conn_prefix}: Acknowledge Disabled Accounts",
+                "status": "enabled",
+                "severity": "OK",
+                "detail": f"Connection '{conn_name}': disabled Azure AD users are auto-disabled in Mimecast",
+            })
 
-    # Check deleteUsers
-    if not conn.get("deleteUsers", False):
-        findings.append({
-            "check": "Delete Users on Removal",
-            "status": "disabled",
-            "severity": "MEDIUM",
-            "detail": (
-                f"Connection '{conn_name}': deleteUsers=false — "
-                "Users deleted from Azure AD persist in Mimecast indefinitely"
-            ),
-        })
-    else:
-        findings.append({
-            "check": "Delete Users on Removal",
-            "status": "enabled",
-            "severity": "OK",
-            "detail": f"Connection '{conn_name}': deleted Azure AD users are removed from Mimecast",
-        })
+        # Check deleteUsers
+        if not conn.get("deleteUsers", False):
+            findings.append({
+                "check": f"{conn_prefix}: Delete Users on Removal",
+                "status": "disabled",
+                "severity": "MEDIUM",
+                "detail": (
+                    f"Connection '{conn_name}': deleteUsers=false — "
+                    "Users deleted from Azure AD persist in Mimecast indefinitely"
+                ),
+            })
+        else:
+            findings.append({
+                "check": f"{conn_prefix}: Delete Users on Removal",
+                "status": "enabled",
+                "severity": "OK",
+                "detail": f"Connection '{conn_name}': deleted Azure AD users are removed from Mimecast",
+            })
 
-    # Check maxUnlink threshold
-    max_unlink = conn.get("maxUnlink", "")
-    if max_unlink == "unlink_10":
-        findings.append({
-            "check": "Max Unlink Threshold",
-            "status": "low",
-            "severity": "LOW",
-            "detail": (
-                f"Connection '{conn_name}': maxUnlink=unlink_10 — "
-                "Only 10 accounts can be unlinked per sync. "
-                "With 48+ disabled accounts, remediation will take multiple sync cycles"
-            ),
-        })
+        # Check maxUnlink threshold
+        max_unlink = conn.get("maxUnlink", "")
+        if max_unlink == "unlink_10":
+            findings.append({
+                "check": f"{conn_prefix}: Max Unlink Threshold",
+                "status": "low",
+                "severity": "LOW",
+                "detail": (
+                    f"Connection '{conn_name}': maxUnlink=unlink_10 — "
+                    "Only 10 accounts can be unlinked per sync. "
+                    "With 48+ disabled accounts, remediation will take multiple sync cycles"
+                ),
+            })
 
-    # Check sync status
-    conn_status = conn.get("status", "unknown")
-    if conn_status == "error":
-        findings.append({
-            "check": "Directory sync status",
-            "status": "error",
-            "severity": "MEDIUM",
-            "detail": f"Connection '{conn_name}' is in error state — check sync history for details",
-        })
-    else:
-        findings.append({
-            "check": "Directory sync status",
-            "status": conn_status,
-            "severity": "OK",
-            "detail": f"Connection '{conn_name}': last sync {conn.get('lastSync', 'unknown')}",
-        })
+        # Check sync status
+        conn_status = conn.get("status", "unknown")
+        if conn_status == "error":
+            findings.append({
+                "check": f"{conn_prefix}: Directory sync status",
+                "status": "error",
+                "severity": "MEDIUM",
+                "detail": f"Connection '{conn_name}' is in error state — check sync history for details",
+            })
+        else:
+            findings.append({
+                "check": f"{conn_prefix}: Directory sync status",
+                "status": conn_status,
+                "severity": "OK",
+                "detail": f"Connection '{conn_name}': last sync {conn.get('lastSync', 'unknown')}",
+            })
 
     # Check recent failures from history
     if history_data:
@@ -997,10 +1049,12 @@ def main():
                         ))
     args = parser.parse_args()
 
-    # Apply --svc-prefixes override if provided
-    if args.svc_prefixes.strip():
-        global AZURE_SVC_PREFIXES
-        AZURE_SVC_PREFIXES = tuple(p.strip() for p in args.svc_prefixes.split(",") if p.strip())
+    # Resolve --svc-prefixes override without mutating the module constant
+    svc_prefixes = (
+        tuple(p.strip() for p in args.svc_prefixes.split(",") if p.strip())
+        if args.svc_prefixes and args.svc_prefixes.strip()
+        else AZURE_SVC_PREFIXES
+    )
 
     excluded_domains = {d.strip().lower() for d in args.exclude_domains.split(",") if d.strip()}
 
@@ -1040,7 +1094,7 @@ def main():
     azure_domains = fetch_results["azure_domains"]
 
     # Segment Azure AD: filter out Guests and service accounts
-    azure_segments = filter_azure_users(azure_users_raw)
+    azure_segments = filter_azure_users(azure_users_raw, svc_prefixes=svc_prefixes)
     azure_users = azure_segments["employees"]
 
     # Segment Mimecast: filter out aliases, DLs, email-auto, and infra accounts

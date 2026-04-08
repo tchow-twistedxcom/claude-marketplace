@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "068"
 tags: [code-review, azure-ad, agent-native]
@@ -50,11 +50,12 @@ Any script checking `"confirm" in response` or `response.get("confirm") == False
 
 ## Acceptance Criteria
 
-- [ ] `azure_ad_sign_ins` docstring: 50199 described as MFA fatigue / AiTM indicator
-- [ ] `azure_ad_email_events` docstring: Returns section describes `{totalRows, totalMessages, messages: [{time, subject, sender, direction, deliveryStatus, threatTypes, recipients}]}`
-- [ ] `azure_ad_directory_roles` docstring: removes incorrect `azure_ad_group_members` cross-reference
-- [ ] `azure_ad_advanced_hunt` dry-run response changed from `{"status": "dry_run"}` to `{"confirm": False, ...}`
+- [x] `azure_ad_sign_ins` docstring: 50199 described as MFA fatigue / AiTM indicator
+- [x] `azure_ad_email_events` docstring: Returns section describes `{totalRows, totalMessages, messages: [{time, subject, sender, direction, deliveryStatus, threatTypes, recipients}]}`
+- [x] `azure_ad_directory_roles` docstring: removes incorrect `azure_ad_group_members` cross-reference
+- [x] `azure_ad_advanced_hunt` dry-run response changed from `{"status": "dry_run"}` to `{"confirm": False, ...}`
 
 ## Work Log
 
 - 2026-04-08: Identified by agent-native-reviewer (FINDING-1/2/3) and pattern-recognition-specialist (FINDING-1) in 5th review pass
+- 2026-04-08: All 4 fixes applied to extensions/azure-ad/src/server.py. Commit: fix(azure-ad): fix agent-facing docstring errors and advanced_hunt dry-run sentinel. Pushed to feat/mimecast-m365-audit.

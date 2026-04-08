@@ -142,8 +142,6 @@ def collect_mfa_fatigue_victims(api: AzureADAPI, filter_base: str, window_minute
                         'app': succ.get('appDisplayName', ''),
                     })
                     break  # One confirmed instance is enough
-            if evidence:
-                break
 
         if evidence:
             victims[upn] = evidence

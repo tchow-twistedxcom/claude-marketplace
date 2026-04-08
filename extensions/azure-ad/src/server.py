@@ -58,10 +58,10 @@ def _validate_kql_value(value: str) -> str:
 
 
 CHARACTER_LIMIT = 25000
-GRAPH_BASE = "https://graph.microsoft.com/v1.0"
-GRAPH_SCOPE = "https://graph.microsoft.com/.default"
+GRAPH_BASE = "https://graph.microsoft.com/v1.0"  # NOTE: This value must match the corresponding constant in auth.py
+GRAPH_SCOPE = "https://graph.microsoft.com/.default"  # NOTE: This value must match the corresponding constant in auth.py
 UAL_SCOPE = "https://manage.office.com/.default"
-TOKEN_REFRESH_BUFFER = 300  # Refresh 5 min before expiry
+TOKEN_REFRESH_BUFFER = 300  # Refresh 5 min before expiry  # NOTE: This value must match the corresponding constant in auth.py
 
 # In-memory token cache: {"graph:{client_id}": ..., "ual:{client_id}": ...}
 _token_cache: dict = {}
@@ -103,6 +103,9 @@ VALID_CA_STATES = {"enabled", "disabled", "enabledforreportingbutnotenforced"}
 VALID_CA_ACTIONS = {"block", "mfa", "compliantDevice", "compliantApplication"}
 VALID_UAL_CONTENT_TYPES = {"Audit.Exchange", "Audit.AzureActiveDirectory", "Audit.General"}
 VALID_MAIL_FOLDERS = {"inbox", "sentitems", "drafts", "deleteditems", "junkemail", "outbox", "archive"}
+PHISHING_SUBJECTS: frozenset = frozenset({
+    "sharedfile", "invoice", "urgent", "wire", "payment", "verify", "confirm",
+})
 
 
 def _validate_enum(value: str, valid_set: set, field: str) -> str:
@@ -410,6 +413,8 @@ async def azure_ad_list_groups(
 
     Returns list of group objects with displayName, type, membership rules, and mail settings.
     """
+    if filter_query and len(filter_query) > 2000:
+        raise ValueError(f"filter_query is too long ({len(filter_query)} chars). Maximum is 2000 characters.")
     params: dict = {
         "$top": min(top, 999),
         "$select": "id,displayName,mail,groupTypes,membershipRule,description,securityEnabled,mailEnabled",
@@ -1955,6 +1960,360 @@ async def azure_ad_dismiss_risky_users(
     )
     return _fmt({"success": True, "dismissed_count": len(user_ids), "dismissed_user_ids": user_ids})
 
+
+async def _triage_one(
+    upn: str,
+    ual_events: list,
+    ual_incomplete: bool,
+    trusted_ip_set: set,
+    hours: int,
+    since: str,
+) -> dict:
+    """Full security triage for a single user account.
+
+    Extracted from azure_ad_incident_triage to enable module-level testing.
+    All closed-over variables from the outer function are passed as explicit parameters.
+    """
+    user_ual = [e for e in ual_events if e.get("UserId", "").lower() == upn.lower()]
+    domain = upn.split("@")[-1].lower() if "@" in upn else ""
+
+    # Phase 1 + 2: All Graph calls in parallel per user
+    # EmailEvents: captures SaveToSentItems=false attacker sends (requires Defender for O365 Plan 2)
+    # CloudAppEvents: Exchange Online activity visible to MCAS/Defender — mailbox access, sends,
+    #   deletes from attacker IPs. Available without Defender for O365 Plan 2.
+    _upn_kql = _validate_kql_value(upn)
+    _hours_capped = max(1, min(int(hours), 720))
+    email_kql = (
+        f"EmailEvents | where SenderFromAddress =~ '{_upn_kql}' "
+        f"and Timestamp >= ago({_hours_capped}h) and EmailDirection == 'Outbound' "
+        "| project Timestamp, RecipientEmailAddress, Subject, NetworkMessageId, DeliveryStatus "
+        "| order by Timestamp desc | limit 1000"
+    )
+    cloud_kql = (
+        f"CloudAppEvents | where AccountUpn =~ '{_upn_kql}' "
+        f"and Timestamp >= ago({_hours_capped}h) "
+        "and Application == 'Microsoft Exchange Online' "
+        "| project Timestamp, ActionType, IPAddress, CountryCode, ISP, UserAgent, ObjectName "
+        "| order by Timestamp desc | limit 300"
+    )
+    results = await asyncio.gather(
+        _graph("GET", f"/users/{upn}", params={"$select":
+            "id,displayName,accountEnabled,onPremisesSyncEnabled,"
+            "lastPasswordChangeDateTime,mail,jobTitle"}),
+        _graph("GET", f"/users/{upn}/mailFolders/inbox/messageRules"),
+        _graph("GET", f"/users/{upn}/authentication/methods"),
+        _graph("GET", "/identityProtection/riskyUsers",
+               params={"$filter": f"userPrincipalName eq '{_validate_email(upn)}'", "$top": 1}),
+        _graph("GET", "/auditLogs/signIns", params={
+            "$filter": f"userPrincipalName eq '{_validate_email(upn)}' and createdDateTime ge {since}",
+            "$top": 200, "$orderby": "createdDateTime desc"}),
+        _graph("POST", "/security/runHuntingQuery", data={"Query": email_kql}),
+        _graph("POST", "/security/runHuntingQuery", data={"Query": cloud_kql}),
+        _graph("GET", f"/users/{upn}/mailboxSettings"),
+        _graph("GET", f"/users/{upn}/oauth2PermissionGrants", params={"$top": 50}),
+        return_exceptions=True,
+    )
+    (user_data, rules_data, methods_data, risky_data,
+     signins_data, email_events_raw, cloud_events_raw, mailbox_data, oauth_data) = results
+
+    # Resolve sent mail: EmailEvents (complete) or sentItems fallback
+    if isinstance(email_events_raw, Exception):
+        # ThreatHunting.Read.All not granted — fall back to sentItems
+        # WARNING: sentItems misses SaveToSentItems=false sends
+        try:
+            si_raw = await _graph("GET", f"/users/{upn}/mailFolders/sentItems/messages", params={
+                "$select": "id,subject,sentDateTime,toRecipients,ccRecipients,hasAttachments",
+                "$filter": f"sentDateTime ge {since}",
+                "$orderby": "sentDateTime desc", "$top": 100})
+            sent_source = "sentItems (INCOMPLETE — grant ThreatHunting.Read.All for full coverage)"
+        except Exception:
+            si_raw = {}
+            sent_source = "unavailable"
+        # Normalise sentItems to common format
+        sent_messages: list = []
+        for msg in (si_raw.get("value", []) if isinstance(si_raw, dict) else []):
+            to_addrs = [r.get("emailAddress", {}).get("address", "")
+                        for r in msg.get("toRecipients", [])]
+            sent_messages.append({
+                "time": msg.get("sentDateTime"),
+                "subject": msg.get("subject"),
+                "recipients": to_addrs,
+            })
+    else:
+        # EmailEvents: one row per recipient — aggregate by NetworkMessageId
+        sent_source = "EmailEvents (complete — includes SaveToSentItems=false)"
+        msg_by_id: dict = {}
+        for row in (email_events_raw.get("results", [])
+                    if isinstance(email_events_raw, dict) else []):
+            mid = row.get("NetworkMessageId") or f"{row.get('Subject')}|{row.get('Timestamp')}"
+            if mid not in msg_by_id:
+                msg_by_id[mid] = {
+                    "time": row.get("Timestamp"),
+                    "subject": row.get("Subject"),
+                    "deliveryStatus": row.get("DeliveryStatus"),
+                    "recipients_set": set(),
+                }
+            recip = row.get("RecipientEmailAddress", "")
+            if recip:
+                msg_by_id[mid]["recipients_set"].add(recip)
+        for entry in msg_by_id.values():
+            entry["recipients"] = sorted(entry.pop("recipients_set"))
+        sent_messages = list(msg_by_id.values())
+
+    # ── Account state ──
+    risky_list = _gather_values(risky_data)
+    risky = risky_list[0] if risky_list else {}
+    if isinstance(user_data, dict) and "id" in user_data:
+        account: dict = {
+            "enabled": user_data.get("accountEnabled"),
+            "displayName": user_data.get("displayName"),
+            "onPremSync": user_data.get("onPremisesSyncEnabled"),
+            "lastPasswordChange": user_data.get("lastPasswordChangeDateTime"),
+            "riskLevel": risky.get("riskLevel", "none"),
+            "riskState": risky.get("riskState", "none"),
+        }
+    else:
+        account = {"error": str(user_data) if isinstance(user_data, Exception) else "user not found"}
+
+    # ── Suspicious sign-ins ──
+    signins = _gather_values(signins_data)
+    suspicious_signins: list = []
+    success_countries: list = []
+    for s in signins:
+        ip = s.get("ipAddress", "")
+        ec = s.get("status", {}).get("errorCode", -1)
+        country = (s.get("location") or {}).get("countryOrRegion", "")
+        flags: list = []
+        if ec == 0:
+            if ip and ip not in trusted_ip_set:
+                flags.append("NON_TRUSTED_IP_SUCCESS")
+            if country:
+                success_countries.append(country)
+        if ec == 50199:
+            flags.append("MFA_FATIGUE")
+        if flags:
+            suspicious_signins.append({
+                "time": s.get("createdDateTime"),
+                "ip": ip,
+                "country": country,
+                "city": (s.get("location") or {}).get("city", ""),
+                "app": s.get("appDisplayName", ""),
+                "errorCode": ec,
+                "flags": flags,
+            })
+    unique_countries = set(success_countries)
+    if len(unique_countries) > 1:
+        suspicious_signins.insert(0, {
+            "flag": "IMPOSSIBLE_TRAVEL",
+            "countries": sorted(unique_countries),
+            "note": f"Successful sign-ins from {len(unique_countries)} countries in {hours}h",
+        })
+
+    # ── UAL inbox rule events (forensic ground truth) ──
+    rule_ops = {"New-InboxRule", "Set-InboxRule", "UpdateInboxRules"}
+    ual_rule_events: list = []
+    ual_confirmed_names: set = set()
+    for evt in user_ual:
+        op = evt.get("Operation", "")
+        if op not in rule_ops:
+            continue
+        params_list = evt.get("Parameters", [])
+        rule_name = next((p["Value"] for p in params_list if p.get("Name") == "Name"), "")
+        is_new_str = next((p["Value"] for p in params_list if p.get("Name") == "IsNew"), "")
+        is_new = is_new_str.lower() == "true" or op == "New-InboxRule"
+        if is_new:
+            ual_confirmed_names.add(rule_name.lower())
+        ual_rule_events.append({
+            "time": evt.get("CreationTime"),
+            "operation": op,
+            "clientIP": evt.get("ClientIP", evt.get("ActorIpAddress", "")),
+            "ruleName": rule_name,
+            "isNew": is_new,
+            "sessionId": evt.get("SessionId", ""),
+        })
+
+    # ── Malicious inbox rules (UAL-validated or high-confidence pattern) ──
+    rules = _gather_values(rules_data)
+    malicious_rules: list = []
+    for rule in rules:
+        name = rule.get("displayName", "")
+        actions = rule.get("actions", {})
+        conditions = rule.get("conditions", {})
+        ual_confirmed = name.lower() in ual_confirmed_names
+        # High-confidence patterns: delete-all, known attacker naming
+        suspicious_pattern = (
+            actions.get("deleteMessage") is True
+            or name.startswith("TokenSender-")
+            or (name and all(c == "." for c in name))
+        )
+        if ual_confirmed or suspicious_pattern:
+            malicious_rules.append({
+                "name": name,
+                "id": rule.get("id"),
+                "deleteMessage": actions.get("deleteMessage", False),
+                "moveToFolder": actions.get("moveToFolder"),
+                "markAsRead": actions.get("markAsRead", False),
+                "stopProcessing": actions.get("stopProcessingRules", False),
+                "hasConditions": bool(conditions),
+                "ualConfirmed": ual_confirmed,
+            })
+
+    # ── Auth methods ──
+    methods_raw = _gather_values(methods_data)
+    auth_methods: list = []
+    for m in methods_raw:
+        t = m.get("@odata.type", "").split(".")[-1].replace("AuthenticationMethod", "")
+        detail = m.get("phoneNumber") or m.get("emailAddress") or m.get("displayName") or ""
+        auth_methods.append(f"{t}:{detail}" if detail else t)
+
+    # ── Mailbox forwarding (attacker persistence) ──
+    forwarding_address: str | None = None
+    if isinstance(mailbox_data, dict) and not isinstance(mailbox_data, Exception):
+        forwarding_address = (mailbox_data.get("forwardingSmtpAddress")
+                              or mailbox_data.get("forwardTo") or None)
+
+    # ── OAuth grants (survives password reset + session revocation) ──
+    oauth_grants: list = []
+    grants_raw = _gather_values(oauth_data)
+    for g in grants_raw:
+        oauth_grants.append({
+            "clientId": g.get("clientId"),
+            "consentType": g.get("consentType"),
+            "scope": g.get("scope", ""),
+            "expiryTime": g.get("expiryTime"),
+        })
+
+    # ── Suspicious sent mail (uses normalised sent_messages from above) ──
+    suspicious_sent: list = []
+    for msg in sent_messages:
+        subject = (msg.get("subject") or "").lower()
+        sent_str = msg.get("time", "")
+        all_recips = msg.get("recipients", [])
+        external = [a for a in all_recips if domain and not a.lower().endswith("@" + domain)]
+        flags = []
+        if any(p in subject for p in PHISHING_SUBJECTS):
+            flags.append("PHISHING_SUBJECT")
+        if external and sent_str:
+            try:
+                hour = datetime.fromisoformat(sent_str.replace("Z", "+00:00")).hour
+                if hour < 6 or hour >= 20:
+                    flags.append("AFTER_HOURS_EXTERNAL_SEND")
+            except Exception:
+                pass
+        if flags:
+            suspicious_sent.append({
+                "time": sent_str,
+                "subject": msg.get("subject"),
+                "to": all_recips[:20],
+                "externalTo": external[:20],
+                "totalRecipients": len(all_recips),
+                "totalExternal": len(external),
+                "flags": flags,
+            })
+    if sum(1 for m in suspicious_sent if m.get("totalExternal", 0) > 0) >= 5 and suspicious_sent:
+        suspicious_sent[0].setdefault("flags", []).append("MASS_EXTERNAL_SEND")
+
+    # ── UAL mailbox access (did attacker read emails?) ──
+    access_ops = {"MailItemsAccessed", "MessageBind", "FolderBind", "SendAs"}
+    ual_access: list = []
+    for evt in user_ual:
+        if evt.get("Operation", "") not in access_ops:
+            continue
+        ual_access.append({
+            "time": evt.get("CreationTime"),
+            "operation": evt.get("Operation"),
+            "clientIP": evt.get("ClientIP", ""),
+            "userAgent": evt.get("UserAgent", ""),
+        })
+
+    # ── CloudAppEvents: Exchange Online activity from Defender Advanced Hunting ──
+    # Provides mailbox access, sends, and deletes with IP/ISP detail.
+    # Available without Defender for O365 Plan 2 (unlike EmailEvents).
+    cloud_events: list = []
+    cloud_suspicious: list = []
+    if not isinstance(cloud_events_raw, Exception) and isinstance(cloud_events_raw, dict):
+        SUSPICIOUS_CLOUD_OPS = {"HardDelete", "SoftDelete", "MoveToDeletedItems",
+                                "Send", "SendAs", "SendOnBehalf"}
+        for row in cloud_events_raw.get("results", []):
+            ip = row.get("IPAddress", "")
+            action = row.get("ActionType", "")
+            entry = {
+                "time": row.get("Timestamp"),
+                "action": action,
+                "ip": ip,
+                "country": row.get("CountryCode", ""),
+                "isp": row.get("ISP", ""),
+                "object": row.get("ObjectName", ""),
+            }
+            cloud_events.append(entry)
+            # Flag non-trusted IP activity for high-signal actions
+            if ip and ip not in trusted_ip_set and action in SUSPICIOUS_CLOUD_OPS:
+                entry_flagged = dict(entry)
+                entry_flagged["flag"] = "NON_TRUSTED_IP_" + action.upper()
+                cloud_suspicious.append(entry_flagged)
+    else:
+        cloud_events = []
+        cloud_suspicious = []
+
+    # ── Risk summary ──
+    indicators: list = []
+    if any("NON_TRUSTED_IP_SUCCESS" in si.get("flags", [])
+           for si in suspicious_signins if "flags" in si):
+        indicators.append("NON_TRUSTED_IP_SUCCESS")
+    if any(si.get("flag") == "IMPOSSIBLE_TRAVEL" for si in suspicious_signins):
+        indicators.append("IMPOSSIBLE_TRAVEL")
+    if any("MFA_FATIGUE" in si.get("flags", [])
+           for si in suspicious_signins if "flags" in si):
+        indicators.append("MFA_FATIGUE")
+    if forwarding_address:
+        indicators.append(f"EMAIL_FORWARDING_ACTIVE\u2192{forwarding_address}")
+    if malicious_rules:
+        indicators.append(f"{len(malicious_rules)}_MALICIOUS_RULE(S)")
+    if suspicious_sent:
+        total_ext = sum(m.get("totalExternal", len(m.get("externalTo", []))) for m in suspicious_sent)
+        indicators.append(f"{len(suspicious_sent)}_SUSPICIOUS_EMAIL(S)_{total_ext}_EXTERNAL_RECIPS")
+    if risky.get("riskLevel") in ("medium", "high"):
+        indicators.append(f"IDENTITY_PROTECTION_{risky['riskLevel'].upper()}")
+    if ual_rule_events:
+        indicators.append(f"{len(ual_rule_events)}_UAL_RULE_EVENT(S)")
+    if cloud_suspicious:
+        indicators.append(f"{len(cloud_suspicious)}_SUSPICIOUS_CLOUD_ACTION(S)")
+    if any(g.get("scope", "").lower() in ("full_access_as_user", ".default")
+           for g in oauth_grants):
+        indicators.append("OAUTH_FULL_ACCESS_GRANT")
+
+    if malicious_rules or risky.get("riskLevel") == "high" or len(indicators) >= 3:
+        level = "HIGH"
+    elif indicators:
+        level = "MEDIUM"
+    else:
+        level = "CLEAN"
+    risk_summary = level + (" — " + ", ".join(indicators) if indicators else "")
+
+    return {
+        "user": upn,
+        "account": account,
+        "forwardingAddress": forwarding_address,
+        "oauthGrants": {"count": len(oauth_grants), "grants": oauth_grants},
+        "suspiciousSignIns": suspicious_signins[:10],
+        "maliciousRules": malicious_rules,
+        "authMethods": auth_methods,
+        "sentMailSource": sent_source,
+        "suspiciousSentMail": suspicious_sent[:10],
+        "cloudAppFindings": {
+            "available": not isinstance(cloud_events_raw, Exception),
+            "totalEvents": len(cloud_events),
+            "suspiciousEvents": cloud_suspicious[:20],
+        },
+        "ualFindings": {
+            "inboxRuleChanges": ual_rule_events,
+            "mailboxAccess": ual_access[:10],
+            "ualDataIncomplete": ual_incomplete,
+        },
+        "riskSummary": risk_summary,
+    }
+
+
 @mcp.tool()
 async def azure_ad_incident_triage(
     users: str,
@@ -2008,350 +2367,11 @@ async def azure_ad_incident_triage(
         ual_events = []
         ual_incomplete = True
 
-    PHISHING_SUBJECTS = {"sharedfile", "invoice", "urgent", "wire", "payment", "verify", "confirm"}
-
-    async def _triage_one(upn: str) -> dict:
-        user_ual = [e for e in ual_events if e.get("UserId", "").lower() == upn.lower()]
-        domain = upn.split("@")[-1].lower() if "@" in upn else ""
-
-        # Phase 1 + 2: All Graph calls in parallel per user
-        # EmailEvents: captures SaveToSentItems=false attacker sends (requires Defender for O365 Plan 2)
-        # CloudAppEvents: Exchange Online activity visible to MCAS/Defender — mailbox access, sends,
-        #   deletes from attacker IPs. Available without Defender for O365 Plan 2.
-        _upn_kql = _validate_kql_value(upn)
-        _hours_capped = max(1, min(int(hours), 720))
-        email_kql = (
-            f"EmailEvents | where SenderFromAddress =~ '{_upn_kql}' "
-            f"and Timestamp >= ago({_hours_capped}h) and EmailDirection == 'Outbound' "
-            "| project Timestamp, RecipientEmailAddress, Subject, NetworkMessageId, DeliveryStatus "
-            "| order by Timestamp desc | limit 1000"
-        )
-        cloud_kql = (
-            f"CloudAppEvents | where AccountUpn =~ '{_upn_kql}' "
-            f"and Timestamp >= ago({_hours_capped}h) "
-            "and Application == 'Microsoft Exchange Online' "
-            "| project Timestamp, ActionType, IPAddress, CountryCode, ISP, UserAgent, ObjectName "
-            "| order by Timestamp desc | limit 300"
-        )
-        results = await asyncio.gather(
-            _graph("GET", f"/users/{upn}", params={"$select":
-                "id,displayName,accountEnabled,onPremisesSyncEnabled,"
-                "lastPasswordChangeDateTime,mail,jobTitle"}),
-            _graph("GET", f"/users/{upn}/mailFolders/inbox/messageRules"),
-            _graph("GET", f"/users/{upn}/authentication/methods"),
-            _graph("GET", "/identityProtection/riskyUsers",
-                   params={"$filter": f"userPrincipalName eq '{_validate_email(upn)}'", "$top": 1}),
-            _graph("GET", "/auditLogs/signIns", params={
-                "$filter": f"userPrincipalName eq '{_validate_email(upn)}' and createdDateTime ge {since}",
-                "$top": 200, "$orderby": "createdDateTime desc"}),
-            _graph("POST", "/security/runHuntingQuery", data={"Query": email_kql}),
-            _graph("POST", "/security/runHuntingQuery", data={"Query": cloud_kql}),
-            _graph("GET", f"/users/{upn}/mailboxSettings"),
-            _graph("GET", f"/users/{upn}/oauth2PermissionGrants", params={"$top": 50}),
-            return_exceptions=True,
-        )
-        (user_data, rules_data, methods_data, risky_data,
-         signins_data, email_events_raw, cloud_events_raw, mailbox_data, oauth_data) = results
-
-        # Resolve sent mail: EmailEvents (complete) or sentItems fallback
-        if isinstance(email_events_raw, Exception):
-            # ThreatHunting.Read.All not granted — fall back to sentItems
-            # WARNING: sentItems misses SaveToSentItems=false sends
-            try:
-                si_raw = await _graph("GET", f"/users/{upn}/mailFolders/sentItems/messages", params={
-                    "$select": "id,subject,sentDateTime,toRecipients,ccRecipients,hasAttachments",
-                    "$filter": f"sentDateTime ge {since}",
-                    "$orderby": "sentDateTime desc", "$top": 100})
-                sent_source = "sentItems (INCOMPLETE — grant ThreatHunting.Read.All for full coverage)"
-            except Exception:
-                si_raw = {}
-                sent_source = "unavailable"
-            # Normalise sentItems to common format
-            sent_messages: list = []
-            for msg in (si_raw.get("value", []) if isinstance(si_raw, dict) else []):
-                to_addrs = [r.get("emailAddress", {}).get("address", "")
-                            for r in msg.get("toRecipients", [])]
-                sent_messages.append({
-                    "time": msg.get("sentDateTime"),
-                    "subject": msg.get("subject"),
-                    "recipients": to_addrs,
-                })
-        else:
-            # EmailEvents: one row per recipient — aggregate by NetworkMessageId
-            sent_source = "EmailEvents (complete — includes SaveToSentItems=false)"
-            msg_by_id: dict = {}
-            for row in (email_events_raw.get("results", [])
-                        if isinstance(email_events_raw, dict) else []):
-                mid = row.get("NetworkMessageId") or f"{row.get('Subject')}|{row.get('Timestamp')}"
-                if mid not in msg_by_id:
-                    msg_by_id[mid] = {
-                        "time": row.get("Timestamp"),
-                        "subject": row.get("Subject"),
-                        "deliveryStatus": row.get("DeliveryStatus"),
-                        "recipients_set": set(),
-                    }
-                recip = row.get("RecipientEmailAddress", "")
-                if recip:
-                    msg_by_id[mid]["recipients_set"].add(recip)
-            for entry in msg_by_id.values():
-                entry["recipients"] = sorted(entry.pop("recipients_set"))
-            sent_messages = list(msg_by_id.values())
-
-        # ── Account state ──
-        risky_list = _gather_values(risky_data)
-        risky = risky_list[0] if risky_list else {}
-        if isinstance(user_data, dict) and "id" in user_data:
-            account: dict = {
-                "enabled": user_data.get("accountEnabled"),
-                "displayName": user_data.get("displayName"),
-                "onPremSync": user_data.get("onPremisesSyncEnabled"),
-                "lastPasswordChange": user_data.get("lastPasswordChangeDateTime"),
-                "riskLevel": risky.get("riskLevel", "none"),
-                "riskState": risky.get("riskState", "none"),
-            }
-        else:
-            account = {"error": str(user_data) if isinstance(user_data, Exception) else "user not found"}
-
-        # ── Suspicious sign-ins ──
-        signins = _gather_values(signins_data)
-        suspicious_signins: list = []
-        success_countries: list = []
-        for s in signins:
-            ip = s.get("ipAddress", "")
-            ec = s.get("status", {}).get("errorCode", -1)
-            country = (s.get("location") or {}).get("countryOrRegion", "")
-            flags: list = []
-            if ec == 0:
-                if ip and ip not in trusted_ip_set:
-                    flags.append("NON_TRUSTED_IP_SUCCESS")
-                if country:
-                    success_countries.append(country)
-            if ec == 50199:
-                flags.append("MFA_FATIGUE")
-            if flags:
-                suspicious_signins.append({
-                    "time": s.get("createdDateTime"),
-                    "ip": ip,
-                    "country": country,
-                    "city": (s.get("location") or {}).get("city", ""),
-                    "app": s.get("appDisplayName", ""),
-                    "errorCode": ec,
-                    "flags": flags,
-                })
-        unique_countries = set(success_countries)
-        if len(unique_countries) > 1:
-            suspicious_signins.insert(0, {
-                "flag": "IMPOSSIBLE_TRAVEL",
-                "countries": sorted(unique_countries),
-                "note": f"Successful sign-ins from {len(unique_countries)} countries in {hours}h",
-            })
-
-        # ── UAL inbox rule events (forensic ground truth) ──
-        rule_ops = {"New-InboxRule", "Set-InboxRule", "UpdateInboxRules"}
-        ual_rule_events: list = []
-        ual_confirmed_names: set = set()
-        for evt in user_ual:
-            op = evt.get("Operation", "")
-            if op not in rule_ops:
-                continue
-            params_list = evt.get("Parameters", [])
-            rule_name = next((p["Value"] for p in params_list if p.get("Name") == "Name"), "")
-            is_new_str = next((p["Value"] for p in params_list if p.get("Name") == "IsNew"), "")
-            is_new = is_new_str.lower() == "true" or op == "New-InboxRule"
-            if is_new:
-                ual_confirmed_names.add(rule_name.lower())
-            ual_rule_events.append({
-                "time": evt.get("CreationTime"),
-                "operation": op,
-                "clientIP": evt.get("ClientIP", evt.get("ActorIpAddress", "")),
-                "ruleName": rule_name,
-                "isNew": is_new,
-                "sessionId": evt.get("SessionId", ""),
-            })
-
-        # ── Malicious inbox rules (UAL-validated or high-confidence pattern) ──
-        rules = _gather_values(rules_data)
-        malicious_rules: list = []
-        for rule in rules:
-            name = rule.get("displayName", "")
-            actions = rule.get("actions", {})
-            conditions = rule.get("conditions", {})
-            ual_confirmed = name.lower() in ual_confirmed_names
-            # High-confidence patterns: delete-all, known attacker naming
-            suspicious_pattern = (
-                actions.get("deleteMessage") is True
-                or name.startswith("TokenSender-")
-                or (name and all(c == "." for c in name))
-            )
-            if ual_confirmed or suspicious_pattern:
-                malicious_rules.append({
-                    "name": name,
-                    "id": rule.get("id"),
-                    "deleteMessage": actions.get("deleteMessage", False),
-                    "moveToFolder": actions.get("moveToFolder"),
-                    "markAsRead": actions.get("markAsRead", False),
-                    "stopProcessing": actions.get("stopProcessingRules", False),
-                    "hasConditions": bool(conditions),
-                    "ualConfirmed": ual_confirmed,
-                })
-
-        # ── Auth methods ──
-        methods_raw = _gather_values(methods_data)
-        auth_methods: list = []
-        for m in methods_raw:
-            t = m.get("@odata.type", "").split(".")[-1].replace("AuthenticationMethod", "")
-            detail = m.get("phoneNumber") or m.get("emailAddress") or m.get("displayName") or ""
-            auth_methods.append(f"{t}:{detail}" if detail else t)
-
-        # ── Mailbox forwarding (attacker persistence) ──
-        forwarding_address: str | None = None
-        if isinstance(mailbox_data, dict) and not isinstance(mailbox_data, Exception):
-            forwarding_address = (mailbox_data.get("forwardingSmtpAddress")
-                                  or mailbox_data.get("forwardTo") or None)
-
-        # ── OAuth grants (survives password reset + session revocation) ──
-        oauth_grants: list = []
-        grants_raw = _gather_values(oauth_data)
-        for g in grants_raw:
-            oauth_grants.append({
-                "clientId": g.get("clientId"),
-                "consentType": g.get("consentType"),
-                "scope": g.get("scope", ""),
-                "expiryTime": g.get("expiryTime"),
-            })
-
-        # ── Suspicious sent mail (uses normalised sent_messages from above) ──
-        suspicious_sent: list = []
-        for msg in sent_messages:
-            subject = (msg.get("subject") or "").lower()
-            sent_str = msg.get("time", "")
-            all_recips = msg.get("recipients", [])
-            external = [a for a in all_recips if domain and not a.lower().endswith("@" + domain)]
-            flags = []
-            if any(p in subject for p in PHISHING_SUBJECTS):
-                flags.append("PHISHING_SUBJECT")
-            if external and sent_str:
-                try:
-                    hour = datetime.fromisoformat(sent_str.replace("Z", "+00:00")).hour
-                    if hour < 6 or hour >= 20:
-                        flags.append("AFTER_HOURS_EXTERNAL_SEND")
-                except Exception:
-                    pass
-            if flags:
-                suspicious_sent.append({
-                    "time": sent_str,
-                    "subject": msg.get("subject"),
-                    "to": all_recips[:20],
-                    "externalTo": external[:20],
-                    "totalRecipients": len(all_recips),
-                    "totalExternal": len(external),
-                    "flags": flags,
-                })
-        if sum(1 for m in suspicious_sent if m.get("totalExternal", 0) > 0) >= 5 and suspicious_sent:
-            suspicious_sent[0].setdefault("flags", []).append("MASS_EXTERNAL_SEND")
-
-        # ── UAL mailbox access (did attacker read emails?) ──
-        access_ops = {"MailItemsAccessed", "MessageBind", "FolderBind", "SendAs"}
-        ual_access: list = []
-        for evt in user_ual:
-            if evt.get("Operation", "") not in access_ops:
-                continue
-            ual_access.append({
-                "time": evt.get("CreationTime"),
-                "operation": evt.get("Operation"),
-                "clientIP": evt.get("ClientIP", ""),
-                "userAgent": evt.get("UserAgent", ""),
-            })
-
-        # ── CloudAppEvents: Exchange Online activity from Defender Advanced Hunting ──
-        # Provides mailbox access, sends, and deletes with IP/ISP detail.
-        # Available without Defender for O365 Plan 2 (unlike EmailEvents).
-        cloud_events: list = []
-        cloud_suspicious: list = []
-        if not isinstance(cloud_events_raw, Exception) and isinstance(cloud_events_raw, dict):
-            SUSPICIOUS_CLOUD_OPS = {"HardDelete", "SoftDelete", "MoveToDeletedItems",
-                                    "Send", "SendAs", "SendOnBehalf"}
-            for row in cloud_events_raw.get("results", []):
-                ip = row.get("IPAddress", "")
-                action = row.get("ActionType", "")
-                entry = {
-                    "time": row.get("Timestamp"),
-                    "action": action,
-                    "ip": ip,
-                    "country": row.get("CountryCode", ""),
-                    "isp": row.get("ISP", ""),
-                    "object": row.get("ObjectName", ""),
-                }
-                cloud_events.append(entry)
-                # Flag non-trusted IP activity for high-signal actions
-                if ip and ip not in trusted_ip_set and action in SUSPICIOUS_CLOUD_OPS:
-                    entry_flagged = dict(entry)
-                    entry_flagged["flag"] = "NON_TRUSTED_IP_" + action.upper()
-                    cloud_suspicious.append(entry_flagged)
-        else:
-            cloud_events = []
-            cloud_suspicious = []
-
-        # ── Risk summary ──
-        indicators: list = []
-        if any("NON_TRUSTED_IP_SUCCESS" in si.get("flags", [])
-               for si in suspicious_signins if "flags" in si):
-            indicators.append("NON_TRUSTED_IP_SUCCESS")
-        if any(si.get("flag") == "IMPOSSIBLE_TRAVEL" for si in suspicious_signins):
-            indicators.append("IMPOSSIBLE_TRAVEL")
-        if any("MFA_FATIGUE" in si.get("flags", [])
-               for si in suspicious_signins if "flags" in si):
-            indicators.append("MFA_FATIGUE")
-        if forwarding_address:
-            indicators.append(f"EMAIL_FORWARDING_ACTIVE→{forwarding_address}")
-        if malicious_rules:
-            indicators.append(f"{len(malicious_rules)}_MALICIOUS_RULE(S)")
-        if suspicious_sent:
-            total_ext = sum(m.get("totalExternal", len(m.get("externalTo", []))) for m in suspicious_sent)
-            indicators.append(f"{len(suspicious_sent)}_SUSPICIOUS_EMAIL(S)_{total_ext}_EXTERNAL_RECIPS")
-        if risky.get("riskLevel") in ("medium", "high"):
-            indicators.append(f"IDENTITY_PROTECTION_{risky['riskLevel'].upper()}")
-        if ual_rule_events:
-            indicators.append(f"{len(ual_rule_events)}_UAL_RULE_EVENT(S)")
-        if cloud_suspicious:
-            indicators.append(f"{len(cloud_suspicious)}_SUSPICIOUS_CLOUD_ACTION(S)")
-        if any(g.get("scope", "").lower() in ("full_access_as_user", ".default")
-               for g in oauth_grants):
-            indicators.append("OAUTH_FULL_ACCESS_GRANT")
-
-        if malicious_rules or risky.get("riskLevel") == "high" or len(indicators) >= 3:
-            level = "HIGH"
-        elif indicators:
-            level = "MEDIUM"
-        else:
-            level = "CLEAN"
-        risk_summary = level + (" — " + ", ".join(indicators) if indicators else "")
-
-        return {
-            "user": upn,
-            "account": account,
-            "forwardingAddress": forwarding_address,
-            "oauthGrants": {"count": len(oauth_grants), "grants": oauth_grants},
-            "suspiciousSignIns": suspicious_signins[:10],
-            "maliciousRules": malicious_rules,
-            "authMethods": auth_methods,
-            "sentMailSource": sent_source,
-            "suspiciousSentMail": suspicious_sent[:10],
-            "cloudAppFindings": {
-                "available": not isinstance(cloud_events_raw, Exception),
-                "totalEvents": len(cloud_events),
-                "suspiciousEvents": cloud_suspicious[:20],
-            },
-            "ualFindings": {
-                "inboxRuleChanges": ual_rule_events,
-                "mailboxAccess": ual_access[:10],
-                "ualDataIncomplete": ual_incomplete,
-            },
-            "riskSummary": risk_summary,
-        }
-
-    # Run all users concurrently
-    reports = await asyncio.gather(*[_triage_one(upn) for upn in user_list], return_exceptions=True)
+    # Run all users concurrently — delegate to module-level _triage_one
+    reports = await asyncio.gather(*[
+        _triage_one(upn, ual_events, ual_incomplete, trusted_ip_set, hours, since)
+        for upn in user_list
+    ], return_exceptions=True)
 
     return _fmt({
         "triageTimestamp": datetime.now(timezone.utc).isoformat(),

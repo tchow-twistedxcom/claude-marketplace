@@ -19,9 +19,14 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from .base import BaseDomain
+from . import register_domain
 
 if TYPE_CHECKING:
     import argparse
+
+# Import hoisted to file level (not per-method) to avoid repeated deferred imports.
+# Relies on scripts/ directory being on sys.path (set by the CLI entry point).
+from mimecast_formatter import format_output
 
 GRADE_ORDER = ["A", "B", "C", "D", "F"]
 COMPONENTS = ["risk", "humanError", "sentiment", "engagement", "knowledge"]
@@ -34,6 +39,7 @@ COMPONENT_LABELS = {
 }
 
 
+@register_domain
 class HumanRiskDomain(BaseDomain):
     """Human Risk domain — per-user risk grades from Awareness Training product."""
 
@@ -51,8 +57,6 @@ class HumanRiskDomain(BaseDomain):
 
     def cmd_summary(self, args: argparse.Namespace) -> None:
         """Print grade distribution across all risk components."""
-        from mimecast_formatter import format_output
-
         users = self.get_safe_score_details()
         if not users:
             print("No user data returned.", file=sys.stderr)
@@ -60,7 +64,7 @@ class HumanRiskDomain(BaseDomain):
 
         output_fmt = args.output
         if output_fmt != "table":
-            summary = _build_summary(users)
+            summary = self._build_summary(users)
             format_output(summary, output_fmt, 'human-risk-summary')
             return
 
@@ -108,7 +112,6 @@ class HumanRiskDomain(BaseDomain):
 
         output_fmt = args.output
         if output_fmt != "table":
-            from mimecast_formatter import format_output
             format_output(users, output_fmt, 'human-risk-users')
             return
 
@@ -143,6 +146,23 @@ class HumanRiskDomain(BaseDomain):
         self.cmd_users(args)
 
     # ── Domain Registration ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _build_summary(users: list) -> dict:
+        """Build grade distribution summary across all risk components."""
+        total = len(users)
+        summary: dict = {"total": total, "components": {}}
+        for comp in COMPONENTS:
+            dist = {g: 0 for g in GRADE_ORDER}
+            for u in users:
+                g = u.get(comp)
+                if g in dist:
+                    dist[g] += 1
+            summary["components"][comp] = {
+                g: {"count": dist[g], "pct": round(dist[g] * 100 / total, 1) if total else 0}
+                for g in GRADE_ORDER
+            }
+        return summary
 
     def get_cmd_map(self) -> dict[tuple[str, str], Any]:
         return {
@@ -193,20 +213,3 @@ class HumanRiskDomain(BaseDomain):
         hr.add_argument("--department", help="Filter by department name")
         hr.add_argument("--active", action="store_true", help="Only show ACTIVE users")
 
-
-# ── Helpers ────────────────────────────────────────────────────────────────
-
-def _build_summary(users: list[dict]) -> dict:
-    total = len(users)
-    summary: dict = {"total": total, "components": {}}
-    for comp in COMPONENTS:
-        dist = {g: 0 for g in GRADE_ORDER}
-        for u in users:
-            g = u.get(comp)
-            if g in dist:
-                dist[g] += 1
-        summary["components"][comp] = {
-            g: {"count": dist[g], "pct": round(dist[g] * 100 / total, 1) if total else 0}
-            for g in GRADE_ORDER
-        }
-    return summary

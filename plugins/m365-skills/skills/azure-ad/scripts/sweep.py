@@ -267,15 +267,15 @@ def run_sweep(api: AzureADAPI, args: argparse.Namespace) -> dict:
     # Build base time filter
     filter_base = build_time_filter(
         'createdDateTime',
-        hours=getattr(args, 'hours', None),
-        days=getattr(args, 'days', None),
-        since=getattr(args, 'since', None)
+        hours=args.hours,
+        days=args.days,
+        since=args.since,
     )
     risk_filter_base = build_time_filter(
         'activityDateTime',
-        hours=getattr(args, 'hours', None),
-        days=getattr(args, 'days', None),
-        since=getattr(args, 'since', None)
+        hours=args.hours,
+        days=args.days,
+        since=args.since,
     )
 
     # victim_evidence: {upn: {vector: [evidence_items]}}
@@ -283,7 +283,7 @@ def run_sweep(api: AzureADAPI, args: argparse.Namespace) -> dict:
 
     # ── Vector 1: IP sweep ──────────────────────────────────────────────────
     suspect_ips = set()
-    if getattr(args, 'ips', None):
+    if args.ips:
         suspect_ips.update(ip.strip() for ip in args.ips.split(',') if ip.strip())
 
     if suspect_ips:
@@ -335,7 +335,7 @@ def run_sweep(api: AzureADAPI, args: argparse.Namespace) -> dict:
                 suspect_ips.add(ip)
 
     # ── Vector 4: Risk IP cross-reference ──────────────────────────────────
-    new_ips = suspect_ips - set(getattr(args, 'ips', '').split(',') if getattr(args, 'ips', None) else [])
+    new_ips = suspect_ips - set(args.ips.split(',') if args.ips else [])
     if new_ips:
         print(f"[4/5] Cross-referencing {len(new_ips)} IPs from risk events...", file=sys.stderr, flush=True)
         all_v4_sign_ins: list = []

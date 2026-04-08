@@ -15,11 +15,17 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from .base import BaseDomain
+from . import register_domain
 
 if TYPE_CHECKING:
     import argparse
 
+# Import hoisted to file level (not per-method) to avoid repeated deferred imports.
+# Relies on scripts/ directory being on sys.path (set by the CLI entry point).
+from mimecast_formatter import format_output
 
+
+@register_domain
 class DirectorySyncDomain(BaseDomain):
     """Directory Sync domain — connection config, status, and sync history."""
 
@@ -51,7 +57,6 @@ class DirectorySyncDomain(BaseDomain):
 
     def cmd_status(self, args: argparse.Namespace) -> None:
         """Show directory sync connection config and current status."""
-        from mimecast_formatter import format_output
 
         r = self.get_connection()
         connections = r.get("data", [])
@@ -93,7 +98,6 @@ class DirectorySyncDomain(BaseDomain):
 
     def cmd_history(self, args: argparse.Namespace) -> None:
         """Show recent sync event history."""
-        from mimecast_formatter import format_output
 
         days = getattr(args, "days", 7)
         events = self.get_sync_events(days=days)

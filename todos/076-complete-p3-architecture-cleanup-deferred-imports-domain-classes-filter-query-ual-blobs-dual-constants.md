@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "076"
 tags: [code-review, architecture, azure-ad]
@@ -93,3 +93,4 @@ Extract `_triage_one(upn, ual_events, trusted_ip_set, hours, since, domain)` to 
 ## Work Log
 
 - 2026-04-08: Identified by architecture-strategist (FINDING-8/9/10/11) and kieran-python-reviewer (FINDING-11) in 5th review pass
+- 2026-04-08: Resolved. format_output imports hoisted to file level in all 3 domain modules (16 per-call duplicates removed from awareness_training.py). @register_domain decorator added to domains/__init__.py; _DOMAIN_REGISTRY auto-populates via decorators on all domain classes. filter_query length cap (>2000 chars) added to list_users/list_groups/list_devices. _ual_fetch_blobs now returns (events, incomplete) tuple; logs error counts to stderr; ualDataIncomplete added to triage ualFindings. GRAPH_BASE/GRAPH_SCOPE/TOKEN_REFRESH_BUFFER annotated with must-match-auth.py comment. _triage_one extracted to module-level async function; PHISHING_SUBJECTS moved to module scope as frozenset. Commit: a8c2a30.

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "074"
 tags: [code-review, quality, azure-ad]
@@ -82,3 +82,4 @@ result = await _graph("GET", f"/users/{user_id}", params=params or None)
 ## Work Log
 
 - 2026-04-08: Identified by code-simplicity-reviewer in 5th review pass. Items 1 and 2 were originally in todo 064 but scope was limited to audit_m365_sync.py.
+- 2026-04-08: Resolved. chr(39)/chr(10) were not present in server.py (already clean). _gather_values helper extracted to module scope; 5 isinstance/Exception guard patterns replaced in _triage_one. VALID_MAIL_FOLDERS moved to module scope. params or None removed from azure_ad_get_user. getattr(args, ...) replaced with direct args.x in sweep.py. _build_summary promoted to @staticmethod on HumanRiskDomain. Commit: a8c2a30.

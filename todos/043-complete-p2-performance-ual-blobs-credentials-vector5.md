@@ -37,10 +37,11 @@ The mass-password-spray vector processes victim accounts one at a time using `fo
 
 ## Acceptance Criteria
 
-- [ ] `_ual_fetch_blobs` fetches blobs concurrently with `asyncio.gather`
-- [ ] `_get_credentials()` is not called redundantly within a single request
-- [ ] Vector 5 victim processing uses ThreadPoolExecutor consistent with other vectors
+- [ ] `_ual_fetch_blobs` fetches blobs concurrently with `asyncio.gather` — remaining in server.py
+- [ ] `_get_credentials()` is not called redundantly within a single request — remaining in server.py
+- [x] Vector 5 victim processing uses ThreadPoolExecutor consistent with other vectors — complete in sweep.py
 
 ## Work Log
 
 - 2026-04-08: Identified in 3rd review pass
+- 2026-04-08: sweep.py Vector 5 parallelism complete — extracted _process_victim() helper and replaced sequential for loop with ThreadPoolExecutor(max_workers=10), matching Vector 1/4 pattern. _ual_fetch_blobs and _get_credentials items remain in server.py.

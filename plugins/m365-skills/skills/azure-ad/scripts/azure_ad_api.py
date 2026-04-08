@@ -223,9 +223,10 @@ class AzureADAPI:
 
     def users_search(self, query: str, top: int = 25) -> dict:
         """Search users by displayName or mail."""
+        safe_query = query.replace("'", "''")
         params = {
             "$top": top,
-            "$filter": f"startswith(displayName,'{query}') or startswith(mail,'{query}')",
+            "$filter": f"startswith(displayName,'{safe_query}') or startswith(mail,'{safe_query}')",
             "$select": "id,displayName,userPrincipalName,mail,jobTitle,department"
         }
         return self._request('GET', '/users', params=params)
@@ -319,9 +320,10 @@ class AzureADAPI:
 
     def groups_search(self, query: str, top: int = 25) -> dict:
         """Search groups by displayName."""
+        safe_query = query.replace("'", "''")
         params = {
             "$top": top,
-            "$filter": f"startswith(displayName,'{query}')",
+            "$filter": f"startswith(displayName,'{safe_query}')",
             "$select": "id,displayName,mail,groupTypes,description"
         }
         return self._request('GET', '/groups', params=params)
@@ -413,9 +415,10 @@ class AzureADAPI:
 
     def devices_search(self, query: str, top: int = 25) -> dict:
         """Search devices by displayName."""
+        safe_query = query.replace("'", "''")
         params = {
             "$top": top,
-            "$filter": f"startswith(displayName,'{query}')",
+            "$filter": f"startswith(displayName,'{safe_query}')",
             "$select": "id,displayName,operatingSystem,operatingSystemVersion,trustType,isManaged"
         }
         return self._request('GET', '/devices', params=params)
@@ -798,6 +801,12 @@ Examples:
     p.add_argument('--since', help='ISO 8601 datetime to filter from')
     p.add_argument('--user', help='Filter by UPN or email')
     p.add_argument('--ip', help='Filter by IP address')
+    p.add_argument('--app', help='Filter by application display name')
+    p.add_argument('--error-code', dest='error_code', type=int, help='Filter by error code')
+    p.add_argument('--country', help='Filter by country (location/countryOrRegion)')
+    p.add_argument('--risk-level', dest='risk_level',
+                   choices=['low', 'medium', 'high', 'none'],
+                   help='Filter by risk level')
     p.add_argument('--all', action='store_true', dest='all_pages', help='Fetch all pages')
 
     # security risky-users
@@ -805,6 +814,9 @@ Examples:
     p.add_argument('--top', type=int, default=100)
     p.add_argument('--risk-level', choices=['low', 'medium', 'high', 'none'],
                    dest='risk_level', help='Filter by risk level')
+    p.add_argument('--risk-state', dest='risk_state',
+                   choices=['atRisk', 'confirmedCompromised', 'remediated', 'dismissed'],
+                   help='Filter by risk state')
 
     # security risk-detections
     p = security_sub.add_parser('risk-detections', help='Fetch risk detection events')
@@ -840,6 +852,14 @@ def handle_security(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
             filter_parts.append(f"userPrincipalName eq '{args.user}'")
         if getattr(args, 'ip', None):
             filter_parts.append(f"ipAddress eq '{args.ip}'")
+        if getattr(args, 'app', None):
+            filter_parts.append(f"appDisplayName eq '{args.app}'")
+        if getattr(args, 'error_code', None) is not None:
+            filter_parts.append(f"status/errorCode eq {args.error_code}")
+        if getattr(args, 'country', None):
+            filter_parts.append(f"location/countryOrRegion eq '{args.country}'")
+        if getattr(args, 'risk_level', None):
+            filter_parts.append(f"riskLevelDuringSignIn eq '{args.risk_level}'")
         fq = ' and '.join(filter_parts) if filter_parts else None
         return api.security_sign_ins(
             top=args.top,
@@ -847,9 +867,12 @@ def handle_security(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
             all_pages=getattr(args, 'all_pages', False),
         )
     elif args.security_action == 'risky-users':
-        fq = None
+        filter_parts = []
         if getattr(args, 'risk_level', None):
-            fq = f"riskLevel eq '{args.risk_level}'"
+            filter_parts.append(f"riskLevel eq '{args.risk_level}'")
+        if getattr(args, 'risk_state', None):
+            filter_parts.append(f"riskState eq '{args.risk_state}'")
+        fq = ' and '.join(filter_parts) if filter_parts else None
         return api.security_risky_users(top=args.top, filter_query=fq)
     elif args.security_action == 'risk-detections':
         fq = build_time_filter(field='detectedDateTime', hours=getattr(args, 'hours', None))

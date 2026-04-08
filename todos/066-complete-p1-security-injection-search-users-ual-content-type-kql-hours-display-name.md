@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "066"
 tags: [code-review, security, azure-ad]
@@ -59,12 +59,13 @@ Real Graph folder IDs are base64url (e.g. `AAMkAGI...`), not hex GUIDs. The docu
 
 ## Acceptance Criteria
 
-- [ ] `azure_ad_search_users` rejects or sanitizes `query` values containing `"` characters
-- [ ] `VALID_UAL_CONTENT_TYPES` allowlist added; `content_type` validated before use in URL/params
-- [ ] `hours` capped to `[1, 720]` in `azure_ad_email_events`, `azure_ad_email_attachments`, and `_triage_one` KQL paths
-- [ ] `display_name` length-capped (≤256 chars) in CA policy and named location create/update tools
-- [ ] Folder GUID bypass regex tightened to RFC 4122 full UUID pattern
+- [x] `azure_ad_search_users` rejects or sanitizes `query` values containing `"` characters
+- [x] `VALID_UAL_CONTENT_TYPES` allowlist added; `content_type` validated before use in URL/params
+- [x] `hours` capped to `[1, 720]` in `azure_ad_email_events`, `azure_ad_email_attachments`, and `_triage_one` KQL paths
+- [x] `display_name` length-capped (≤256 chars) in CA policy and named location create/update tools
+- [x] Folder GUID bypass regex tightened to RFC 4122 full UUID pattern
 
 ## Work Log
 
 - 2026-04-08: Identified by security-sentinel in 5th review pass
+- 2026-04-08: All 5 fixes applied in extensions/azure-ad/src/server.py — query sanitization (strip `"`), VALID_UAL_CONTENT_TYPES allowlist + validation in `_ual_fetch_blobs` and `azure_ad_ual_search`, hours bounds clamping [1,720] in `azure_ad_email_events`/`azure_ad_email_attachments`/`_triage_one`, display_name 256-char cap in all 3 CA/named-location tools, folder GUID RFC 4122 + base64url regex. Commit: 49e41c6.

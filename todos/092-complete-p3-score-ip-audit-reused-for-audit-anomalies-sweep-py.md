@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "092"
 tags: [code-review, quality, azure-ad, sweep]
@@ -29,9 +29,10 @@ Replace the `_SCORE_IP_AUDIT` usage in `audit_anomalies` with `_SCORE_AUDIT_ANOM
 - **Effort**: Trivial | **Risk**: None
 
 ## Acceptance Criteria
-- [ ] `_SCORE_IP_AUDIT` used only for IP-based audit scoring
-- [ ] `_SCORE_AUDIT_ANOMALY` (or similar) used for audit anomaly scoring
-- [ ] Both constants have equal values initially (no behavioral change)
+- [x] `_SCORE_IP_AUDIT` used only for IP-based audit scoring
+- [x] `_SCORE_AUDIT_ANOMALY` (or similar) used for audit anomaly scoring
+- [x] Both constants have equal values initially (no behavioral change)
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (code-simplicity-reviewer)
+- 2026-04-08: Fixed — added `_SCORE_AUDIT_ANOMALY = 1` alongside `_SCORE_IP_AUDIT = 1`; replaced `_SCORE_IP_AUDIT` with `_SCORE_AUDIT_ANOMALY` in the `audit_anomalies` branch of `compute_confidence`. Commit: refactor(sweep): separate audit anomaly score constant; fix typing (todos 092, 098)

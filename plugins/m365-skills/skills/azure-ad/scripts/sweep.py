@@ -105,18 +105,44 @@ def collect_mfa_fatigue_victims(api: AzureADAPI, filter_base: str, window_minute
 
     victims = {}
 
+    def _query_mfa_success(upn: str, f_success: str) -> tuple[str, list]:
+        """Fetch successful sign-ins for a single UPN. Returns (upn, successes)."""
+        try:
+            succ_result = api.security_sign_ins(top=200, filter_query=f_success, all_pages=False)
+            return (upn, _values(succ_result))
+        except Exception as e:
+            print(f"  [!] Success query failed for {upn}: {e}", file=sys.stderr)
+            return (upn, [])
+
+    # Build per-UPN success filter strings before fanning out
+    upn_filters: dict[str, str] = {}
     for upn in upns_with_failures:
-        # Escape single quotes in UPN for OData filter safety
         safe_upn = upn.replace("'", "''")
-        # For each UPN, pull their successes in the same window
         f_success = f"userPrincipalName eq '{safe_upn}' and status/errorCode eq 0"
         if filter_base:
             f_success = f"{filter_base} and {f_success}"
-        try:
-            succ_result = api.security_sign_ins(top=200, filter_query=f_success, all_pages=False)
-            successes = _values(succ_result)
-        except Exception as e:
-            print(f"  [!] Success query failed for {upn}: {e}", file=sys.stderr)
+        upn_filters[upn] = f_success
+
+    # Fan out success queries in parallel — one HTTPS call per UPN
+    successes_by_upn: dict[str, list] = {}
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {
+            executor.submit(_query_mfa_success, upn, f_success): upn
+            for upn, f_success in upn_filters.items()
+        }
+        for future in as_completed(futures):
+            try:
+                upn, successes = future.result()
+                successes_by_upn[upn] = successes
+            except Exception as e:
+                upn = futures[future]
+                print(f"  [!] Unexpected error for {upn}: {e}", file=sys.stderr)
+                successes_by_upn[upn] = []
+
+    # Build timeline for each UPN using pre-fetched results
+    for upn in upns_with_failures:
+        successes = successes_by_upn.get(upn, [])
+        if not successes:
             continue
 
         # Build timeline: failures for this UPN (pre-grouped for O(1) lookup)

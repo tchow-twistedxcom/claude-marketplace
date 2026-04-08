@@ -157,7 +157,7 @@ class AzureADAPI:
                     response = requests.get(
                         endpoint,
                         headers=self.auth.get_auth_headers(),
-                        timeout=self.config.get('defaults', {}).get('timeout', 30)
+                        timeout=self.config.get('defaults', {}).get('timeout', 60)
                     )
                     response.raise_for_status()
                     result = response.json()

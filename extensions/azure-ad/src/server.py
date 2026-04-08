@@ -354,8 +354,10 @@ async def azure_ad_user_devices(user_id: str) -> str:
 
     Returns list of device objects with OS, trust type, compliance status, and last sign-in.
     """
-    owned = await _graph("GET", f"/users/{user_id}/ownedDevices")
-    registered = await _graph("GET", f"/users/{user_id}/registeredDevices")
+    owned, registered = await asyncio.gather(
+        _graph("GET", f"/users/{user_id}/ownedDevices"),
+        _graph("GET", f"/users/{user_id}/registeredDevices"),
+    )
     return _fmt({
         "ownedDevices": owned.get("value", []),
         "registeredDevices": registered.get("value", []),
@@ -775,12 +777,12 @@ async def azure_ad_named_locations() -> str:
 @mcp.tool()
 async def azure_ad_revoke_sessions(
     user: str,
-    dry_run: bool = True,
+    confirm: bool = False,
 ) -> str:
     """Revoke all sign-in sessions for a user.
 
-    IMPORTANT: This immediately invalidates all active sessions. By default, dry_run=True
-    returns a preview without executing. Pass dry_run=False to actually revoke sessions.
+    IMPORTANT: This immediately invalidates all active sessions. By default, confirm=False
+    returns a preview without executing. Pass confirm=True to actually revoke sessions.
 
     Use during incident response to immediately terminate access for a compromised account.
     This invalidates all refresh tokens — the user will be forced to re-authenticate
@@ -788,17 +790,17 @@ async def azure_ad_revoke_sessions(
 
     Args:
         user: User UPN (e.g. 'john@contoso.com') or object ID.
-        dry_run: If True (default), returns a preview without executing. Pass False to revoke.
+        confirm: If False (default), returns a preview without executing. Pass True to revoke.
 
-    Returns preview dict when dry_run=True, or Graph API result when dry_run=False.
+    Returns preview dict when confirm=False, or Graph API result when confirm=True.
     After revocation, the user's risk level is unaffected —
     use azure_ad_confirm_compromised to also flag them in Identity Protection.
     """
-    if dry_run:
+    if not confirm:
         return json.dumps({
-            "dry_run": True,
+            "confirm": False,
             "would_revoke_sessions_for": user,
-            "message": "Pass dry_run=False to execute. This will immediately sign out the user from all devices.",
+            "message": "Pass confirm=True to execute. This will immediately sign out the user from all devices.",
         })
     print(f"[azure-ad-server] DESTRUCTIVE OP: revokeSignInSessions user={user}", file=sys.stderr)
     result = await _graph("POST", f"/users/{user}/revokeSignInSessions")
@@ -1654,7 +1656,7 @@ async def azure_ad_mfa_changes(
                  if any(t.get("userPrincipalName", "").lower() == user.lower()
                         for t in i.get("targetResources", []))]
     items.sort(key=lambda x: x.get("activityDateTime") or "", reverse=True)
-    return _fmt({"count": len(items), "value": items[:top]})
+    return _fmt({"events": items[:top], "count": len(items)})
 
 
 @mcp.tool()
@@ -1691,7 +1693,7 @@ async def azure_ad_role_changes(
         items = [i for i in items
                  if any(t.get("userPrincipalName", "").lower() == user.lower()
                         for t in i.get("targetResources", []))]
-    return _fmt({"count": len(items), "value": items[:top]})
+    return _fmt({"events": items[:top], "count": len(items)})
 
 
 @mcp.tool()

@@ -506,7 +506,7 @@ def cross_reference(
             # Falls back to createdDateTime when signInActivity is absent (e.g. accounts
             # that never signed in or where AuditLog.Read.All is not granted).
             last_sign_in = (
-                az_user.get("signInActivity", {}).get("lastSignInDateTime")
+                (az_user.get("signInActivity") or {}).get("lastSignInDateTime")
                 or az_user.get("createdDateTime", "")
             )
             if last_sign_in:

@@ -60,7 +60,10 @@ PLUGIN_DIR = SCRIPT_DIR.parent
 REPO_ROOT = PLUGIN_DIR.parent.parent  # plugins/mimecast-skills/../.. = repo root
 
 MIMECAST_CLI = PLUGIN_DIR / "scripts" / "mimecast_api.py"
-AZURE_CLI = REPO_ROOT / "plugins" / "m365-skills" / "skills" / "azure-ad" / "scripts" / "azure_ad_api.py"
+AZURE_CLI = Path(os.environ.get(
+    "AZURE_AD_CLI_PATH",
+    str(REPO_ROOT / "plugins" / "m365-skills" / "skills" / "azure-ad" / "scripts" / "azure_ad_api.py"),
+))
 
 
 # ── CLI Runner ────────────────────────────────────────────────────────────────
@@ -107,7 +110,7 @@ def fetch_azure_users(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=180)
     if data is None:
         return []
-    return _mc_data(data)
+    return _unwrap_graph_list(data)
 
 
 def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
@@ -120,7 +123,7 @@ def fetch_azure_deleted_users(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=60)
     if data is None:
         return []
-    return _mc_data(data)
+    return _unwrap_graph_list(data)
 
 
 def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
@@ -133,7 +136,7 @@ def fetch_azure_domains(tenant: str, verbose: bool) -> list[dict]:
     ], verbose, timeout=60)
     if data is None:
         return []
-    return _mc_data(data)
+    return _unwrap_graph_list(data)
 
 
 def filter_azure_users(users: list[dict]) -> dict:
@@ -263,7 +266,7 @@ def segment_mimecast_users(users: list[dict]) -> dict:
     }
 
 
-def _mc_data(response: dict | list | None) -> list:
+def _unwrap_graph_list(response: dict | list | None) -> list:
     """Extract the 'value' list from a Graph API response, or return the list directly."""
     if response is None:
         return []
@@ -274,32 +277,9 @@ def _mc_data(response: dict | list | None) -> list:
     return []
 
 
-def _mimecast_run(cmd: list, profile: str, verbose: bool) -> dict | list | None:
+def _mimecast_run(cmd: list[str], profile: str, verbose: bool) -> dict | list | None:
     """Run a Mimecast CLI command with standard profile/output flags."""
-    full_cmd = [MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd
-    try:
-        result = subprocess.run(
-            [sys.executable] + [str(c) for c in full_cmd],
-            capture_output=True, text=True, timeout=60,
-        )
-        if result.returncode != 0:
-            print(
-                f"WARNING: mimecast command failed: {result.returncode}\n{result.stderr.strip()[:300]}",
-                file=sys.stderr,
-            )
-            return None
-        if not result.stdout.strip():
-            return None
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as e:
-        print(f"WARNING: mimecast JSON parse error for {cmd}: {e}", file=sys.stderr)
-        return None
-    except subprocess.TimeoutExpired:
-        print(f"WARNING: mimecast command timed out: {cmd}", file=sys.stderr)
-        return None
-    except Exception as e:
-        print(f"WARNING: mimecast command error: {e}", file=sys.stderr)
-        return None
+    return run_cli([MIMECAST_CLI, "--profile", profile, "--output", "json"] + cmd, verbose)
 
 
 def fetch_mimecast_config(profile: str, verbose: bool) -> dict:
@@ -472,18 +452,12 @@ def cross_reference(
                     results["disabled_active"].append(disabled_entry)
             else:
                 results["disabled_active"].append(disabled_entry)
-        elif email in deleted_emails:
-            results["orphaned"].append({
-                "email": email,
-                "mimecast_name": mc_user.get("name", ""),
-                "note": "Account deleted from Azure AD",
-            })
         else:
-            # Not in Azure AD at all
+            note = "Account deleted from Azure AD" if email in deleted_emails else "No matching Azure AD account"
             results["orphaned"].append({
                 "email": email,
                 "mimecast_name": mc_user.get("name", ""),
-                "note": "No matching Azure AD account",
+                "note": note,
             })
 
     # Check Azure AD active users against Mimecast
@@ -818,6 +792,7 @@ def generate_markdown_report(
     timestamp: str,
     mimecast_segments: dict | None = None,
     azure_segments: dict | None = None,
+    fetch_errors: dict | None = None,
 ) -> str:
     lines = []
     r = sync_results
@@ -832,6 +807,20 @@ def generate_markdown_report(
     # Header
     lines.append("# Mimecast ↔ M365 Configuration Audit")
     lines.append(f"Generated: {timestamp}\n")
+
+    # Data quality warning — must appear before executive summary
+    if fetch_errors:
+        lines.append("## ⚠️ Data Quality Warning\n")
+        lines.append(
+            f"**{len(fetch_errors)} data source(s) failed to fetch.** "
+            "Results below may include false positives due to incomplete data. "
+            "Verify findings manually before taking action.\n"
+        )
+        lines.append("| Failed Source | Error |")
+        lines.append("|---|---|")
+        for source, err in fetch_errors.items():
+            lines.append(f"| `{source}` | {err} |")
+        lines.append("")
 
     # Executive summary
     total_issues = len(orphaned) + len(disabled_active) + len(stale)
@@ -1000,7 +989,18 @@ def main():
                         help="Output raw JSON findings instead of markdown")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="Show detailed progress")
+    parser.add_argument("--svc-prefixes", default="",
+                        help=(
+                            "Comma-separated list of Azure AD UPN local-part prefixes to treat as "
+                            "service accounts (overrides built-in defaults: svc-, sync_, ntservice, etc.). "
+                            "Example: --svc-prefixes 'svc-,admin-,bot-'"
+                        ))
     args = parser.parse_args()
+
+    # Apply --svc-prefixes override if provided
+    if args.svc_prefixes.strip():
+        global AZURE_SVC_PREFIXES
+        AZURE_SVC_PREFIXES = tuple(p.strip() for p in args.svc_prefixes.split(",") if p.strip())
 
     excluded_domains = {d.strip().lower() for d in args.exclude_domains.split(",") if d.strip()}
 
@@ -1023,6 +1023,7 @@ def main():
         "azure_domains": lambda: fetch_azure_domains(args.azure_tenant, args.verbose),
     }
     fetch_results: dict = {}
+    fetch_errors: dict[str, str] = {}
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(fn): key for key, fn in fetch_tasks.items()}
         for future in as_completed(futures):
@@ -1032,6 +1033,7 @@ def main():
             except Exception as e:
                 print(f"WARNING: worker failed for {key}: {e}", file=sys.stderr)
                 fetch_results[key] = []
+                fetch_errors[key] = str(e)  # track which fetches failed
     azure_users_raw = fetch_results["azure_users_raw"]
     deleted_users = fetch_results["deleted_users"]
     mimecast_raw = fetch_results["mimecast_raw"]
@@ -1070,12 +1072,23 @@ def main():
     )
     print(f"  User sync issues: {total_issues}", file=sys.stderr)
 
-    # Fetch and analyze config
-    config = fetch_mimecast_config(args.mimecast_profile, args.verbose)
+    # Fetch config and sync health in parallel — they are independent
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_config = executor.submit(fetch_mimecast_config, args.mimecast_profile, args.verbose)
+        f_health = executor.submit(fetch_sync_health, args.mimecast_profile, args.verbose)
+    try:
+        config = f_config.result()
+    except Exception as e:
+        print(f"WARNING: fetch_mimecast_config failed: {e}", file=sys.stderr)
+        config = {}
+        fetch_errors["mimecast_config"] = str(e)
+    try:
+        sync_health = f_health.result()
+    except Exception as e:
+        print(f"WARNING: fetch_sync_health failed: {e}", file=sys.stderr)
+        sync_health = {}
+        fetch_errors["sync_health"] = str(e)
     config_findings = analyze_config(config, azure_domains)
-
-    # Fetch and analyze directory sync health
-    sync_health = fetch_sync_health(args.mimecast_profile, args.verbose)
     sync_health_findings = analyze_sync_health(sync_health)
 
     all_config_issues = [
@@ -1093,11 +1106,13 @@ def main():
             "sync_results": sync_results,
             "config_findings": config_findings,
             "sync_health_findings": sync_health_findings,
+            "fetch_errors": fetch_errors,
         }, indent=2)
     else:
         output = generate_markdown_report(
             sync_results, config_findings, sync_health_findings,
             args.grace_days, timestamp, mimecast_segments, azure_segments,
+            fetch_errors=fetch_errors,
         )
 
     if args.output == "-":
@@ -1106,7 +1121,16 @@ def main():
         Path(args.output).write_text(output)
         print(f"Report written to {args.output}", file=sys.stderr)
 
-    # Exit 1 if issues found (useful for CI/scripting)
+    # Exit 1 if issues found; exit 2 if data fetch failures occurred
+    # When fetch errors are present and issues were found, warn that findings may be false positives
+    if fetch_errors:
+        print(
+            f"WARNING: {len(fetch_errors)} data source(s) failed to fetch: {list(fetch_errors.keys())}. "
+            "Findings may include false positives due to incomplete data.",
+            file=sys.stderr,
+        )
+        if total_issues > 0:
+            sys.exit(2)  # Data quality issue — distinguish from confirmed sync problems
     sys.exit(1 if total_issues > 0 else 0)
 
 

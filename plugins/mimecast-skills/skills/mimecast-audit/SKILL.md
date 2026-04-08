@@ -133,6 +133,28 @@ python3 scripts/mimecast_api.py awareness safe-score-summary
 
 Both must succeed before running the audit. The audit will silently return empty results if either side is unconfigured.
 
+## Environment Variable Overrides
+
+| Variable | Default | Description |
+|---|---|---|
+| `AZURE_AD_CLI_PATH` | `plugins/m365-skills/skills/azure-ad/scripts/azure_ad_api.py` | Override the path to the Azure AD CLI script. Useful when the m365-skills plugin is installed at a non-standard location. |
+
+Example:
+```bash
+AZURE_AD_CLI_PATH=/custom/path/azure_ad_api.py python3 scripts/audit_m365_sync.py
+```
+
+## Service Account Exclusion
+
+By default, the audit excludes Azure AD accounts matching these UPN prefixes as service accounts:
+`svc-`, `sync_`, `ntservice`, `dnsuser`, `ncldap`, `snipe`, and any containing `ldapsync`.
+
+Use `--svc-prefixes` to override for your organization's naming conventions:
+```bash
+# Override with your own prefixes
+python3 scripts/audit_m365_sync.py --svc-prefixes "svc-,admin-,bot-,sa-"
+```
+
 ## Workflow
 
 1. Run `python3 scripts/audit_m365_sync.py --verbose`

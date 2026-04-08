@@ -41,3 +41,4 @@ Option A (Recommended):
 ## Work Log
 
 - 2026-04-08: Identified in 3rd review pass
+- 2026-04-08: Investigated `getattr(args, 'output', 'table')` in azure_ad_api.py — no instances found. Output format uses `args.format` (not `args.output`) throughout. Item 2 (getattr) is resolved for azure_ad_api.py. Items 1, 3, 4 remain pending (single-element tuple, unguarded future.result, sweep _values helper).

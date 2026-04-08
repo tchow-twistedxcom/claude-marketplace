@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "038"
 tags: [code-review, security, azure-ad]
@@ -33,10 +33,11 @@ dependencies: []
 
 ## Acceptance Criteria
 
-- [ ] `users_search`, `groups_search`, `devices_search` in azure_ad_api.py escape single quotes in query
-- [ ] `query = "' or 1 eq 1 or startswith(displayName,'"` does not break the OData filter
-- [ ] Matches escaping pattern already in server.py
+- [x] `users_search`, `groups_search`, `devices_search` in azure_ad_api.py escape single quotes in query
+- [x] `query = "' or 1 eq 1 or startswith(displayName,'"` does not break the OData filter
+- [x] Matches escaping pattern already in server.py
 
 ## Work Log
 
 - 2026-04-08: Identified in 3rd review pass
+- 2026-04-08: Fixed — applied `safe_query = query.replace("'", "''")` in all three search methods (commit e5e06d2)

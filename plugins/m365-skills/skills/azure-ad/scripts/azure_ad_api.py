@@ -21,6 +21,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -51,6 +52,8 @@ def build_time_filter(
         or None if no time constraint is provided
     """
     if since:
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', since):
+            raise ValueError(f"Invalid --since format (expected ISO 8601): {since!r}")
         return f"{field} ge {since}"
     if days:
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
@@ -849,15 +852,20 @@ def handle_security(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
         if time_f:
             filter_parts.append(time_f)
         if getattr(args, 'user', None):
-            filter_parts.append(f"userPrincipalName eq '{args.user}'")
+            safe_user = args.user.replace("'", "''")
+            filter_parts.append(f"userPrincipalName eq '{safe_user}'")
         if getattr(args, 'ip', None):
+            if not re.match(r'^[\d.:/\[\]a-fA-F%]+$', args.ip):
+                raise ValueError(f"Invalid IP address format: {args.ip!r}")
             filter_parts.append(f"ipAddress eq '{args.ip}'")
         if getattr(args, 'app', None):
-            filter_parts.append(f"appDisplayName eq '{args.app}'")
+            safe_app = args.app.replace("'", "''")
+            filter_parts.append(f"appDisplayName eq '{safe_app}'")
         if getattr(args, 'error_code', None) is not None:
             filter_parts.append(f"status/errorCode eq {args.error_code}")
         if getattr(args, 'country', None):
-            filter_parts.append(f"location/countryOrRegion eq '{args.country}'")
+            safe_country = args.country.replace("'", "''")
+            filter_parts.append(f"location/countryOrRegion eq '{safe_country}'")
         if getattr(args, 'risk_level', None):
             filter_parts.append(f"riskLevelDuringSignIn eq '{args.risk_level}'")
         fq = ' and '.join(filter_parts) if filter_parts else None
@@ -886,9 +894,11 @@ def handle_security(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
         if time_f:
             filter_parts.append(time_f)
         if getattr(args, 'user', None):
-            filter_parts.append(f"initiatedBy/user/userPrincipalName eq '{args.user}'")
+            safe_user = args.user.replace("'", "''")
+            filter_parts.append(f"initiatedBy/user/userPrincipalName eq '{safe_user}'")
         if getattr(args, 'category', None):
-            filter_parts.append(f"category eq '{args.category}'")
+            safe_category = args.category.replace("'", "''")
+            filter_parts.append(f"category eq '{safe_category}'")
         fq = ' and '.join(filter_parts) if filter_parts else None
         return api.security_audit_logs(top=args.top, filter_query=fq)
     elif args.security_action == 'auth-methods':

@@ -22,6 +22,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -58,6 +59,9 @@ def _values(response) -> list:
 
 def collect_sign_ins_by_ip(api: AzureADAPI, ip: str, filter_base: str) -> list:
     """Fetch all sign-ins from a specific IP address."""
+    if not re.match(r'^[\d.:/\[\]a-fA-F%]+$', ip):
+        print_warning(f"Skipping invalid IP address format: {ip!r}")
+        return []
     f = f"ipAddress eq '{ip}'"
     if filter_base:
         f = f"{filter_base} and {f}"
@@ -283,7 +287,7 @@ def run_sweep(api: AzureADAPI, args) -> dict:
             })
             # Collect IPs from risk events for cross-reference
             ip = event.get('ipAddress', '')
-            if ip:
+            if ip and re.match(r'^[\d.:/\[\]a-fA-F%]+$', ip):
                 suspect_ips.add(ip)
 
     # ── Vector 4: Risk IP cross-reference ──────────────────────────────────

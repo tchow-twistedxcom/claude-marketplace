@@ -915,8 +915,10 @@ async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) ->
         if resp.status_code == 200:
             try:
                 all_events.extend(resp.json())
-            except Exception:
-                pass
+            except json.JSONDecodeError as e:
+                print(f"WARNING: UAL blob parse failed: {e}", file=sys.stderr)
+            except TypeError as e:
+                print(f"WARNING: UAL blob unexpected shape: {e}", file=sys.stderr)
     return all_events
 
 
@@ -1849,7 +1851,8 @@ async def azure_ad_incident_triage(
     ual_start, ual_end = _ual_time_window(ual_hours)
     try:
         ual_events = await _ual_fetch_blobs("Audit.Exchange", ual_start, ual_end)
-    except Exception:
+    except Exception as e:
+        print(f"WARNING: UAL fetch failed for triage: {e}", file=sys.stderr)
         ual_events = []
 
     PHISHING_SUBJECTS = {"sharedfile", "invoice", "urgent", "wire", "payment", "verify", "confirm"}

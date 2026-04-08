@@ -221,8 +221,7 @@ class AzureAuth:
             return result['access_token']
         else:
             error = result.get('error', 'Unknown error')
-            error_desc = result.get('error_description', 'No description')
-            raise AuthError(f"Failed to acquire token: {error} - {error_desc}")
+            raise AuthError(f"Failed to acquire token: {error}")
 
     def get_auth_headers(self) -> Dict[str, str]:
         """

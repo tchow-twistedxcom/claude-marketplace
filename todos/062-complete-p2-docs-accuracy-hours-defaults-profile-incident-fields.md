@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "062"
 tags: [code-review, quality, azure-ad]
@@ -32,13 +32,14 @@ Option A (Recommended): Fix all 7 documentation issues:
 - Effort: Small. Risk: Low.
 
 ## Acceptance Criteria
-- [ ] `azure_ad_ual_mailbox_access` docstring correctly says "default 6h"
-- [ ] `azure_ad_ual_search` docstring correctly says "default 6h"
-- [ ] mimecast-audit SKILL.md profile default matches argparse default
-- [ ] `sweep.py` revoke-sessions next-steps hint replaced with accurate command
-- [ ] azure-ad SKILL.md basic ops count is correct
-- [ ] `azure_ad_incident_triage` SKILL.md entry lists all top-level output fields
-- [ ] `azure_ad_advanced_hunt` SKILL.md mentions `confirm=True` requirement
+- [x] `azure_ad_ual_mailbox_access` docstring correctly says "default 6h"
+- [x] `azure_ad_ual_search` docstring correctly says "default 6h"
+- [x] mimecast-audit SKILL.md profile default matches argparse default
+- [x] `sweep.py` revoke-sessions next-steps hint replaced with accurate command
+- [x] azure-ad SKILL.md basic ops count is correct
+- [x] `azure_ad_incident_triage` SKILL.md entry lists all top-level output fields
+- [x] `azure_ad_advanced_hunt` SKILL.md mentions `confirm=True` requirement
 
 ## Work Log
 - 2026-04-08: Found by agent-native-reviewer and pattern-recognition-specialist in 4th review pass
+- 2026-04-08: All 7 fixes applied and committed (ee0a42c). Renamed todo to complete.

@@ -128,10 +128,10 @@ class AzureADAPI:
             except Exception:
                 error_detail = e.response.text[:500] if e.response.text else str(e)
 
-            raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}")
+            raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}") from e
 
         except requests.exceptions.RequestException as e:
-            raise GraphAPIError(f"Request failed: {e}")
+            raise GraphAPIError(f"Request failed: {e}") from e
 
     # Allowed base URL for @odata.nextLink validation (SSRF guard)
     GRAPH_BASE = "https://graph.microsoft.com/"
@@ -168,9 +168,9 @@ class AzureADAPI:
                         error_detail = error_body.get('error', {}).get('message', str(e))
                     except Exception:
                         error_detail = e.response.text[:500] if e.response.text else str(e)
-                    raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}")
+                    raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}") from e
                 except requests.exceptions.RequestException as e:
-                    raise GraphAPIError(f"Request failed: {e}")
+                    raise GraphAPIError(f"Request failed: {e}") from e
             else:
                 result = self._request('GET', endpoint, params=params)
 

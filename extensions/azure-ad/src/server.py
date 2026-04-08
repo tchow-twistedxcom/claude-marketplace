@@ -1,6 +1,7 @@
 """Azure AD / Entra ID Microsoft Graph API MCP server using FastMCP."""
 
 import asyncio
+import ipaddress
 import json
 import os
 import re
@@ -49,7 +50,7 @@ def _validate_safe_name(value: str) -> str:
 
 def _validate_kql_value(value: str) -> str:
     """Reject KQL metacharacters in user-supplied values."""
-    bad_chars = ('|', ';', '//', "'", '"')
+    bad_chars = ('|', ';', '//', "'", '"', '\n', '\r', '`')
     for c in bad_chars:
         if c in value:
             raise ValueError(f"Unsafe character {c!r} in KQL value: {value!r}")
@@ -69,17 +70,21 @@ _msal_app: Optional[ConfidentialClientApplication] = None
 # ─── HTTP client singleton ────────────────────────────────────────────────────
 
 _http_client: Optional[httpx.AsyncClient] = None
+_http_client_lock: asyncio.Lock | None = None
 
 
-def _get_http_client() -> httpx.AsyncClient:
-    """Return (or create) a shared httpx.AsyncClient for connection pooling."""
-    global _http_client
-    if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(
-            timeout=60,
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-        )
+async def _get_http_client() -> httpx.AsyncClient:
+    """Return (or create) a shared httpx.AsyncClient with TOCTOU-safe initialization."""
+    global _http_client, _http_client_lock
+    if _http_client_lock is None:
+        _http_client_lock = asyncio.Lock()
+    async with _http_client_lock:
+        if _http_client is None or _http_client.is_closed:
+            _http_client = httpx.AsyncClient(
+                timeout=60,
+                follow_redirects=True,
+                limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            )
     return _http_client
 
 
@@ -95,6 +100,8 @@ VALID_RISK_EVENT_TYPES = {
     "mcasmfadenial", "onpremisespasswordchange", "unknownfuturevalue",
 }
 VALID_RESULT_FILTERS = {"success", "failure", "timeout"}
+VALID_CA_STATES = {"enabled", "disabled", "enabledForReportingButNotEnforced"}
+VALID_CA_ACTIONS = {"block", "mfa", "compliantDevice", "compliantApplication"}
 
 
 def _validate_enum(value: str, valid_set: set, field: str) -> str:
@@ -130,7 +137,7 @@ def _get_msal_app() -> ConfidentialClientApplication:
     return _msal_app
 
 
-def _get_token(scope: str = GRAPH_SCOPE) -> str:
+async def _get_token(scope: str = GRAPH_SCOPE) -> str:
     """Get a valid access token for the given scope, using in-memory cache."""
     _, client_id, _ = _get_credentials()
     cache_key = f"{scope}:{client_id}"
@@ -139,12 +146,11 @@ def _get_token(scope: str = GRAPH_SCOPE) -> str:
         return cached["access_token"]
 
     app = _get_msal_app()
-    result = app.acquire_token_for_client(scopes=[scope])
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, lambda: app.acquire_token_for_client(scopes=[scope]))
     if "access_token" not in result:
         error = result.get("error", "unknown")
-        desc = result.get("error_description", "")
-        raise ValueError(f"Token acquisition failed for {scope}: {error} — {desc}")
-
+        raise ValueError(f"Token acquisition failed for {scope}: {error}")
     _token_cache[cache_key] = {
         "access_token": result["access_token"],
         "expires_at": time.time() + result.get("expires_in", 3600),
@@ -159,7 +165,7 @@ async def _graph(
     data: Optional[dict] = None,
 ) -> Any:
     """Make an authenticated request to Microsoft Graph API."""
-    token = _get_token()
+    token = await _get_token()
     url = f"{GRAPH_BASE}{endpoint}" if not endpoint.startswith("http") else endpoint
     headers = {
         "Authorization": f"Bearer {token}",
@@ -168,7 +174,7 @@ async def _graph(
         "ConsistencyLevel": "eventual",  # Required for $search and $count
     }
 
-    client = _get_http_client()
+    client = await _get_http_client()
     response = await client.request(
         method=method.upper(),
         url=url,
@@ -199,6 +205,8 @@ async def _get_all_pages(endpoint: str, params: Optional[dict] = None, max_pages
         result = await _graph("GET", endpoint, params=params)
         all_items.extend(result.get("value", []))
         endpoint = result.get("@odata.nextLink")
+        if endpoint and not endpoint.startswith("https://graph.microsoft.com/"):
+            raise ValueError(f"Rejected non-Graph nextLink: {endpoint[:100]!r}")
         params = None  # nextLink carries its own params
         page += 1
     if page >= max_pages and endpoint:
@@ -816,7 +824,7 @@ async def azure_ad_confirm_compromised(
     for complete incident response.
 
     Args:
-        users: List of user object IDs (GUIDs) to mark as compromised.
+        users: List of Azure AD object IDs (NOT UPNs). Example: users='["<id1>","<id2>"]' or pass as list.
             Get IDs from azure_ad_get_user or azure_ad_risky_users.
             Note: UPNs are NOT accepted here — must be object IDs.
         confirm: Must be set to True to execute. Defaults to False for safety.
@@ -845,14 +853,14 @@ async def azure_ad_confirm_compromised(
 async def _ual_request(method: str, path: str, params: Optional[dict] = None, data: Optional[dict] = None) -> Any:
     """Make an authenticated request to the O365 Management Activity API."""
     tenant_id, _, _ = _get_credentials()
-    token = _get_token(UAL_SCOPE)
+    token = await _get_token(UAL_SCOPE)
     base = f"https://manage.office.com/api/v1.0/{tenant_id}/activity/feed"
     url = f"{base}{path}"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
-    client = _get_http_client()
+    client = await _get_http_client()
     response = await client.request(method=method.upper(), url=url, headers=headers, params=params, json=data)
     if response.status_code == 403:
         raise ValueError(
@@ -889,15 +897,28 @@ async def _ual_fetch_blobs(content_type: str, start_time: str, end_time: str) ->
     if not isinstance(result, list):
         return []
 
-    # Download each blob
-    token = _get_token(UAL_SCOPE)
+    # Download each blob (parallel, with SSRF host validation)
+    token = await _get_token(UAL_SCOPE)
     headers = {"Authorization": f"Bearer {token}"}
     all_events = []
-    client = _get_http_client()
+    client = await _get_http_client()
+    tasks = []
     for blob in result:
-        r = await client.get(blob["contentUri"], headers=headers)
-        if r.status_code == 200:
-            all_events.extend(r.json())
+        uri = blob.get("contentUri", "")
+        if not (uri.startswith("https://") and (
+            ".blob.core.windows.net" in uri or ".office.com" in uri or "manage.office.com" in uri
+        )):
+            continue  # Skip untrusted URIs silently
+        tasks.append(client.get(uri, headers=headers))
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
+    for resp in responses:
+        if isinstance(resp, Exception):
+            continue
+        if resp.status_code == 200:
+            try:
+                all_events.extend(resp.json())
+            except Exception:
+                pass
     return all_events
 
 
@@ -914,7 +935,7 @@ async def azure_ad_ual_inbox_rules(
     Requires 'ActivityFeed.Read' (Office 365 Management APIs) with admin consent.
 
     Args:
-        hours: Time window to search (default 72h, max 24h per API limit).
+        hours: Time window to search (default 6h, max 24h per API limit).
         users: Comma-separated UPNs to filter by (e.g. 'john@contoso.com,jane@contoso.com').
                Leave blank to search all users.
 
@@ -1127,6 +1148,11 @@ async def azure_ad_search_mail(
         top: Max results (default 50).
         hours: Look-back window in hours (default 168 = 7 days).
     """
+    VALID_MAIL_FOLDERS = {"inbox", "sentitems", "drafts", "deleteditems", "junkemail", "outbox", "archive"}
+    folder_safe = folder.lower()
+    if folder_safe not in VALID_MAIL_FOLDERS and not re.match(r'^[0-9a-f\-]{8,}$', folder):
+        raise ValueError(f"Invalid folder: {folder!r}. Use a known folder name or a folder ID (GUID).")
+
     since = (datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     # Build filter: support 'from:address' prefix or default subject contains
@@ -1227,9 +1253,19 @@ async def azure_ad_create_named_location(
         ip_ranges: Comma-separated CIDR ranges (e.g. '203.0.113.0/24,198.51.100.5/32').
         is_trusted: Mark as trusted location (default True).
     """
+    validated_ranges = []
+    for cidr in ip_ranges.split(","):
+        cidr = cidr.strip()
+        if not cidr:
+            continue
+        try:
+            ipaddress.ip_network(cidr, strict=False)
+        except ValueError:
+            raise ValueError(f"Invalid CIDR notation: {cidr!r}")
+        validated_ranges.append(cidr)
     ranges = [
-        {"@odata.type": "#microsoft.graph.iPv4CidrRange", "cidrAddress": r.strip()}
-        for r in ip_ranges.split(",") if r.strip()
+        {"@odata.type": "#microsoft.graph.iPv4CidrRange", "cidrAddress": r}
+        for r in validated_ranges
     ]
     payload = {
         "@odata.type": "#microsoft.graph.ipNamedLocation",
@@ -1257,10 +1293,15 @@ async def azure_ad_create_ca_policy(
         include_users: Comma-separated user UPNs or object IDs (or 'All').
         exclude_location_ids: Comma-separated Named Location IDs to exclude (allow).
           Use azure_ad_named_locations to find IDs.
-        action: 'block' or 'mfa' (require MFA from non-excluded locations).
+          Named Location IDs must be GUIDs (pass the `id` field from `azure_ad_named_locations`
+          output, NOT the display name).
+        action: Grant control: 'block', 'mfa', 'compliantDevice', or 'compliantApplication'.
         state: 'enabled', 'disabled', or 'enabledForReportingButNotEnforced'.
         include_apps: 'All' or comma-separated app IDs.
     """
+    _validate_enum(state, VALID_CA_STATES, "state")
+    _validate_enum(action, VALID_CA_ACTIONS, "action")
+
     user_list = [u.strip() for u in include_users.split(",") if u.strip()]
     loc_excludes = [l.strip() for l in exclude_location_ids.split(",") if l.strip()]
     app_list = [a.strip() for a in include_apps.split(",") if a.strip()]
@@ -1310,6 +1351,7 @@ async def azure_ad_update_ca_policy(
     """
     payload: dict = {}
     if state:
+        _validate_enum(state, VALID_CA_STATES, "state")
         payload["state"] = state
     if display_name:
         payload["displayName"] = display_name
@@ -1334,18 +1376,18 @@ async def azure_ad_delete_ca_policy(
         confirm: Must be set to True to execute. Defaults to False for safety.
     """
     if not confirm:
-        return json.dumps({
+        return _fmt({
             "confirm": False,
             "would_delete_policy": policy_id,
             "message": "Pass confirm=True to permanently delete this Conditional Access policy.",
         })
     print(f"[azure-ad-server] DESTRUCTIVE OP: deleteCAPolicy policy_id={policy_id}", file=sys.stderr)
     await _graph("DELETE", f"/identity/conditionalAccess/policies/{policy_id}")
-    return json.dumps({"success": True, "deleted_policy_id": policy_id})
+    return _fmt({"success": True, "deleted_policy_id": policy_id})
 
 
 @mcp.tool()
-async def azure_ad_advanced_hunt(query: str, top: int = 1000) -> str:
+async def azure_ad_advanced_hunt(query: str, top: int = 1000, confirm: bool = False) -> str:
     """Run a KQL query against Microsoft 365 Defender Advanced Hunting.
 
     Queries the Defender telemetry layer — captures events INVISIBLE to standard
@@ -1371,9 +1413,19 @@ async def azure_ad_advanced_hunt(query: str, top: int = 1000) -> str:
             Intended for admin use only — do not pass untrusted user input here.
             A '| limit N' clause is appended automatically if 'limit'/'take' is absent.
         top: Implicit LIMIT appended if query has no 'limit' or 'take' clause (default 1000).
+        confirm: Must be set to True to execute. Defaults to False (dry-run) as a reminder
+            that raw KQL is passed directly to the Defender API. This tool is for
+            admin/analyst use only — do not pass untrusted user input as the query.
 
     Returns schema and results rows.
     """
+    if not confirm:
+        return _fmt({
+            "status": "dry_run",
+            "message": "azure_ad_advanced_hunt passes KQL directly to the Defender API — potential injection risk. "
+                       "Set confirm=True after reviewing your query. This tool is for admin/analyst use only.",
+            "query_preview": query[:200],
+        })
     q = query.rstrip()
     if not any(kw in q.lower() for kw in ("| limit", "| take")):
         q += f" | limit {min(top, 10000)}"
@@ -1770,7 +1822,7 @@ async def azure_ad_incident_triage(
             Sign-ins FROM these IPs are NOT flagged as suspicious.
         hours: Look-back window for sign-ins and sent mail (default 24h).
         ual_hours: Look-back for UAL forensics (default 6h, max 24h per API limit).
-            Smaller values complete faster.
+            Values > 24 are silently capped to 24 (UAL API limit). Smaller values complete faster.
 
     Returns structured triage report per user:
     - account: enabled state, on-prem sync, Identity Protection risk level,
@@ -2155,6 +2207,7 @@ async def azure_ad_incident_triage(
         "triageTimestamp": datetime.now(timezone.utc).isoformat(),
         "timeWindowHours": hours,
         "ualWindowHours": ual_hours,
+        "ualCoverageCapped": ual_hours > 24,
         "trustedIPs": sorted(trusted_ip_set),
         "users": [
             r if not isinstance(r, Exception) else {"user": user_list[i], "error": str(r)}

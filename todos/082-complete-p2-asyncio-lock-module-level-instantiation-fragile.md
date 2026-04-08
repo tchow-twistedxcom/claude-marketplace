@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "082"
 tags: [code-review, quality, azure-ad, asyncio]
@@ -52,3 +52,4 @@ Add a comment explaining Python 3.10+ behavior and that the locks are safe in si
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (kieran-python-reviewer)
+- 2026-04-08: Fixed — added explanatory comment above module-level locks documenting that Python 3.10+ does not bind asyncio.Lock to an event loop at creation; FastMCP single-event-loop pattern; test suite guidance. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

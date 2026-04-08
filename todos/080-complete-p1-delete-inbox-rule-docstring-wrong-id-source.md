@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "080"
 tags: [code-review, agent-native, azure-ad, documentation]
@@ -42,3 +42,4 @@ Update SKILL.md line 85 with the same correction.
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (agent-native-reviewer, agent-blocking)
+- 2026-04-08: Fixed — updated function docstring and rule_id param description to clarify that azure_ad_ual_inbox_rules provides forensic attribution but NOT rule IDs; correct sources are azure_ad_incident_triage maliciousRules[].id or Graph API messageRules endpoint. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

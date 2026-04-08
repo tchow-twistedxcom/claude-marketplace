@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "079"
 tags: [code-review, performance, azure-ad, throttling]
@@ -57,3 +57,4 @@ results = await asyncio.gather(*[_bounded_triage(u) for u in users], return_exce
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (performance-oracle, critical severity)
+- 2026-04-08: Fixed — added module-level _TRIAGE_SEMAPHORE = asyncio.Semaphore(10); wrapped gather with _bounded_triage() inner function that acquires semaphore before calling _triage_one. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

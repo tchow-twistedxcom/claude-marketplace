@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "094"
 tags: [code-review, quality, azure-ad, consistency]
@@ -37,3 +37,4 @@ return _fmt({"confirm": False, "preview": ...})
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (pattern-recognition-specialist)
+- 2026-04-08: Fixed — replaced json.dumps({...}) with _fmt({...}) in both azure_ad_revoke_sessions and azure_ad_confirm_compromised confirm=False paths. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

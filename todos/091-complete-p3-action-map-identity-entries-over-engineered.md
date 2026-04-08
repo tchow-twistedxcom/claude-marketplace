@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "091"
 tags: [code-review, simplicity, azure-ad]
@@ -34,3 +34,4 @@ if action not in VALID_ACTIONS:
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (code-simplicity-reviewer)
+- 2026-04-08: Skipped — _action_map is NOT pure identity: "compliantApplication" maps to "approvedApplication" (Graph API canonical name). The map does real translation; replacing with a set would drop this transform. No code change made. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

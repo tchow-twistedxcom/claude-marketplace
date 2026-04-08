@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "088"
 tags: [code-review, quality, azure-ad]
@@ -30,3 +30,4 @@ Simple search-and-replace: `chr(39)` → `"'"` or restructure the f-string to us
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (code-simplicity-reviewer)
+- 2026-04-08: Fixed — replaced all 5 chr(39) occurrences in sign_ins, risk_detections, and audit_logs filters with string concatenation using literal apostrophes. grep confirms clean. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

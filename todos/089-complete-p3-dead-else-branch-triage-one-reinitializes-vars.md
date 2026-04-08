@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "089"
 tags: [code-review, quality, azure-ad]
@@ -31,3 +31,4 @@ Delete the `else:` and its body. The variables keep their initialized values.
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (code-simplicity-reviewer)
+- 2026-04-08: Fixed — removed dead else: branch in _triage_one that re-assigned cloud_events=[] and cloud_suspicious=[] (already initialized above the if block). Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

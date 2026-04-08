@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "097"
 tags: [code-review, agent-native, azure-ad, documentation]
@@ -39,3 +39,4 @@ Returns:
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (agent-native-reviewer)
+- 2026-04-08: Fixed — added Returns section to azure_ad_create_ca_policy docstring documenting id (GUID for chaining), displayName, and state fields. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

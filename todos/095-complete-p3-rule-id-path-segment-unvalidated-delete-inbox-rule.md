@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "095"
 tags: [code-review, security, azure-ad]
@@ -37,3 +37,4 @@ if not re.match(r'^[A-Za-z0-9+/=_\-]{4,500}$', rule_id):
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (security-sentinel)
+- 2026-04-08: Fixed — added re.match(r'^[A-Za-z0-9+/=_\-]{4,500}$', rule_id) validation before the DELETE call; raises ValueError with clear message on invalid format. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

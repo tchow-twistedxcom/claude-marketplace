@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "085"
 tags: [code-review, agent-native, azure-ad, documentation]
@@ -41,3 +41,4 @@ Auto-detect UPNs and call `GET /users/{upn}?$select=id` to resolve before dismis
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (agent-native-reviewer)
+- 2026-04-08: Fixed — added "Object IDs (GUIDs) required — UPNs not accepted, return HTTP 400" to user_ids docstring param; added note field to confirm=False preview dict reinforcing object ID requirement. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "090"
 tags: [code-review, quality, azure-ad]
@@ -31,3 +31,4 @@ Hoist `SUSPICIOUS_CLOUD_OPS` to module level, near other module-level constants 
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (code-simplicity-reviewer, architecture-strategist)
+- 2026-04-08: Fixed — moved SUSPICIOUS_CLOUD_OPS to module scope as frozenset[str] near PHISHING_SUBJECTS; removed from inside _triage_one. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

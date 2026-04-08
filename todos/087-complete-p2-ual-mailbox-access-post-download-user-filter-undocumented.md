@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "087"
 tags: [code-review, performance, azure-ad, ual]
@@ -41,3 +41,4 @@ When `users` is non-empty and < 20% of events match, include:
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (performance-oracle)
+- 2026-04-08: Fixed — added Note to users parameter docstring clarifying that user filtering is client-side post-download and the O365 Management API has no server-side user filter. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

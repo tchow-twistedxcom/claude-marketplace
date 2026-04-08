@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "077"
 tags: [code-review, security, azure-ad, ual]
@@ -43,3 +43,4 @@ dependencies: []
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (5 agents independently flagged)
+- 2026-04-08: Fixed — added "Audit.SharePoint" to VALID_UAL_CONTENT_TYPES; updated azure_ad_ual_sharepoint to properly unpack (events, incomplete) from both fetches and OR the incomplete flags into ualDataIncomplete in return dict. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

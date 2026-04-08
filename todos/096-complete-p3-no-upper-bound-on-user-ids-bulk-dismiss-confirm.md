@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "096"
 tags: [code-review, quality, azure-ad]
@@ -41,3 +41,4 @@ Process in batches of 60 automatically, collecting results
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (security-sentinel)
+- 2026-04-08: Fixed — added len(user_ids/users) > 60 guard with clear ValueError message in both azure_ad_confirm_compromised and azure_ad_dismiss_risky_users, placed after confirm check, before Graph API call. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

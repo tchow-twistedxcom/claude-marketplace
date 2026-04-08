@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "081"
 tags: [code-review, architecture, azure-ad, ual]
@@ -47,3 +47,4 @@ Extract a `_ual_fetch_with_incomplete_flag(content_type, ...)` helper that alway
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (architecture-strategist, performance-oracle)
+- 2026-04-08: Fixed — updated azure_ad_ual_inbox_rules, azure_ad_ual_search, azure_ad_ual_mailbox_access, and azure_ad_ual_sharepoint to capture incomplete flag; each adds ualDataIncomplete=True and a warning field to the return dict when incomplete. Commit: fix(azure-ad): resolve 6th review todos 077-098a in server.py

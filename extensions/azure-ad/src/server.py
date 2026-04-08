@@ -70,14 +70,12 @@ _msal_app: Optional[ConfidentialClientApplication] = None
 # ─── HTTP client singleton ────────────────────────────────────────────────────
 
 _http_client: Optional[httpx.AsyncClient] = None
-_http_client_lock: asyncio.Lock | None = None
+_http_client_lock: asyncio.Lock = asyncio.Lock()
 
 
 async def _get_http_client() -> httpx.AsyncClient:
     """Return (or create) a shared httpx.AsyncClient with TOCTOU-safe initialization."""
-    global _http_client, _http_client_lock
-    if _http_client_lock is None:
-        _http_client_lock = asyncio.Lock()
+    global _http_client
     async with _http_client_lock:
         if _http_client is None or _http_client.is_closed:
             _http_client = httpx.AsyncClient(
@@ -100,7 +98,7 @@ VALID_RISK_EVENT_TYPES = {
     "mcasmfadenial", "onpremisespasswordchange", "unknownfuturevalue",
 }
 VALID_RESULT_FILTERS = {"success", "failure", "timeout"}
-VALID_CA_STATES = {"enabled", "disabled", "enabledForReportingButNotEnforced"}
+VALID_CA_STATES = {"enabled", "disabled", "enabledforreportingbutnotenforced"}
 VALID_CA_ACTIONS = {"block", "mfa", "compliantDevice", "compliantApplication"}
 
 
@@ -1306,9 +1304,15 @@ async def azure_ad_create_ca_policy(
     loc_excludes = [l.strip() for l in exclude_location_ids.split(",") if l.strip()]
     app_list = [a.strip() for a in include_apps.split(",") if a.strip()]
 
+    _action_map = {
+        "block": "block",
+        "mfa": "mfa",
+        "compliantDevice": "compliantDevice",
+        "compliantApplication": "approvedApplication",
+    }
     grant = {
         "operator": "OR",
-        "builtInControls": ["block"] if action == "block" else ["mfa"],
+        "builtInControls": [_action_map.get(action, "mfa")],
     }
 
     users_condition = (

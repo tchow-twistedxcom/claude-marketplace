@@ -213,21 +213,6 @@
       ]
     },
     {
-      "name": "compound-engineering",
-      "source": "./plugins/compound-engineering",
-      "description": "Compound engineering workflow pipeline: brainstorm \u2192 plan \u2192 work \u2192 review \u2192 compound. 29 agents, 22 commands, 19 skills for multi-agent parallel code review, knowledge compounding, swarm orchestration, and autonomous workflows (lfg/slfg)",
-      "version": "2.33.1",
-      "keywords": [
-        "workflow",
-        "code-review",
-        "agents",
-        "swarm",
-        "knowledge-management",
-        "planning",
-        "compound"
-      ]
-    },
-    {
       "name": "meraki-skills",
       "source": "./plugins/meraki-skills",
       "description": "Cisco Meraki Dashboard API integration for network monitoring and management. Covers organizations, networks, devices, wireless, switches, MX appliances, and cameras.",

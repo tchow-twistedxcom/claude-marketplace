@@ -517,17 +517,55 @@ class MimecastAPI:
 
     # ==================== USER MANAGEMENT ====================
 
-    def list_users(self, domain=None):
+    def list_users(self, domain=None, all_pages=False):
         """
         List internal users.
 
         Args:
             domain: Filter by domain
+            all_pages: If True, fetch all pages (handles pagination)
         """
         data = {}
         if domain:
             data["domain"] = domain
-        return self.client.get("/api/user/get-internal-users", data)
+
+        if not all_pages:
+            return self.client.get("/api/user/get-internal-users", data)
+
+        # Manual pagination for v1 API.
+        # Mimecast v1: pageToken goes at request root — {"meta": {"pagination": {"pageToken": ...}}, "data": [...]}
+        import json as _json
+        import urllib.request as _urllib
+
+        all_users = []
+        next_token = None
+        uri = "/api/user/get-internal-users"
+        url = f"{self.client.base_url}{uri}"
+
+        while True:
+            if next_token:
+                body = {"meta": {"pagination": {"pageToken": next_token}}, "data": [data] if data else []}
+            else:
+                body = {"data": [data] if data else []}
+
+            body_bytes = _json.dumps(body).encode("utf-8")
+            headers = self.client.auth.get_headers(uri)
+            req = _urllib.Request(url, data=body_bytes, headers=headers, method="POST")
+            with _urllib.urlopen(req, timeout=self.client.timeout) as resp:
+                result = _json.loads(resp.read().decode())
+
+            # Extract users (response: {"data": [{"users": [...]}]})
+            for page_obj in result.get("data", []):
+                if isinstance(page_obj, dict) and "users" in page_obj:
+                    all_users.extend(page_obj["users"])
+                elif isinstance(page_obj, dict) and page_obj:
+                    all_users.append(page_obj)
+
+            next_token = result.get("meta", {}).get("pagination", {}).get("next")
+            if not next_token:
+                break
+
+        return {"data": all_users}
 
     def create_user(self, email, name=None, domain=None):
         """
@@ -1120,7 +1158,7 @@ def cmd_archive_detail(api, args):
 
 def cmd_users_list(api, args):
     """List users."""
-    result = api.list_users(domain=args.domain)
+    result = api.list_users(domain=args.domain, all_pages=getattr(args, 'all', False))
     format_output(result, args.output, 'users')
 
 
@@ -2143,6 +2181,7 @@ Examples:
 
     users_list = users_sub.add_parser("list", help="List users")
     users_list.add_argument("--domain", help="Filter by domain")
+    users_list.add_argument("--all", action="store_true", help="Fetch all users across all pages")
 
     users_create = users_sub.add_parser("create", help="Create user")
     users_create.add_argument("--email", required=True, help="Email address")
@@ -2290,8 +2329,8 @@ Examples:
         ("archive", "search"): cmd_archive_search,
         ("archive", "messages"): cmd_archive_messages,
         ("archive", "detail"): cmd_archive_detail,
-        # Users (API 2.0)
-        ("users", "list"): cmd_users_list_v2,
+        # Users (supports --all for full pagination)
+        ("users", "list"): cmd_users_list,
         ("users", "create"): cmd_users_create,
         ("users", "update"): cmd_users_update,
         ("users", "delete"): cmd_users_delete,

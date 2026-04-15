@@ -21,11 +21,17 @@ from typing import TYPE_CHECKING, Any
 
 from .base import BaseDomain
 from .utils import add_date_shortcuts, resolve_date_range
+from . import register_domain
 
 if TYPE_CHECKING:
     import argparse
 
+# Import hoisted to file level (not per-method) to avoid repeated deferred imports.
+# Relies on scripts/ directory being on sys.path (set by the CLI entry point).
+from mimecast_formatter import format_output
 
+
+@register_domain
 class AwarenessTrainingDomain(BaseDomain):
     """Awareness Training API domain — campaigns, phishing, SAFE scores, watchlist."""
 
@@ -112,62 +118,50 @@ class AwarenessTrainingDomain(BaseDomain):
     # ── CLI Command Handlers ─────────────────────────────────────────────────
 
     def cmd_campaigns(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_campaigns(source=getattr(args, 'source', None))
         format_output(result, args.output, 'awareness-campaigns')
 
     def cmd_campaign_users(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_campaign_user_data(campaign_id=getattr(args, 'campaign_id', None))
         format_output(result, args.output, 'awareness-campaign-users')
 
     def cmd_performance(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_performance_details()
         format_output(result, args.output)
 
     def cmd_performance_summary(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_performance_summary()
         format_output(result, args.output)
 
     def cmd_phishing(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_phishing_campaign(campaign_id=getattr(args, 'campaign_id', None))
         format_output(result, args.output, 'awareness-phishing')
 
     def cmd_phishing_users(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_phishing_user_data(campaign_id=getattr(args, 'campaign_id', None))
         format_output(result, args.output, 'awareness-phishing-users')
 
     def cmd_safe_score(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_safe_score_details(email=getattr(args, 'email', None))
         format_output(result, args.output, 'awareness-safe-scores')
 
     def cmd_safe_score_summary(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_safe_score_summary()
         format_output(result, args.output)
 
     def cmd_queue(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_training_queue()
         format_output(result, args.output)
 
     def cmd_training_details(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_user_training_details(email=getattr(args, 'email', None))
         format_output(result, args.output)
 
     def cmd_watchlist(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_watchlist_details()
         format_output(result, args.output, 'awareness-watchlist')
 
     def cmd_watchlist_summary(self, args: argparse.Namespace) -> None:
-        from mimecast_formatter import format_output
         result = self.get_watchlist_summary()
         format_output(result, args.output)
 

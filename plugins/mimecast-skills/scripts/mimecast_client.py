@@ -432,17 +432,31 @@ class MimecastClient:
         meta = first_response.get("meta", {})
         pagination = meta.get("pagination", {})
 
+        # Use totalCount to avoid looping when all records fit in first page
+        total_count = pagination.get("totalCount")
+        seen_tokens: set = set()
+
         while pagination.get("next"):
-            # Prepare next page request
+            # Stop if we already have all records (totalCount known)
+            if total_count is not None and len(all_data) >= total_count:
+                break
+
             next_token = pagination.get("next")
-            page_data = data.copy() if data else {}
-            page_data["meta"] = {"pagination": {"pageToken": next_token}}
+
+            # Stop if we've seen this token before (API returning same page repeatedly)
+            if next_token in seen_tokens:
+                break
+            seen_tokens.add(next_token)
 
             # Wait for rate limit
             self.rate_limiter.wait()
 
-            # Make request
-            body = {"data": [page_data]}
+            # Make request — pageToken goes at request ROOT, not inside data[]
+            page_data = data.copy() if data else {}
+            body = {
+                "meta": {"pagination": {"pageToken": next_token}},
+                "data": [page_data] if page_data else [],
+            }
             body_bytes = json.dumps(body).encode('utf-8')
             url = f"{self.base_url}{uri}"
             headers = self.auth.get_headers(uri)
@@ -451,7 +465,10 @@ class MimecastClient:
                 req = Request(url, data=body_bytes, headers=headers, method=method)
                 with urlopen(req, timeout=self.timeout) as response:
                     result = json.loads(response.read().decode())
-                    all_data.extend(result.get("data", []))
+                    new_items = result.get("data", [])
+                    if not new_items:
+                        break
+                    all_data.extend(new_items)
                     pagination = result.get("meta", {}).get("pagination", {})
 
             except Exception as e:

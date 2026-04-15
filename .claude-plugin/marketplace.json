@@ -130,8 +130,8 @@
     {
       "name": "m365-skills",
       "source": "./plugins/m365-skills",
-      "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, and directory management",
-      "version": "1.0.0",
+      "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, directory management, and security/compromise sweep",
+      "version": "1.1.0",
       "keywords": [
         "microsoft-365",
         "m365",
@@ -157,8 +157,8 @@
     {
       "name": "mimecast-skills",
       "source": "./plugins/mimecast-skills",
-      "description": "Mimecast email security integration via Python CLI. 67 operations for TTP URL/attachment protection, held messages, awareness training, SAFE scores, phishing simulations, user/group management, policies, audit logs, and SIEM integration",
-      "version": "1.2.0",
+      "description": "Mimecast email security integration via Python CLI. 67 operations for TTP URL/attachment protection, held messages, awareness training, SAFE scores, phishing simulations, user/group management, policies, audit logs, and SIEM integration. Includes M365/Azure AD cross-reference audit.",
+      "version": "1.3.0",
       "keywords": [
         "mimecast",
         "email-security",
@@ -210,21 +210,6 @@
         "itinerary",
         "vacation",
         "lodging"
-      ]
-    },
-    {
-      "name": "compound-engineering",
-      "source": "./plugins/compound-engineering",
-      "description": "Compound engineering workflow pipeline: brainstorm \u2192 plan \u2192 work \u2192 review \u2192 compound. 29 agents, 22 commands, 19 skills for multi-agent parallel code review, knowledge compounding, swarm orchestration, and autonomous workflows (lfg/slfg)",
-      "version": "2.33.1",
-      "keywords": [
-        "workflow",
-        "code-review",
-        "agents",
-        "swarm",
-        "knowledge-management",
-        "planning",
-        "compound"
       ]
     },
     {
@@ -328,6 +313,20 @@
         "vercel",
         "react",
         "skills"
+      ]
+    },
+    {
+      "name": "codex-workflows",
+      "source": "./plugins/codex-workflows",
+      "description": "Codex CLI delegation workflows: PR review via codex review/exec (codex-review skill) and full LFG pipeline with Codex delegation for both work and review phases (codex-lfg skill). Extends compound-engineering's delegation pattern.",
+      "version": "1.0.0",
+      "keywords": [
+        "codex",
+        "review",
+        "delegation",
+        "workflow",
+        "lfg",
+        "compound-engineering"
       ]
     }
   ]

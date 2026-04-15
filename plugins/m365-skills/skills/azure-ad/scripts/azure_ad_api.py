@@ -7,6 +7,7 @@ Comprehensive CLI for Microsoft Graph API operations on Azure AD resources:
 - Groups: List, get, members, owners, add/remove members
 - Devices: List, get, search, owners, registered users
 - Directory: Organization info, domains, licenses, roles
+- Security: Sign-in logs, risk detections, risky users, audit logs, auth methods
 
 Usage:
     python azure_ad_api.py users list
@@ -14,17 +15,57 @@ Usage:
     python azure_ad_api.py groups members GROUP_ID
     python azure_ad_api.py --format json users list
     python azure_ad_api.py -t prod devices list
+    python azure_ad_api.py security sign-ins --hours 24
+    python azure_ad_api.py security risky-users --risk-level high
 """
 
 import argparse
+import getpass
 import json
+import os
+import re
 import sys
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import requests
 
 from auth import AzureAuth, AuthError
 from formatters import format_output, print_error, print_success, print_warning
+
+
+def build_time_filter(
+    field: str = "createdDateTime",
+    hours: int | None = None,
+    days: int | None = None,
+    since: str | None = None,
+) -> str | None:
+    """
+    Build an OData time filter string.
+
+    Args:
+        field: The datetime field to filter on (default: "createdDateTime")
+        hours: Number of hours to look back from now
+        days: Number of days to look back from now
+        since: ISO 8601 datetime string to filter from
+
+    Returns:
+        OData filter string like "createdDateTime ge 2026-04-06T00:00:00Z"
+        or None if no time constraint is provided
+    """
+    if since:
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', since):
+            raise ValueError(f"Invalid --since format (expected ISO 8601): {since!r}")
+        return f"{field} ge {since}"
+    if days:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"{field} ge {cutoff_str}"
+    if hours:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"{field} ge {cutoff_str}"
+    return None
 
 
 class GraphAPIError(Exception):
@@ -37,7 +78,7 @@ class AzureADAPI:
 
     BASE_URL = "https://graph.microsoft.com/v1.0"
 
-    def __init__(self, tenant: Optional[str] = None):
+    def __init__(self, tenant: str | None = None):
         """Initialize the API client."""
         self.auth = AzureAuth(tenant=tenant)
         self.config = self.auth.config
@@ -46,10 +87,10 @@ class AzureADAPI:
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict] = None,
-        data: Optional[Dict] = None,
-        headers: Optional[Dict] = None
-    ) -> Dict[str, Any]:
+        params: dict | None = None,
+        data: dict | None = None,
+        headers: dict | None = None
+    ) -> dict[str, Any]:
         """Make an authenticated request to Graph API."""
         url = f"{self.BASE_URL}{endpoint}"
         auth_headers = self.auth.get_auth_headers()
@@ -89,31 +130,49 @@ class AzureADAPI:
             except Exception:
                 error_detail = e.response.text[:500] if e.response.text else str(e)
 
-            raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}")
+            raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}") from e
 
         except requests.exceptions.RequestException as e:
-            raise GraphAPIError(f"Request failed: {e}")
+            raise GraphAPIError(f"Request failed: {e}") from e
+
+    # Allowed base URL for @odata.nextLink validation (SSRF guard)
+    GRAPH_BASE = "https://graph.microsoft.com/"
 
     def _get_all_pages(
         self,
         endpoint: str,
-        params: Optional[Dict] = None,
-        max_pages: int = 100
-    ) -> List[Dict]:
+        params: dict | None = None,
+        max_pages: int = 500
+    ) -> list[dict]:
         """Get all pages of results."""
         all_items = []
         page_count = 0
 
         while endpoint and page_count < max_pages:
             if endpoint.startswith('http'):
-                # Handle @odata.nextLink URLs
-                response = requests.get(
-                    endpoint,
-                    headers=self.auth.get_auth_headers(),
-                    timeout=self.config.get('defaults', {}).get('timeout', 30)
-                )
-                response.raise_for_status()
-                result = response.json()
+                # Validate @odata.nextLink URL to prevent SSRF token exfiltration
+                if not endpoint.startswith(self.GRAPH_BASE):
+                    raise ValueError(
+                        f"Unexpected nextLink host (possible SSRF): {endpoint[:100]}"
+                    )
+                try:
+                    response = requests.get(
+                        endpoint,
+                        headers=self.auth.get_auth_headers(),
+                        timeout=self.config.get('defaults', {}).get('timeout', 60)
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                except requests.exceptions.HTTPError as e:
+                    error_detail = ""
+                    try:
+                        error_body = e.response.json()
+                        error_detail = error_body.get('error', {}).get('message', str(e))
+                    except Exception:
+                        error_detail = e.response.text[:500] if e.response.text else str(e)
+                    raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}") from e
+                except requests.exceptions.RequestException as e:
+                    raise GraphAPIError(f"Request failed: {e}") from e
             else:
                 result = self._request('GET', endpoint, params=params)
 
@@ -125,6 +184,12 @@ class AzureADAPI:
             params = None  # nextLink includes all params
             page_count += 1
 
+        if page_count >= max_pages and endpoint:
+            print(
+                f"WARNING: _get_all_pages hit max_pages={max_pages} — results are TRUNCATED",
+                file=sys.stderr
+            )
+
         return all_items
 
     # ========== USERS ==========
@@ -132,10 +197,10 @@ class AzureADAPI:
     def users_list(
         self,
         top: int = 100,
-        select: Optional[str] = None,
-        filter_query: Optional[str] = None,
+        select: str | None = None,
+        filter_query: str | None = None,
         all_pages: bool = False
-    ) -> Dict:
+    ) -> dict:
         """List all users."""
         params = {"$top": top}
 
@@ -153,7 +218,7 @@ class AzureADAPI:
 
         return self._request('GET', '/users', params=params)
 
-    def users_get(self, user_id: str, select: Optional[str] = None) -> Dict:
+    def users_get(self, user_id: str, select: str | None = None) -> dict:
         """Get a specific user by ID or UPN."""
         params = {}
         if select:
@@ -161,16 +226,17 @@ class AzureADAPI:
 
         return self._request('GET', f'/users/{user_id}', params=params or None)
 
-    def users_search(self, query: str, top: int = 25) -> Dict:
+    def users_search(self, query: str, top: int = 25) -> dict:
         """Search users by displayName or mail."""
+        safe_query = query.replace("'", "''")
         params = {
             "$top": top,
-            "$filter": f"startswith(displayName,'{query}') or startswith(mail,'{query}')",
+            "$filter": f"startswith(displayName,'{safe_query}') or startswith(mail,'{safe_query}')",
             "$select": "id,displayName,userPrincipalName,mail,jobTitle,department"
         }
         return self._request('GET', '/users', params=params)
 
-    def users_create(self, user_data: Dict) -> Dict:
+    def users_create(self, user_data: dict) -> dict:
         """Create a new user."""
         required = ['displayName', 'mailNickname', 'userPrincipalName', 'passwordProfile']
         missing = [f for f in required if f not in user_data]
@@ -179,35 +245,35 @@ class AzureADAPI:
 
         return self._request('POST', '/users', data=user_data)
 
-    def users_update(self, user_id: str, updates: Dict) -> Dict:
+    def users_update(self, user_id: str, updates: dict) -> dict:
         """Update a user's properties."""
         return self._request('PATCH', f'/users/{user_id}', data=updates)
 
-    def users_delete(self, user_id: str) -> Dict:
+    def users_delete(self, user_id: str) -> dict:
         """Delete a user."""
         return self._request('DELETE', f'/users/{user_id}')
 
-    def users_manager(self, user_id: str) -> Dict:
+    def users_manager(self, user_id: str) -> dict:
         """Get user's manager."""
         return self._request('GET', f'/users/{user_id}/manager')
 
-    def users_direct_reports(self, user_id: str) -> Dict:
+    def users_direct_reports(self, user_id: str) -> dict:
         """Get user's direct reports."""
         return self._request('GET', f'/users/{user_id}/directReports')
 
-    def users_member_of(self, user_id: str) -> Dict:
+    def users_member_of(self, user_id: str) -> dict:
         """Get groups and roles the user is a member of."""
         return self._request('GET', f'/users/{user_id}/memberOf')
 
-    def users_owned_devices(self, user_id: str) -> Dict:
+    def users_owned_devices(self, user_id: str) -> dict:
         """Get devices owned by the user."""
         return self._request('GET', f'/users/{user_id}/ownedDevices')
 
-    def users_registered_devices(self, user_id: str) -> Dict:
+    def users_registered_devices(self, user_id: str) -> dict:
         """Get devices registered to the user."""
         return self._request('GET', f'/users/{user_id}/registeredDevices')
 
-    def users_assign_license(self, user_id: str, sku_ids: List[str]) -> Dict:
+    def users_assign_license(self, user_id: str, sku_ids: list[str]) -> dict:
         """Assign licenses to a user."""
         data = {
             "addLicenses": [{"skuId": sku_id} for sku_id in sku_ids],
@@ -215,7 +281,7 @@ class AzureADAPI:
         }
         return self._request('POST', f'/users/{user_id}/assignLicense', data=data)
 
-    def users_revoke_license(self, user_id: str, sku_ids: List[str]) -> Dict:
+    def users_revoke_license(self, user_id: str, sku_ids: list[str]) -> dict:
         """Remove licenses from a user."""
         data = {
             "addLicenses": [],
@@ -228,10 +294,10 @@ class AzureADAPI:
     def groups_list(
         self,
         top: int = 100,
-        select: Optional[str] = None,
-        filter_query: Optional[str] = None,
+        select: str | None = None,
+        filter_query: str | None = None,
         all_pages: bool = False
-    ) -> Dict:
+    ) -> dict:
         """List all groups."""
         params = {"$top": top}
 
@@ -249,7 +315,7 @@ class AzureADAPI:
 
         return self._request('GET', '/groups', params=params)
 
-    def groups_get(self, group_id: str, select: Optional[str] = None) -> Dict:
+    def groups_get(self, group_id: str, select: str | None = None) -> dict:
         """Get a specific group."""
         params = {}
         if select:
@@ -257,16 +323,17 @@ class AzureADAPI:
 
         return self._request('GET', f'/groups/{group_id}', params=params or None)
 
-    def groups_search(self, query: str, top: int = 25) -> Dict:
+    def groups_search(self, query: str, top: int = 25) -> dict:
         """Search groups by displayName."""
+        safe_query = query.replace("'", "''")
         params = {
             "$top": top,
-            "$filter": f"startswith(displayName,'{query}')",
+            "$filter": f"startswith(displayName,'{safe_query}')",
             "$select": "id,displayName,mail,groupTypes,description"
         }
         return self._request('GET', '/groups', params=params)
 
-    def groups_create(self, group_data: Dict) -> Dict:
+    def groups_create(self, group_data: dict) -> dict:
         """Create a new group."""
         required = ['displayName', 'mailEnabled', 'mailNickname', 'securityEnabled']
         missing = [f for f in required if f not in group_data]
@@ -275,15 +342,15 @@ class AzureADAPI:
 
         return self._request('POST', '/groups', data=group_data)
 
-    def groups_update(self, group_id: str, updates: Dict) -> Dict:
+    def groups_update(self, group_id: str, updates: dict) -> dict:
         """Update a group's properties."""
         return self._request('PATCH', f'/groups/{group_id}', data=updates)
 
-    def groups_delete(self, group_id: str) -> Dict:
+    def groups_delete(self, group_id: str) -> dict:
         """Delete a group."""
         return self._request('DELETE', f'/groups/{group_id}')
 
-    def groups_members(self, group_id: str, all_pages: bool = False) -> Dict:
+    def groups_members(self, group_id: str, all_pages: bool = False) -> dict:
         """List group members."""
         if all_pages:
             items = self._get_all_pages(f"/groups/{group_id}/members")
@@ -291,29 +358,29 @@ class AzureADAPI:
 
         return self._request('GET', f'/groups/{group_id}/members')
 
-    def groups_add_member(self, group_id: str, member_id: str) -> Dict:
+    def groups_add_member(self, group_id: str, member_id: str) -> dict:
         """Add a member to a group."""
         data = {
             "@odata.id": f"{self.BASE_URL}/directoryObjects/{member_id}"
         }
         return self._request('POST', f'/groups/{group_id}/members/$ref', data=data)
 
-    def groups_remove_member(self, group_id: str, member_id: str) -> Dict:
+    def groups_remove_member(self, group_id: str, member_id: str) -> dict:
         """Remove a member from a group."""
         return self._request('DELETE', f'/groups/{group_id}/members/{member_id}/$ref')
 
-    def groups_owners(self, group_id: str) -> Dict:
+    def groups_owners(self, group_id: str) -> dict:
         """List group owners."""
         return self._request('GET', f'/groups/{group_id}/owners')
 
-    def groups_add_owner(self, group_id: str, owner_id: str) -> Dict:
+    def groups_add_owner(self, group_id: str, owner_id: str) -> dict:
         """Add an owner to a group."""
         data = {
             "@odata.id": f"{self.BASE_URL}/directoryObjects/{owner_id}"
         }
         return self._request('POST', f'/groups/{group_id}/owners/$ref', data=data)
 
-    def groups_member_of(self, group_id: str) -> Dict:
+    def groups_member_of(self, group_id: str) -> dict:
         """Get groups this group is a member of."""
         return self._request('GET', f'/groups/{group_id}/memberOf')
 
@@ -322,10 +389,10 @@ class AzureADAPI:
     def devices_list(
         self,
         top: int = 100,
-        select: Optional[str] = None,
-        filter_query: Optional[str] = None,
+        select: str | None = None,
+        filter_query: str | None = None,
         all_pages: bool = False
-    ) -> Dict:
+    ) -> dict:
         """List all devices."""
         params = {"$top": top}
 
@@ -343,7 +410,7 @@ class AzureADAPI:
 
         return self._request('GET', '/devices', params=params)
 
-    def devices_get(self, device_id: str, select: Optional[str] = None) -> Dict:
+    def devices_get(self, device_id: str, select: str | None = None) -> dict:
         """Get a specific device."""
         params = {}
         if select:
@@ -351,69 +418,132 @@ class AzureADAPI:
 
         return self._request('GET', f'/devices/{device_id}', params=params or None)
 
-    def devices_search(self, query: str, top: int = 25) -> Dict:
+    def devices_search(self, query: str, top: int = 25) -> dict:
         """Search devices by displayName."""
+        safe_query = query.replace("'", "''")
         params = {
             "$top": top,
-            "$filter": f"startswith(displayName,'{query}')",
+            "$filter": f"startswith(displayName,'{safe_query}')",
             "$select": "id,displayName,operatingSystem,operatingSystemVersion,trustType,isManaged"
         }
         return self._request('GET', '/devices', params=params)
 
-    def devices_update(self, device_id: str, updates: Dict) -> Dict:
+    def devices_update(self, device_id: str, updates: dict) -> dict:
         """Update a device's properties."""
         return self._request('PATCH', f'/devices/{device_id}', data=updates)
 
-    def devices_delete(self, device_id: str) -> Dict:
+    def devices_delete(self, device_id: str) -> dict:
         """Delete a device."""
         return self._request('DELETE', f'/devices/{device_id}')
 
-    def devices_registered_owners(self, device_id: str) -> Dict:
+    def devices_registered_owners(self, device_id: str) -> dict:
         """Get device's registered owners."""
         return self._request('GET', f'/devices/{device_id}/registeredOwners')
 
-    def devices_registered_users(self, device_id: str) -> Dict:
+    def devices_registered_users(self, device_id: str) -> dict:
         """Get device's registered users."""
         return self._request('GET', f'/devices/{device_id}/registeredUsers')
 
-    def devices_member_of(self, device_id: str) -> Dict:
+    def devices_member_of(self, device_id: str) -> dict:
         """Get groups the device is a member of."""
         return self._request('GET', f'/devices/{device_id}/memberOf')
 
     # ========== DIRECTORY ==========
 
-    def directory_organization(self) -> Dict:
+    def directory_organization(self) -> dict:
         """Get organization information."""
         return self._request('GET', '/organization')
 
-    def directory_domains(self) -> Dict:
+    def directory_domains(self) -> dict:
         """List verified domains."""
         return self._request('GET', '/domains')
 
-    def directory_licenses(self) -> Dict:
+    def directory_licenses(self) -> dict:
         """List available licenses (subscribed SKUs)."""
         return self._request('GET', '/subscribedSkus')
 
-    def directory_license_details(self, sku_id: str) -> Dict:
+    def directory_license_details(self, sku_id: str) -> dict:
         """Get license details."""
         return self._request('GET', f'/subscribedSkus/{sku_id}')
 
-    def directory_roles(self) -> Dict:
+    def directory_roles(self) -> dict:
         """List directory roles."""
         return self._request('GET', '/directoryRoles')
 
-    def directory_role_members(self, role_id: str) -> Dict:
+    def directory_role_members(self, role_id: str) -> dict:
         """List members of a directory role."""
         return self._request('GET', f'/directoryRoles/{role_id}/members')
 
-    def directory_deleted_users(self, top: int = 100) -> Dict:
+    def directory_deleted_users(self, top: int = 100) -> dict:
         """List deleted users."""
         params = {"$top": top}
         return self._request('GET', '/directory/deletedItems/microsoft.graph.user', params=params)
 
-    def directory_restore_user(self, user_id: str) -> Dict:
+    def directory_restore_user(self, user_id: str) -> dict:
         """Restore a deleted user."""
         return self._request('POST', f'/directory/deletedItems/{user_id}/restore')
+
+    # ========== SECURITY ==========
+
+    def security_sign_ins(
+        self,
+        top: int = 100,
+        filter_query: str | None = None,
+        all_pages: bool = False,
+    ) -> dict:
+        """Fetch sign-in audit logs. Requires AuditLog.Read.All permission."""
+        params: dict = {"$top": top, "$orderby": "createdDateTime desc"}
+        if filter_query:
+            params["$filter"] = filter_query
+        if all_pages:
+            items = self._get_all_pages("/auditLogs/signIns", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/auditLogs/signIns', params=params)
+
+    def security_risk_detections(
+        self,
+        top: int = 100,
+        filter_query: str | None = None,
+        all_pages: bool = False,
+    ) -> dict:
+        """Fetch Identity Protection risk detections. Requires IdentityRiskEvent.Read.All."""
+        params: dict = {"$top": top, "$orderby": "detectedDateTime desc"}
+        if filter_query:
+            params["$filter"] = filter_query
+        if all_pages:
+            items = self._get_all_pages("/identityProtection/riskDetections", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/identityProtection/riskDetections', params=params)
+
+    def security_risky_users(
+        self,
+        top: int = 100,
+        filter_query: str | None = None,
+    ) -> dict:
+        """Fetch risky users from Identity Protection. Requires IdentityRiskyUser.Read.All."""
+        params: dict = {"$top": top}
+        if filter_query:
+            params["$filter"] = filter_query
+        return self._request('GET', '/identityProtection/riskyUsers', params=params)
+
+    def security_audit_logs(
+        self,
+        top: int = 100,
+        filter_query: str | None = None,
+        all_pages: bool = False,
+    ) -> dict:
+        """Fetch directory audit logs. Requires AuditLog.Read.All permission."""
+        params: dict = {"$top": top, "$orderby": "activityDateTime desc"}
+        if filter_query:
+            params["$filter"] = filter_query
+        if all_pages:
+            items = self._get_all_pages("/auditLogs/directoryAudits", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/auditLogs/directoryAudits', params=params)
+
+    def security_auth_methods(self, upn: str) -> dict:
+        """Fetch authentication methods for a user. Requires UserAuthenticationMethod.Read.All."""
+        return self._request('GET', f'/users/{upn}/authentication/methods')
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -479,7 +609,6 @@ Examples:
     users_create.add_argument('--display-name', required=True, help='Display name')
     users_create.add_argument('--upn', required=True, help='User principal name')
     users_create.add_argument('--mail-nickname', required=True, help='Mail nickname')
-    users_create.add_argument('--password', required=True, help='Initial password')
     users_create.add_argument('--force-change', action='store_true', help='Force password change on sign-in')
 
     # users update
@@ -665,7 +794,117 @@ Examples:
     dir_ru.add_argument('user_id', help='User ID')
     dir_ru.add_argument('--confirm', action='store_true', required=True, help='Confirm restore')
 
+    # ===== SECURITY COMMANDS =====
+    security_parser = subparsers.add_parser('security', help='Security and audit log operations')
+    security_sub = security_parser.add_subparsers(dest='security_action', required=True)
+
+    # security sign-ins
+    p = security_sub.add_parser('sign-ins', help='Fetch sign-in audit logs')
+    p.add_argument('--top', type=int, default=100, help='Number of records (default: 100)')
+    p.add_argument('--hours', type=int, help='Look back N hours')
+    p.add_argument('--since', help='ISO 8601 datetime to filter from')
+    p.add_argument('--user', help='Filter by UPN or email')
+    p.add_argument('--ip', help='Filter by IP address')
+    p.add_argument('--app', help='Filter by application display name')
+    p.add_argument('--error-code', dest='error_code', type=int, help='Filter by error code')
+    p.add_argument('--country', help='Filter by country (location/countryOrRegion)')
+    p.add_argument('--risk-level', dest='risk_level',
+                   choices=['low', 'medium', 'high', 'none'],
+                   help='Filter by risk level')
+    p.add_argument('--all', action='store_true', dest='all_pages', help='Fetch all pages')
+
+    # security risky-users
+    p = security_sub.add_parser('risky-users', help='Fetch risky users from Identity Protection')
+    p.add_argument('--top', type=int, default=100)
+    p.add_argument('--risk-level', choices=['low', 'medium', 'high', 'none'],
+                   dest='risk_level', help='Filter by risk level')
+    p.add_argument('--risk-state', dest='risk_state',
+                   choices=['atRisk', 'confirmedCompromised', 'remediated', 'dismissed'],
+                   help='Filter by risk state')
+
+    # security risk-detections
+    p = security_sub.add_parser('risk-detections', help='Fetch risk detection events')
+    p.add_argument('--top', type=int, default=100)
+    p.add_argument('--hours', type=int)
+
+    # security audit-logs
+    p = security_sub.add_parser('audit-logs', help='Fetch directory audit logs')
+    p.add_argument('--top', type=int, default=100)
+    p.add_argument('--hours', type=int)
+    p.add_argument('--user', help='Filter by initiated user UPN')
+    p.add_argument('--category', help='Filter by activity category')
+
+    # security auth-methods
+    p = security_sub.add_parser('auth-methods', help='Get authentication methods for a user')
+    p.add_argument('upn', help='User principal name')
+
     return parser
+
+
+def handle_security(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
+    """Handle security subcommand dispatch."""
+    if args.security_action == 'sign-ins':
+        filter_parts = []
+        time_f = build_time_filter(
+            field='createdDateTime',
+            hours=getattr(args, 'hours', None),
+            since=getattr(args, 'since', None),
+        )
+        if time_f:
+            filter_parts.append(time_f)
+        if getattr(args, 'user', None):
+            safe_user = args.user.replace("'", "''")
+            filter_parts.append(f"userPrincipalName eq '{safe_user}'")
+        if getattr(args, 'ip', None):
+            if not re.match(r'^[\d.:/\[\]a-fA-F%]+$', args.ip):
+                raise ValueError(f"Invalid IP address format: {args.ip!r}")
+            filter_parts.append(f"ipAddress eq '{args.ip}'")
+        if getattr(args, 'app', None):
+            safe_app = args.app.replace("'", "''")
+            filter_parts.append(f"appDisplayName eq '{safe_app}'")
+        if getattr(args, 'error_code', None) is not None:
+            filter_parts.append(f"status/errorCode eq {args.error_code}")
+        if getattr(args, 'country', None):
+            safe_country = args.country.replace("'", "''")
+            filter_parts.append(f"location/countryOrRegion eq '{safe_country}'")
+        if getattr(args, 'risk_level', None):
+            filter_parts.append(f"riskLevelDuringSignIn eq '{args.risk_level}'")
+        fq = ' and '.join(filter_parts) if filter_parts else None
+        return api.security_sign_ins(
+            top=args.top,
+            filter_query=fq,
+            all_pages=getattr(args, 'all_pages', False),
+        )
+    elif args.security_action == 'risky-users':
+        filter_parts = []
+        if getattr(args, 'risk_level', None):
+            filter_parts.append(f"riskLevel eq '{args.risk_level}'")
+        if getattr(args, 'risk_state', None):
+            filter_parts.append(f"riskState eq '{args.risk_state}'")
+        fq = ' and '.join(filter_parts) if filter_parts else None
+        return api.security_risky_users(top=args.top, filter_query=fq)
+    elif args.security_action == 'risk-detections':
+        fq = build_time_filter(field='detectedDateTime', hours=getattr(args, 'hours', None))
+        return api.security_risk_detections(top=args.top, filter_query=fq)
+    elif args.security_action == 'audit-logs':
+        filter_parts = []
+        time_f = build_time_filter(
+            field='activityDateTime',
+            hours=getattr(args, 'hours', None),
+        )
+        if time_f:
+            filter_parts.append(time_f)
+        if getattr(args, 'user', None):
+            safe_user = args.user.replace("'", "''")
+            filter_parts.append(f"initiatedBy/user/userPrincipalName eq '{safe_user}'")
+        if getattr(args, 'category', None):
+            safe_category = args.category.replace("'", "''")
+            filter_parts.append(f"category eq '{safe_category}'")
+        fq = ' and '.join(filter_parts) if filter_parts else None
+        return api.security_audit_logs(top=args.top, filter_query=fq)
+    elif args.security_action == 'auth-methods':
+        return api.security_auth_methods(args.upn)
+    return None
 
 
 def main():
@@ -677,7 +916,8 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    if not args.action:
+    # Security domain uses security_action instead of action
+    if args.domain != 'security' and not args.action:
         # Show domain help
         parser.parse_args([args.domain, '-h'])
         sys.exit(1)
@@ -705,7 +945,7 @@ def main():
                     'mailNickname': args.mail_nickname,
                     'userPrincipalName': args.upn,
                     'passwordProfile': {
-                        'password': args.password,
+                        'password': os.environ.get('AZURE_INITIAL_PASSWORD') or getpass.getpass('Initial password: '),
                         'forceChangePasswordNextSignIn': args.force_change
                     },
                     'accountEnabled': True
@@ -834,6 +1074,10 @@ def main():
             elif args.action == 'restore-user':
                 result = api.directory_restore_user(args.user_id)
                 print_success(f"User restored: {args.user_id}")
+
+        # ===== SECURITY =====
+        elif args.domain == 'security':
+            result = handle_security(api, args)
 
         # Output result
         if result:

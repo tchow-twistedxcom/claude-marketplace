@@ -352,18 +352,55 @@ See `scripts/README.md` for detailed deployment and usage instructions.
 - `pri_container_ss.js` - Container events
 - `pri_CL_container.js` - Container UI
 - `pri_trnfrord_ss.js` - Transfer order integration
+- `pri_itemrcpt_lib.js` - `healTrnfrOrd` (TO creation/rebuild engine)
 
 **Features:**
 - 6 status progression values (Origin → Destination)
 - Automatic Transfer Order creation on button click
+- **Multi-TO support** (IT-20838): containers with >1,500 IR lines create multiple TOs
 - 3-level date synchronization (Container → TO → IF)
 - Bin management integration
 - Field inheritance from parent vessel
+
+#### Multi-TO Architecture (IT-20838, April 2026)
+
+Containers with many IR lines (e.g., 5,503 lines) cannot fit in a single NetSuite Transfer Order (hard 5,000-line limit). `healTrnfrOrd` splits lines across multiple TOs capped at `TRNFRORD_LINE_LIMIT = 1500`.
+
+**Key design decisions:**
+- `custrecord_pri_frgt_cnt_to` remains a **scalar** "primary TO" pointer (backward compat)
+- All TOs are found by searching the TO-side back-pointer `custbody_pri_frgt_cnt` (NOT the scalar field)
+- Use `getAllTOsForContainer(containerId)` (exported from `pri_itemrcpt_lib.js`) to get all TOs
+
+```javascript
+// Find all TOs for a container (SuiteQL equivalent):
+SELECT T.id, T.tranid FROM Transaction T
+WHERE T.custbody_pri_frgt_cnt = <containerId>
+  AND T.type = 'TrnfrOrd'
+ORDER BY T.id
+```
+
+**How multi-TO creation works:**
+1. `healTrnfrOrd` calculates `intNeededTOCount = Math.ceil(irLines.length / 1500)`
+2. Creates ONE new TO per `containerTouch_sc` execution (Fix F)
+3. Re-queues `TOUCH_CONTAINER` with a **3-minute delay** so the next execution creates the next chunk
+4. Uses `preventDuplicates=false` — intentionally allows sequential re-queue entries
+5. On subsequent executions, existing TOs with correct line count are skipped (Fix G)
+
+**Why the 3-minute delay matters:**
+- `getNextQueueEntry` filters by `next_attempt <= CURRENT_TIMESTAMP`
+- Without the delay, the same while loop picks up the re-queued entry in the same execution
+- `preventDuplicates=false` is required — the in-flight queue entry is still `complete=false` when `addQueueEntry` fires, so `preventDuplicates=true` would silently discard new entries
+
+**Field sync with multiple TOs:**
+- Mark In-Transit: `pri_veslCtn_markIntransit_sc.js` iterates ALL TOs via `getAllTOsForContainer()`
+- Receive Container: `pri_SC_receiveContainer.js` iterates ALL TOs
+- Date sync (`pri_syncFldsFromCntToTrnfrord`): iterates ALL TOs
 
 **Common Issues:**
 - Dates not syncing: Use `sync_container_dates.js`
 - TO not created: Check container location field
 - Status locked: Verify container not at origin for IR
+- Container has >1,500 IR lines and only 1 TO exists: Re-touch container — `healTrnfrOrd` will create additional TOs over subsequent `TOUCH_CONTAINER` queue executions (~3 min apart each)
 
 ### In-Transit Linking System
 
@@ -434,6 +471,8 @@ See `scripts/README.md` for detailed deployment and usage instructions.
 | Linker deletion orphans TO/IF | No rollback mechanism | Manual cleanup required |
 | Production PO generation fails | Data validation or permissions | Check execution logs, verify data |
 | Container receiving fails | Status wrong or TO missing | Verify status = 7, TO linked |
+| Container has only 1 TO but needs more | >1,500 IR lines, multi-TO heal incomplete | Re-touch container; `healTrnfrOrd` creates 1 TO per `TOUCH_CONTAINER` run (~3 min apart) |
+| Mark In-Transit only fulfills 1 TO | Pre-IT-20838 code path | Ensure `pri_veslCtn_markIntransit_sc.js` uses `getAllTOsForContainer()` loop |
 
 **For detailed resolutions:** Load `PRI_CONTAINER_TRACKING_MASTER_REFERENCE.md` > Troubleshooting Matrix
 
@@ -541,9 +580,10 @@ Manual remediation tools deployable as Suitelets:
 
 ---
 
-**Skill Version:** 1.2
-**Last Updated:** 2026-01-29
+**Skill Version:** 1.3
+**Last Updated:** 2026-04-09
 **Analysis Confidence:** 95%+ (based on systematic code analysis)
 **Documentation Size:** ~408KB across 12 reference files
-**New in v1.2:** Direct Import Automation documentation - complete cross-bundle flow for auto-pick (Bundle 125246) and auto-invoice (Bundle 311735)
+**New in v1.3:** Multi-TO architecture (IT-20838) — `TRNFRORD_LINE_LIMIT=1500`, `getAllTOsForContainer()`, Fix F/G re-queue pattern for large containers
+**v1.2:** Direct Import Automation documentation - complete cross-bundle flow for auto-pick (Bundle 125246) and auto-invoice (Bundle 311735)
 **v1.1:** Application Settings configuration knowledge (23+ settings documented)

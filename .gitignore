@@ -91,3 +91,10 @@ plugins/slack-skills/.mcp.json
 TODO.md
 NOTES.md
 scratch/
+
+# Local-only config/notes (not for version control)
+*.local.md
+
+# Audit snapshots (contain PII — generated output, not source code)
+plugins/mimecast-skills/audit-*.md
+plugins/m365-skills/**/audit-*.md

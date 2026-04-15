@@ -314,6 +314,20 @@
         "react",
         "skills"
       ]
+    },
+    {
+      "name": "codex-workflows",
+      "source": "./plugins/codex-workflows",
+      "description": "Codex CLI delegation workflows: PR review via codex review/exec (codex-review skill) and full LFG pipeline with Codex delegation for both work and review phases (codex-lfg skill). Extends compound-engineering's delegation pattern.",
+      "version": "1.0.0",
+      "keywords": [
+        "codex",
+        "review",
+        "delegation",
+        "workflow",
+        "lfg",
+        "compound-engineering"
+      ]
     }
   ]
 }

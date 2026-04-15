@@ -1,0 +1,22 @@
+{
+  "name": "codex-workflows",
+  "version": "1.0.0",
+  "description": "Codex CLI delegation workflows: PR review via codex review/exec and full LFG pipeline with Codex delegation for work and review phases. Extends compound-engineering's delegation pattern.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "review",
+    "delegation",
+    "workflow",
+    "lfg",
+    "compound-engineering"
+  ],
+  "skills": [
+    "./skills/codex-review",
+    "./skills/codex-lfg"
+  ]
+}

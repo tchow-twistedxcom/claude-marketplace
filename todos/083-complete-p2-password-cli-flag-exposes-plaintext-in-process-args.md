@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "083"
 tags: [code-review, security, azure-ad, credentials]
@@ -36,3 +36,4 @@ Add `action=DeprecationWarning` or emit a `warnings.warn()` when `--password` is
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (security-sentinel)
+- 2026-04-08: Resolved — removed `add_argument('--password', ...)` from users create subparser; updated password expression to use only env var and getpass. Commit: 37954cf

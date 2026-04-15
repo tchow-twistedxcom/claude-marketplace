@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p3
 issue_id: "099"
 tags: [code-review, quality, mimecast-skills]
@@ -38,3 +38,4 @@ from .human_risk import HumanRiskDomain                   # noqa: E402
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (kieran-python-reviewer)
+- 2026-04-08: Resolved — added clarifying comment before deferred imports and `# noqa: E402` suppressions in `domains/__init__.py`

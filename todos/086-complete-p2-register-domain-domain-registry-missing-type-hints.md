@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "086"
 tags: [code-review, quality, mimecast-skills, typing]
@@ -52,3 +52,4 @@ def register_domain(cls: type[BaseDomain]) -> type[BaseDomain]:
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (kieran-python-reviewer, architecture-strategist)
+- 2026-04-08: Resolved — added `from typing import TypeVar`, `T = TypeVar('T')`, typed `_DOMAIN_REGISTRY: list[type] = []`, and updated `register_domain(cls: type[T]) -> type[T]` signature in `domains/__init__.py`

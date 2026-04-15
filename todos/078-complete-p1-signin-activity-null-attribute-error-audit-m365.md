@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p1
 issue_id: "078"
 tags: [code-review, bug, mimecast-audit]
@@ -45,3 +45,4 @@ last_sign_in = sign_in_activity.get("lastSignInDateTime") if sign_in_activity el
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (kieran-python-reviewer, blocking severity)
+- 2026-04-08: Fixed in commit c4f4f21 — changed `.get("signInActivity", {}).get(...)` to `(az_user.get("signInActivity") or {}).get(...)`. Scanned entire file; no other `az_user.get(..., {}).get(...)` chains found. Single-line fix, no behavior change for absent keys.

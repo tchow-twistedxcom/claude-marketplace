@@ -1,5 +1,5 @@
 ---
-status: pending
+status: complete
 priority: p2
 issue_id: "084"
 tags: [code-review, security, azure-ad, credentials]
@@ -63,3 +63,4 @@ os.chmod(self.token_cache_path, 0o600)  # re-apply in case it existed with wrong
 
 ## Work Log
 - 2026-04-08: Identified in 6th code review pass (security-sentinel)
+- 2026-04-08: Resolved — replaced open+chmod pattern with tempfile.mkstemp+os.replace atomic write; chmod applied before write; cleanup on exception; _get_token_cache_path now returns Path. Commit: 37954cf

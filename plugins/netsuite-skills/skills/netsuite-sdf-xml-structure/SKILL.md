@@ -1,7 +1,7 @@
 ---
 name: netsuite-sdf-xml-structure
 description: Comprehensive NetSuite SDF object XML patterns - custom records, lists, forms, and scripts
-version: 1.0.0
+version: 1.1.0
 triggers:
   keywords: [SDF XML, custom record, customlist, entryForm, usereventscript, mapreducescript, parentsubtab, isparent, subtab, related list, script deployment, netsuite xml, sdf object]
   file_patterns: ["sdf/Objects/**/*.xml", "**/customrecordtype/*.xml", "**/customlist/*.xml", "**/entryForm/*.xml", "**/usereventscript/*.xml", "**/mapreducescript/*.xml"]
@@ -525,7 +525,7 @@ Map/reduce scripts process large datasets in batches with parallel execution.
       <loglevel>DEBUG</loglevel>
 
       <!-- Performance settings -->
-      <buffersize>100</buffersize>  <!-- Records per stage -->
+      <buffersize>1</buffersize>  <!-- Must be 1 — arbitrary values fail validation -->
       <concurrencylimit>5</concurrencylimit>  <!-- Max concurrent executions -->
       <yieldaftermins>60</yieldaftermins>  <!-- Yield control after 60 min -->
       <queueallstagesatonce>F</queueallstagesatonce>  <!-- Sequential stages -->
@@ -679,6 +679,54 @@ record.setText({ fieldId: 'custrecord_status', text: 'Open' });
 - SCHEDULED - Scheduled scripts
 - CSVIMPORT - CSV import operations
 
+#### Issue: Map/Reduce script name too long — "name field contains more than the maximum number (40) of characters"
+
+**Symptom**: Deployment fails at "Validate objects" with:
+```
+An error occurred during custom object creation.
+Details: The name field contains more than the maximum number (40) of characters allowed.
+File: ~/Objects/mapreducescript/customscript_xxx.xml
+```
+
+**Cause**: The `<name>` element on `<mapreducescript>` has a hard limit of 40 characters. The same limit applies to `<title>` on `<scriptdeployment>`. The error is NOT caught by `--dry-run` validate — it only appears during the actual deployment phase.
+
+**Solution**: Shorten the name to ≤40 characters:
+```xml
+<!-- ❌ WRONG: 41 characters -->
+<name>TWX | Seed Communication Preferences (MR)</name>
+
+<!-- ✅ CORRECT: 34 characters -->
+<name>TWX | Seed Comm Preferences (MR)</name>
+```
+
+**Tip**: Count characters before writing the `<name>` field. Common abbreviations: `Communication` → `Comm`, drop parenthetical suffixes if needed.
+
+---
+
+#### Issue: Invalid buffersize — "Invalid buffersize reference key N"
+
+**Symptom**: Deployment fails at the scriptdeployment creation step:
+```
+An error occurred during custom object creation.
+Details: Invalid buffersize reference key 50.
+File: ~/Objects/mapreducescript/customscript_xxx.xml
+Object: customscript_xxx.customdeploy_xxx (scriptdeployment)
+```
+
+**Cause**: `<buffersize>` does not accept arbitrary integers. The valid value used across all production scripts in NetSuiteBundlet is `1`.
+
+**Solution**:
+```xml
+<!-- ❌ WRONG: arbitrary number -->
+<buffersize>50</buffersize>
+<buffersize>100</buffersize>
+
+<!-- ✅ CORRECT: use 1 -->
+<buffersize>1</buffersize>
+```
+
+---
+
 #### Issue: Role access errors
 
 **Symptom**: Script fails with permission errors
@@ -741,7 +789,8 @@ record.setValue({ fieldId: 'custrecord_event_type', value: '1' });
 - ✅ `<runasrole>` has all required permissions
 - ✅ `<status>` set to RELEASED for production
 - ✅ `<loglevel>` appropriate for environment (ERROR for prod, DEBUG for dev)
-- ✅ For Map/Reduce: `<buffersize>`, `<concurrencylimit>`, `<yieldaftermins>` tuned
+- ✅ For Map/Reduce: `<buffersize>1</buffersize>` (must be 1, not arbitrary), `<concurrencylimit>`, `<yieldaftermins>` set
+- ✅ `<name>` on mapreducescript is ≤40 characters (deployment fails silently if over)
 - ✅ `<recordtype>` matches target record (for User Event scripts)
 
 ### Field Type Selection Guide

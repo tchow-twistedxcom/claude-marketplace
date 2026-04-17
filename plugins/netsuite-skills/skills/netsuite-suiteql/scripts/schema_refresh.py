@@ -28,7 +28,7 @@ import os
 import json
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 # Cache root
@@ -74,6 +74,7 @@ def fetch_accounts_config() -> Dict:
             accounts[aid] = {
                 'name': acct.get('name', aid),
                 'accountId': acct.get('accountId', ''),
+                'odbcEnabled': acct.get('odbcEnabled', True),
                 'odbc': acct.get('odbc') or {},
                 'environments': [e['id'] for e in acct.get('environments', [])]
             }
@@ -129,6 +130,8 @@ def get_all_account_environments() -> List[Tuple[str, str]]:
     cfg = fetch_accounts_config()
     pairs = []
     for acct, info in cfg['accounts'].items():
+        if not info.get('odbcEnabled', True):
+            continue
         for env in info.get('environments', []):
             pairs.append((acct, env))
     return pairs
@@ -144,6 +147,33 @@ def save_cache(cache_dir: str, filename: str, data: Dict[str, Any]) -> None:
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
     print(f"    Saved {path} ({os.path.getsize(path) // 1024}KB)")
+
+
+def upload_schema(account: str, environment: str, resource: str, data: Dict[str, Any]) -> bool:
+    """
+    Upload a schema blob to the gateway's schema cache endpoint.
+    Requires SCHEMA_ADMIN_TOKEN env var. Logs warnings on failure; does not raise.
+    Returns True on success.
+    """
+    token = os.environ.get('SCHEMA_ADMIN_TOKEN', '')
+    if not token:
+        print(f"    SKIP upload (SCHEMA_ADMIN_TOKEN not set)")
+        return False
+
+    url = f"{GATEWAY_URL}/api/common/schema/{account}/{environment}/{resource}"
+    payload = json.dumps(data).encode('utf-8')
+    req = Request(url, data=payload, method='POST', headers={
+        'Content-Type': 'application/json',
+        'X-Schema-Admin-Token': token,
+    })
+    try:
+        with urlopen(req, timeout=60) as resp:
+            status = resp.getcode()
+        print(f"    Uploaded {resource} → gateway ({status})")
+        return True
+    except Exception as e:
+        print(f"    WARN: Upload {resource} failed: {e}")
+        return False
 
 
 def load_cache(cache_dir: str, filename: str) -> Optional[Dict[str, Any]]:
@@ -213,7 +243,8 @@ def refresh_account_environment(account: str, environment: str,
                                  user: str = '', password: str = '',
                                  tables_only: bool = False,
                                  columns_only: bool = False,
-                                 fkeys_only: bool = False) -> Dict[str, Any]:
+                                 fkeys_only: bool = False,
+                                 upload: bool = False) -> Dict[str, Any]:
     """
     Connect to NetSuite via ODBC and refresh schema cache for one account/environment.
     Returns stats dict.
@@ -265,14 +296,17 @@ def refresh_account_environment(account: str, environment: str,
                     'description': row.remarks or ''
                 })
 
-            save_cache(cache_dir, 'tables.json', {
+            tables_payload = {
                 '_source': 'odbc',
                 '_refreshed_at': ts,
                 '_account': account,
                 '_environment': environment,
                 '_record_count': len(tables),
                 'tables': tables
-            })
+            }
+            save_cache(cache_dir, 'tables.json', tables_payload)
+            if upload:
+                upload_schema(account, environment, 'tables', tables_payload)
             stats['tables_count'] = len(tables)
             print(f"    {len(tables)} tables found")
 
@@ -305,14 +339,17 @@ def refresh_account_environment(account: str, environment: str,
                 })
                 total_cols += 1
 
-            save_cache(cache_dir, 'columns.json', {
+            columns_payload = {
                 '_source': 'odbc',
                 '_refreshed_at': ts,
                 '_account': account,
                 '_environment': environment,
                 '_record_count': total_cols,
                 'columns': columns_grouped
-            })
+            }
+            save_cache(cache_dir, 'columns.json', columns_payload)
+            if upload:
+                upload_schema(account, environment, 'columns', columns_payload)
             stats['columns_count'] = total_cols
             print(f"    {total_cols} columns across {len(columns_grouped)} tables")
 
@@ -348,7 +385,7 @@ def refresh_account_environment(account: str, environment: str,
                             'key_seq': row.key_seq
                         })
 
-                save_cache(cache_dir, 'fkeys.json', {
+                fkeys_payload = {
                     '_source': 'odbc',
                     '_refreshed_at': ts,
                     '_account': account,
@@ -356,7 +393,10 @@ def refresh_account_environment(account: str, environment: str,
                     '_record_count': len(foreign_keys) + len(primary_keys),
                     'foreign_keys': foreign_keys,
                     'primary_keys': primary_keys
-                })
+                }
+                save_cache(cache_dir, 'fkeys.json', fkeys_payload)
+                if upload:
+                    upload_schema(account, environment, 'fkeys', fkeys_payload)
                 stats['fkeys_count'] = len(foreign_keys)
                 stats['primary_keys_count'] = len(primary_keys)
                 print(f"    {len(foreign_keys)} foreign keys, {len(primary_keys)} primary keys")
@@ -439,6 +479,7 @@ def main():
     tables_only = '--tables-only' in argv
     columns_only = '--columns-only' in argv
     fkeys_only = '--fkeys-only' in argv
+    upload = '--upload' in argv
 
     # Parse account and environment
     default_account = get_default_account()
@@ -512,7 +553,8 @@ def main():
             acct, env, user=user, password=password,
             tables_only=tables_only,
             columns_only=columns_only,
-            fkeys_only=fkeys_only
+            fkeys_only=fkeys_only,
+            upload=upload
         )
         if stats.get('error'):
             print(f"  ERROR: {stats['error']}")

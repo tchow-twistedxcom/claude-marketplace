@@ -288,10 +288,13 @@ Complete guide to all NetSuite custom record field types with XML examples and u
 
 **Use For**: Many-to-many relationships, selecting multiple items
 
+**⚠️ Constraint:** `<displaytype>` must be `NORMAL` for MULTISELECT fields. SDF validation rejects `DISABLED` and `INLINE` with "must not be DISABLED/INLINE" errors. To make the field read-only, disable it via a Client Script `pageInit` event instead.
+
 **Example**:
 ```xml
 <customrecordcustomfield scriptid="custrecord_channels">
   <fieldtype>MULTISELECT</fieldtype>
+  <displaytype>NORMAL</displaytype>
   <label>Notification Channels</label>
   <selectrecordtype>[scriptid=customrecord_notification_channel]</selectrecordtype>
   <ismandatory>F</ismandatory>
@@ -299,6 +302,8 @@ Complete guide to all NetSuite custom record field types with XML examples and u
   <help>Select one or more notification channels</help>
 </customrecordcustomfield>
 ```
+
+**For Contact (built-in record type):** Use `<selectrecordtype>-6</selectrecordtype>`
 
 ---
 

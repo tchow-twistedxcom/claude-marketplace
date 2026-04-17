@@ -1,9 +1,11 @@
 """Azure AD / Entra ID Microsoft Graph API MCP server using FastMCP."""
 
 import asyncio
+import base64
 import ipaddress
 import json
 import os
+import pathlib
 import re
 import sys
 import time
@@ -66,6 +68,7 @@ TOKEN_REFRESH_BUFFER = 300  # Refresh 5 min before expiry  # NOTE: This value mu
 # In-memory token cache: {"graph:{client_id}": ..., "ual:{client_id}": ...}
 _token_cache: dict[str, Any] = {}
 _msal_app: ConfidentialClientApplication | None = None
+_cached_credentials: tuple[str, str, str] | None = None
 
 # ─── HTTP client singleton ────────────────────────────────────────────────────
 
@@ -73,8 +76,11 @@ _http_client: httpx.AsyncClient | None = None
 # Module-level locks: safe in Python 3.10+ (no event loop binding at creation).
 # FastMCP uses a single event loop per process. Test suites should re-import this
 # module per test process to get fresh lock instances.
+# IMPORTANT: _msal_lock and _token_lock must be SEPARATE to avoid deadlock.
+# _get_token() holds _token_lock while calling _get_msal_app() which needs _msal_lock.
 _http_client_lock: asyncio.Lock = asyncio.Lock()
-_token_lock: asyncio.Lock = asyncio.Lock()
+_msal_lock: asyncio.Lock = asyncio.Lock()   # Guards _msal_app initialization only
+_token_lock: asyncio.Lock = asyncio.Lock()  # Guards _token_cache operations only
 # Cap concurrent user triages to avoid Graph API throttling (each user = 9 Graph calls)
 _TRIAGE_SEMAPHORE = asyncio.Semaphore(10)
 
@@ -124,23 +130,78 @@ def _validate_enum(value: str, valid_set: set, field: str) -> str:
 
 
 def _get_credentials() -> tuple[str, str, str]:
-    """Get credentials from environment variables."""
+    """Get Azure credentials from environment variables, with config file fallback.
+
+    Result is cached in _cached_credentials after first successful load to avoid
+    repeated disk reads on every API call.
+
+    Priority:
+    1. AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET env vars (DXT / Claude Desktop)
+    2. Config file at AZURE_CONFIG_PATH env var (explicit override)
+    3. azure_config.json searched relative to this file (Claude Code plugin layout)
+    """
+    global _cached_credentials
+    if _cached_credentials is not None:
+        return _cached_credentials
+
     tenant_id = os.environ.get("AZURE_TENANT_ID", "")
     client_id = os.environ.get("AZURE_CLIENT_ID", "")
     client_secret = os.environ.get("AZURE_CLIENT_SECRET", "")
-    if not all([tenant_id, client_id, client_secret]):
-        raise ValueError(
-            "AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET must be set."
-        )
-    return tenant_id, client_id, client_secret
+    if all([tenant_id, client_id, client_secret]):
+        _cached_credentials = (tenant_id, client_id, client_secret)
+        return _cached_credentials
+
+    # Env vars are empty — try config file fallback
+    _this_dir = pathlib.Path(__file__).resolve().parent
+    candidate_paths = []
+
+    explicit = os.environ.get("AZURE_CONFIG_PATH", "")
+    if explicit:
+        candidate_paths.append(pathlib.Path(explicit))
+
+    # Marketplace layout: extensions/azure-ad/src/server.py → ../../.. = marketplace root
+    candidate_paths.append(
+        _this_dir / "../../../plugins/m365-skills/skills/azure-ad/config/azure_config.json"
+    )
+    # Absolute well-known path for this user's setup
+    candidate_paths.append(
+        pathlib.Path.home()
+        / ".claude/plugins/marketplaces/tchow-essentials/plugins/m365-skills/skills/azure-ad/config/azure_config.json"
+    )
+
+    for candidate in candidate_paths:
+        config_file = candidate.resolve()
+        if config_file.exists():
+            try:
+                cfg = json.loads(config_file.read_text())
+                default_tenant = cfg.get("defaults", {}).get("tenant", "default")
+                tenant_cfg = cfg.get("tenants", {}).get(default_tenant, {})
+                tenant_id = tenant_cfg.get("tenant_id", "")
+                client_id = tenant_cfg.get("client_id", "")
+                client_secret = tenant_cfg.get("client_secret", "")
+                if all([tenant_id, client_id, client_secret]):
+                    _cached_credentials = (tenant_id, client_id, client_secret)
+                    return _cached_credentials
+            except Exception:
+                pass  # Try next candidate
+
+    raise ValueError(
+        "Azure credentials not found. Set AZURE_TENANT_ID, AZURE_CLIENT_ID, and "
+        "AZURE_CLIENT_SECRET environment variables, or place azure_config.json at: "
+        f"{candidate_paths[-1]}"
+    )
 
 
 async def _get_msal_app() -> ConfidentialClientApplication:
-    """Get or create MSAL app (cached for process lifetime), with double-checked locking."""
+    """Get or create MSAL app (cached for process lifetime), with double-checked locking.
+
+    Uses _msal_lock (NOT _token_lock) to avoid deadlock: _get_token() holds _token_lock
+    while calling this function, so this function must use a separate lock.
+    """
     global _msal_app
     if _msal_app is not None:
         return _msal_app
-    async with _token_lock:
+    async with _msal_lock:
         if _msal_app is not None:
             return _msal_app
         tenant_id, client_id, client_secret = _get_credentials()
@@ -1295,6 +1356,105 @@ async def azure_ad_get_email(user_id: str, message_id: str) -> str:
     })
 
 
+# ─── Email Attachments ───────────────────────────────────────────────────────
+
+@mcp.tool()
+async def azure_ad_list_attachments(user_id: str, message_id: str) -> str:
+    """List attachments on an email message with metadata.
+
+    Args:
+        user_id: User UPN or object ID (e.g. user@domain.com).
+        message_id: Message ID from azure_ad_sent_emails or azure_ad_search_mail results.
+
+    Returns:
+        dict: {"count": int, "attachments": [{"id": str, "name": str, "contentType": str,
+            "size": int, "isInline": bool, "lastModifiedDateTime": str}]}
+    """
+    result = await _graph(
+        "GET",
+        f"/users/{user_id}/messages/{message_id}/attachments",
+        params={"$select": "id,name,contentType,size,isInline,lastModifiedDateTime"},
+    )
+    attachments = result.get("value", [])
+    return _fmt({
+        "count": len(attachments),
+        "attachments": [
+            {
+                "id": a.get("id"),
+                "name": a.get("name"),
+                "contentType": a.get("contentType"),
+                "size": a.get("size"),
+                "isInline": a.get("isInline"),
+                "lastModifiedDateTime": a.get("lastModifiedDateTime"),
+            }
+            for a in attachments
+        ],
+    })
+
+
+@mcp.tool()
+async def azure_ad_download_attachment(
+    user_id: str,
+    message_id: str,
+    attachment_id: str,
+    output_path: str,
+) -> str:
+    """Download an email attachment and save it to a local file path.
+
+    For attachments ≤3 MB the Graph API returns base64-encoded content directly.
+    For larger attachments the raw binary stream is fetched from the /$value endpoint.
+
+    Args:
+        user_id: User UPN or object ID (e.g. user@domain.com).
+        message_id: Message ID from azure_ad_sent_emails or azure_ad_search_mail results.
+        attachment_id: Attachment ID from azure_ad_list_attachments results.
+        output_path: Absolute local file path where the attachment will be written
+                     (e.g. /tmp/invoice.pdf). Parent directory must exist.
+
+    Returns:
+        dict: {"saved_to": str, "name": str, "contentType": str, "size_bytes": int}
+    """
+    out = pathlib.Path(output_path)
+    if not out.parent.exists():
+        raise ValueError(f"Output directory does not exist: {out.parent}")
+
+    # Fetch attachment metadata (includes contentBytes for files ≤3 MB)
+    attachment = await _graph(
+        "GET",
+        f"/users/{user_id}/messages/{message_id}/attachments/{attachment_id}",
+    )
+
+    content_bytes_b64: str | None = attachment.get("contentBytes")
+
+    if content_bytes_b64:
+        # Small attachment — base64-encoded payload included in JSON response
+        binary = base64.b64decode(content_bytes_b64)
+    else:
+        # Large attachment (>3 MB) — fetch raw binary via /$value
+        token = await _get_token()
+        url = (
+            f"{GRAPH_BASE}/users/{user_id}/messages/{message_id}"
+            f"/attachments/{attachment_id}/$value"
+        )
+        client = await _get_http_client()
+        response = await client.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        if response.status_code == 404:
+            raise ValueError(f"Attachment not found: {attachment_id}")
+        response.raise_for_status()
+        binary = response.content
+
+    out.write_bytes(binary)
+    return _fmt({
+        "saved_to": str(out),
+        "name": attachment.get("name"),
+        "contentType": attachment.get("contentType"),
+        "size_bytes": len(binary),
+    })
+
+
 # ─── Conditional Access Management ───────────────────────────────────────────
 
 @mcp.tool()
@@ -2430,7 +2590,6 @@ async def azure_ad_incident_triage(
             for i, r in enumerate(reports)
         ],
     })
-
 
 if __name__ == "__main__":
     mcp.run()

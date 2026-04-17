@@ -29,9 +29,14 @@ import fnmatch
 import re
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any, Tuple
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
 
 # Cache root directory
 CACHE_ROOT = os.path.expanduser('~/.cache/netsuite-schema')
+
+# Gateway URL for schema fallback (L2 before live probe)
+_GW_BASE = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
 
 # Reuse aliases from query_netsuite.py
 ACCOUNT_ALIASES = {
@@ -76,16 +81,28 @@ def get_cache_dir(account: str, environment: str) -> str:
     return os.path.join(CACHE_ROOT, account, environment)
 
 
-def load_cache(cache_dir: str, filename: str) -> Optional[Dict[str, Any]]:
-    """Load a JSON cache file. Returns None if file doesn't exist or is corrupt."""
+def load_cache(cache_dir: str, filename: str,
+               account: str = '', environment: str = '') -> Optional[Dict[str, Any]]:
+    """
+    Load a JSON cache file. If missing and account/environment provided, attempts to
+    fetch from the gateway (L2 fallback) and warm the local cache before returning.
+    """
     path = os.path.join(cache_dir, filename)
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return None
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    # L2: try gateway if account context is available
+    if account and environment and filename.endswith('.json'):
+        resource = filename[:-5]  # strip .json
+        FETCHABLE = {'tables', 'columns', 'fkeys', 'custom_records', 'custom_fields'}
+        if resource in FETCHABLE:
+            return fetch_from_gateway(account, environment, resource, write_local=True)
+
+    return None
 
 
 def save_cache(cache_dir: str, filename: str, data: Dict[str, Any]) -> None:
@@ -94,6 +111,50 @@ def save_cache(cache_dir: str, filename: str, data: Dict[str, Any]) -> None:
     path = os.path.join(cache_dir, filename)
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2)
+
+
+def fetch_from_gateway(account: str, environment: str, resource: str,
+                       write_local: bool = True) -> Optional[Dict[str, Any]]:
+    """
+    Fetch a schema resource from the gateway and optionally warm the local cache.
+    Returns parsed JSON on success, None on any failure (silent).
+    """
+    url = f'{_GW_BASE}/api/common/schema/{account}/{environment}/{resource}'
+    try:
+        req = Request(url, headers={'Accept': 'application/json'})
+        with urlopen(req, timeout=15) as resp:
+            if resp.getcode() != 200:
+                return None
+            data = json.loads(resp.read().decode('utf-8'))
+        if write_local:
+            cache_dir = get_cache_dir(account, environment)
+            save_cache(cache_dir, f'{resource}.json', data)
+        return data
+    except (HTTPError, URLError, Exception):
+        return None
+
+
+def upload_to_gateway(account: str, environment: str, resource: str,
+                      data: Dict[str, Any]) -> bool:
+    """
+    Upload a schema blob to the gateway. Requires SCHEMA_ADMIN_TOKEN env var.
+    Returns True on success, False on any failure (logs warning).
+    """
+    token = os.environ.get('SCHEMA_ADMIN_TOKEN', '')
+    if not token:
+        return False
+    url = f'{_GW_BASE}/api/common/schema/{account}/{environment}/{resource}'
+    payload = json.dumps(data).encode('utf-8')
+    req = Request(url, data=payload, method='POST', headers={
+        'Content-Type': 'application/json',
+        'X-Schema-Admin-Token': token,
+    })
+    try:
+        with urlopen(req, timeout=60) as resp:
+            return resp.getcode() == 200
+    except Exception as e:
+        print(f"  WARN: Upload {resource} to gateway failed: {e}", file=sys.stderr)
+        return False
 
 
 def cache_age_days(cache_dir: str) -> Dict[str, Optional[float]]:
@@ -162,9 +223,9 @@ def describe_table(table_name: str, account: str, environment: str, fmt: str = '
     Falls back to custom cache or real-time probe if ODBC cache unavailable.
     """
     cache_dir = get_cache_dir(account, environment)
-    cols_data = load_cache(cache_dir, 'columns.json')
-    fkeys_data = load_cache(cache_dir, 'fkeys.json')
-    custom_fields_data = load_cache(cache_dir, 'custom_fields.json')
+    cols_data = load_cache(cache_dir, 'columns.json', account, environment)
+    fkeys_data = load_cache(cache_dir, 'fkeys.json', account, environment)
+    custom_fields_data = load_cache(cache_dir, 'custom_fields.json', account, environment)
 
     # Find table in ODBC columns cache (case-insensitive)
     odbc_columns = None
@@ -320,8 +381,8 @@ def describe_table(table_name: str, account: str, environment: str, fmt: str = '
 def list_tables(pattern: Optional[str], account: str, environment: str, fmt: str = 'table') -> str:
     """List tables matching a pattern from the ODBC tables cache."""
     cache_dir = get_cache_dir(account, environment)
-    tables_data = load_cache(cache_dir, 'tables.json')
-    custom_records_data = load_cache(cache_dir, 'custom_records.json')
+    tables_data = load_cache(cache_dir, 'tables.json', account, environment)
+    custom_records_data = load_cache(cache_dir, 'custom_records.json', account, environment)
 
     results = []
 
@@ -382,10 +443,10 @@ def search_schema(pattern: str, account: str, environment: str, fmt: str = 'tabl
         return "ERROR: search requires a pattern argument"
 
     cache_dir = get_cache_dir(account, environment)
-    tables_data = load_cache(cache_dir, 'tables.json')
-    cols_data = load_cache(cache_dir, 'columns.json')
-    custom_records_data = load_cache(cache_dir, 'custom_records.json')
-    custom_fields_data = load_cache(cache_dir, 'custom_fields.json')
+    tables_data = load_cache(cache_dir, 'tables.json', account, environment)
+    cols_data = load_cache(cache_dir, 'columns.json', account, environment)
+    custom_records_data = load_cache(cache_dir, 'custom_records.json', account, environment)
+    custom_fields_data = load_cache(cache_dir, 'custom_fields.json', account, environment)
 
     table_matches = []
     col_matches = []
@@ -450,7 +511,7 @@ def search_schema(pattern: str, account: str, environment: str, fmt: str = 'tabl
 def show_relationships(table_name: str, account: str, environment: str, fmt: str = 'table') -> str:
     """Show FK relationships for a table (outbound + inbound)."""
     cache_dir = get_cache_dir(account, environment)
-    fkeys_data = load_cache(cache_dir, 'fkeys.json')
+    fkeys_data = load_cache(cache_dir, 'fkeys.json', account, environment)
 
     if not fkeys_data:
         return (f"No FK cache found for {account}/{environment}.\n"
@@ -511,7 +572,7 @@ def show_relationships(table_name: str, account: str, environment: str, fmt: str
 # Refresh Custom
 # ---------------------------------------------------------------------------
 
-def refresh_custom(account: str, environment: str) -> str:
+def refresh_custom(account: str, environment: str, upload: bool = False) -> str:
     """Refresh custom records and custom fields via SuiteQL gateway (no ODBC needed)."""
     # Import execute_query from query_netsuite.py (same directory)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -586,23 +647,27 @@ def refresh_custom(account: str, environment: str) -> str:
     print(f"  Found {total_fields} custom fields across {len(custom_fields_grouped)} record types")
 
     # Save to cache
-    save_cache(cache_dir, 'custom_records.json', {
+    cr_payload = {
         '_source': 'suiteql',
         '_refreshed_at': ts,
         '_account': account,
         '_environment': environment,
         '_record_count': len(custom_records),
         'custom_record_types': custom_records
-    })
-
-    save_cache(cache_dir, 'custom_fields.json', {
+    }
+    cf_payload = {
         '_source': 'suiteql',
         '_refreshed_at': ts,
         '_account': account,
         '_environment': environment,
         '_record_count': total_fields,
         'custom_fields': custom_fields_grouped
-    })
+    }
+    save_cache(cache_dir, 'custom_records.json', cr_payload)
+    save_cache(cache_dir, 'custom_fields.json', cf_payload)
+    if upload:
+        upload_to_gateway(account, environment, 'custom_records', cr_payload)
+        upload_to_gateway(account, environment, 'custom_fields', cf_payload)
 
     # Update metadata
     metadata = load_cache(cache_dir, '_metadata.json') or {'account': account, 'environment': environment}
@@ -616,6 +681,28 @@ def refresh_custom(account: str, environment: str) -> str:
     return (f"\nDone. Cached to {cache_dir}/\n"
             f"  custom_records.json: {len(custom_records)} record types\n"
             f"  custom_fields.json: {total_fields} fields across {len(custom_fields_grouped)} record types")
+
+
+# ---------------------------------------------------------------------------
+# Sync from gateway (pull all resources into local cache)
+# ---------------------------------------------------------------------------
+
+def sync_from_gateway(account: str, environment: str) -> str:
+    """Pull all schema resources from the gateway into the local cache."""
+    resources = ['tables', 'columns', 'fkeys', 'custom_records', 'custom_fields']
+    results = []
+    for resource in resources:
+        data = fetch_from_gateway(account, environment, resource, write_local=True)
+        if data:
+            count = data.get('_record_count', '?')
+            ts = (data.get('_refreshed_at') or '')[:10]
+            results.append(f"  {resource:<20} {count} records ({ts})")
+        else:
+            results.append(f"  {resource:<20} NOT FOUND on gateway")
+
+    cache_dir = get_cache_dir(account, environment)
+    header = f"[{account}/{environment}] Sync from {_GW_BASE}\n"
+    return header + '\n'.join(results)
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +788,7 @@ def parse_args(argv: List[str]) -> Dict[str, Any]:
         'account': DEFAULT_ACCOUNT,
         'environment': DEFAULT_ENVIRONMENT,
         'format': 'table',
+        'upload': False,
         'error': None
     }
 
@@ -728,6 +816,9 @@ def parse_args(argv: List[str]) -> Dict[str, Any]:
         elif arg in ('--format',) and i + 1 < len(argv):
             args['format'] = argv[i + 1]
             i += 2
+        elif arg == '--upload':
+            args['upload'] = True
+            i += 1
         else:
             i += 1
 
@@ -742,6 +833,7 @@ Usage:
   python3 schema_lookup.py tables [PATTERN] [options]
   python3 schema_lookup.py search <PATTERN> [options]
   python3 schema_lookup.py relationships <TABLE> [options]
+  python3 schema_lookup.py sync [options]
   python3 schema_lookup.py refresh-custom [options]
   python3 schema_lookup.py status [options]
 
@@ -749,21 +841,24 @@ Options:
   --account <twx|dm>            Account (default: twistedx)
   --env <prod|sb1|sb2>          Environment (default: sandbox2)
   --format <table|json|csv>     Output format (default: table)
+  --upload                      After refresh-custom, upload results to gateway
 
 Subcommands:
   describe <TABLE>      Show all columns, types, FKs for a table
   tables [PATTERN]      List tables (glob pattern optional, e.g. "custom*")
   search <PATTERN>      Search table names and column names
   relationships <TABLE> Show FK graph for a table
-  refresh-custom        Pull CustomRecordType + CustomField from gateway
+  sync                  Pull all schema resources from gateway into local cache (first-time setup)
+  refresh-custom        Pull CustomRecordType + CustomField from gateway SuiteQL
   status                Show cache age and record counts
 
 Examples:
+  python3 schema_lookup.py sync --account twx --env sb2
   python3 schema_lookup.py describe Transaction --env sb2
   python3 schema_lookup.py tables "custom*" --env sb2
   python3 schema_lookup.py search "shipping" --env sb2
   python3 schema_lookup.py relationships Transaction --env sb2
-  python3 schema_lookup.py refresh-custom --account twx --env sb2
+  python3 schema_lookup.py refresh-custom --account twx --env sb2 --upload
   python3 schema_lookup.py status
 """
 
@@ -780,6 +875,18 @@ def main():
 
     sub = args['subcommand']
     target = args['target']
+    upload = args['upload']
+
+    if sub == 'sync':
+        # Pull all resources from gateway into local cache
+        if target and target.lower() == 'all':
+            for acct, envs in ACCOUNT_ENVIRONMENTS.items():
+                for env in envs:
+                    print(sync_from_gateway(acct, env))
+                    print()
+        else:
+            print(sync_from_gateway(account, environment))
+        return
 
     if sub == 'describe':
         if not target:
@@ -803,7 +910,7 @@ def main():
         print(show_relationships(target, account, environment, fmt))
 
     elif sub == 'refresh-custom':
-        result = refresh_custom(account, environment)
+        result = refresh_custom(account, environment, upload=upload)
         print(result)
 
     elif sub == 'status':

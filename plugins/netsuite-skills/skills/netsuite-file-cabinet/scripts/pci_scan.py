@@ -332,7 +332,7 @@ def resolve_folder_ids(
     # --- Pass 1: search under ROOT_FOLDER_ID tree ---
     for i in range(0, len(all_ns_names), QUERY_BATCH_SIZE):
         batch = all_ns_names[i:i + QUERY_BATCH_SIZE]
-        quoted = ', '.join(f"'{n}'" for n in batch)
+        quoted = ', '.join(f"'{n.replace(chr(39), chr(39)*2)}'" for n in batch)
         query = f"""
             SELECT id, name
             FROM MediaItemFolder
@@ -366,7 +366,7 @@ def resolve_folder_ids(
 
         for i in range(0, len(unresolved_ns), QUERY_BATCH_SIZE):
             batch = unresolved_ns[i:i + QUERY_BATCH_SIZE]
-            quoted = ', '.join(f"'{n}'" for n in batch)
+            quoted = ', '.join(f"'{n.replace(chr(39), chr(39)*2)}'" for n in batch)
             # No parent restriction — search entire org
             query = f"SELECT id, name FROM MediaItemFolder WHERE name IN ({quoted})"
             result = execute_query(query, account=account, environment=environment)
@@ -1206,7 +1206,9 @@ def main() -> None:
     parser.add_argument('--output-dir', default='/tmp/pci-scan-results',
                         help='Directory for scan report and summary (default: /tmp/pci-scan-results)')
     parser.add_argument('--download-dir', default='/tmp/pci-scan-downloads',
-                        help='Directory to download files into (default: /tmp/pci-scan-downloads)')
+                        help='Directory to download files into (default: /tmp/pci-scan-downloads). '
+                             'WARNING: downloaded files may contain PCI-sensitive data. '
+                             'Use an encrypted volume in shared/production environments.')
     parser.add_argument('--account', default=DEFAULT_ACCOUNT,
                         help=f'NetSuite account (default: {DEFAULT_ACCOUNT})')
     parser.add_argument('--env', default=DEFAULT_ENVIRONMENT,
@@ -1230,6 +1232,9 @@ def main() -> None:
     print(f"NetSuite PCI File Scanner")
     print(f"  Output dir:   {args.output_dir}")
     print(f"  Download dir: {args.download_dir}")
+    if args.download_dir.startswith('/tmp'):
+        print(f"  WARNING: --download-dir is under /tmp. Downloaded files may contain PCI card data.")
+        print(f"           Use an encrypted volume on shared/production systems.")
 
     if args.rescan_report:
         print(f"  Mode:         re-scan ({args.rescan_report})")

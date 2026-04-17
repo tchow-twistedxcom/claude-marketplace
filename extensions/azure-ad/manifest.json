@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "azure-ad-integration",
   "display_name": "Azure AD / Entra ID",
-  "version": "1.6.2",
+  "version": "1.7.1",
   "description": "Microsoft Graph API for Azure AD / Entra ID. Manage users, groups, devices, and run security investigations: sign-in logs, risk detections, risky users, audit logs, Conditional Access, and incident response.",
   "author": {
     "name": "tchow"
@@ -186,6 +186,14 @@
     {
       "name": "azure_ad_get_email",
       "description": "Get full detail of a specific email message including complete body \u2014 drill into suspicious messages found via azure_ad_sent_emails"
+    },
+    {
+      "name": "azure_ad_list_attachments",
+      "description": "List attachments on an email message \u2014 returns id, name, contentType, and size for each attachment. Use before azure_ad_download_attachment."
+    },
+    {
+      "name": "azure_ad_download_attachment",
+      "description": "Download an email attachment and save it to a local file path. Handles both small attachments (base64 from Graph JSON) and large attachments (>3 MB via binary stream). Returns saved path, name, contentType, and size."
     },
     {
       "name": "azure_ad_ual_inbox_rules",

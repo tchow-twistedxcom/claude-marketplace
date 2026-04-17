@@ -21,19 +21,20 @@ Execute SuiteQL queries directly against NetSuite environments (Production, Sand
 
 ## Prerequisites
 
-**NetSuite API Gateway** must be running:
-```bash
-cd ~/NetSuiteApiGateway
-docker compose up -d
-```
+**NetSuite API Gateway** is hosted at `https://nsapi.twistedx.tech`. No local setup needed.
 
-Verify gateway is running:
+Verify the gateway is reachable:
 ```bash
-curl http://localhost:3001/health
+curl https://nsapi.twistedx.tech/health
 # Expected: {"status":"healthy","timestamp":"...","version":"1.0.0"}
 ```
 
-The gateway handles OAuth authentication automatically - no manual authentication needed!
+Override the URL for local development:
+```bash
+export NETSUITE_GATEWAY_URL=http://localhost:3001
+```
+
+The gateway handles OAuth authentication automatically — no manual credentials needed for query execution.
 
 ## Quick Start
 
@@ -227,25 +228,21 @@ SELECT * FROM customrecord_pri_frgt_cnt WHERE ROWNUM <= 10
 ## Error Handling
 
 ### Gateway Connection Errors
-If you receive gateway connection errors, ensure the NetSuite API Gateway is running:
+If you receive gateway connection errors:
 
 ```bash
-# Check gateway status
+# Check hosted gateway status
+curl https://nsapi.twistedx.tech/health
+
+# For local dev, override the URL:
+export NETSUITE_GATEWAY_URL=http://localhost:3001
 curl http://localhost:3001/health
-
-# Start gateway if not running
-cd ~/NetSuiteApiGateway
-docker compose up -d
-
-# View gateway logs
-docker compose logs -f gateway
 ```
 
 ### Authentication Errors
-The gateway handles OAuth 1.0a authentication automatically. If you receive authentication errors:
-- Check gateway logs: `docker compose logs gateway`
-- Verify OAuth configuration in `~/NetSuiteApiGateway/config/oauth.json`
-- Ensure credentials are properly configured for the target environment
+The gateway handles OAuth authentication server-side. If you receive 401/403 errors:
+- Check that the gateway service is healthy (see above)
+- OAuth credentials are managed on the gateway — contact the gateway owner if they are expired
 
 ### Query Syntax Errors
 If the query fails with "Field not found" or similar errors, verify the exact column names before guessing:
@@ -462,11 +459,12 @@ ERROR: HTTP 400: Invalid value for field
 ```
 → Check field type (text, list, checkbox) and provide appropriate value
 
-**Gateway not running:**
+**Gateway not reachable:**
 ```
 ERROR: Gateway connection error: Connection refused
 ```
-→ Start the NetSuite API Gateway: `cd ~/NetSuiteApiGateway && docker compose up -d`
+→ Check hosted gateway: `curl https://nsapi.twistedx.tech/health`
+→ For local dev: `export NETSUITE_GATEWAY_URL=http://localhost:3001`
 
 ### Record Operations Best Practices
 
@@ -568,6 +566,30 @@ python3 scripts/query_netsuite.py '<query>' --format json
 python3 scripts/query_netsuite.py '<query>' --format csv > results.csv
 ```
 
+## Critical: `runSuiteQL` 5,000-Row Hard Cap (M/R `getInputData`)
+
+**`query.runSuiteQL({ query: sql }).asMappedResults()` silently truncates at 5,000 rows with no error, no warning, and no indication that data was dropped.** This is the default convenience API and is safe only for small, bounded result sets.
+
+For M/R `getInputData` or any SuiteScript that processes all records of a type, use `runSuiteQLPaged` instead:
+
+```javascript
+// ❌ WRONG — silently truncates at 5,000 rows:
+const rows = query.runSuiteQL({ query: sql }).asMappedResults();
+
+// ✅ CORRECT — collects all pages, handles any dataset size:
+const rows = [];
+query.runSuiteQLPaged({ query: sql, pageSize: 1000 }).iterator().each(function (page) {
+    page.value.data.asMappedResults().forEach(function (r) { rows.push(r); });
+    return true;
+});
+```
+
+**Detection:** After a backfill M/R, cross-check the "updated" count in `summarize` against a direct `SELECT COUNT(*)` query. If counts diverge and the updated count is exactly 5,000, suspect this cap.
+
+**Note:** `runSuiteQLPaged` has its own known failure modes for complex queries (see below). For simple SELECT + JOIN queries (no GROUP BY, no UNION ALL, no complex CTEs), it is the right choice.
+
+---
+
 ## Critical: `runSuiteQLPaged` Silent Failure Modes
 
 **`runSuiteQLPaged` has multiple known silent failure modes where it returns 0 records with no error.** These affect SuiteScript code using `query.runSuiteQLPaged()`, not queries run via this skill's `query_netsuite.py` (which uses the RESTlet's `runSuiteQL`).
@@ -626,37 +648,59 @@ python3 scripts/schema_lookup.py status
 
 ### Schema Cache Setup
 
-The schema cache has two sources — use either or both:
+The schema cache has three sources (highest priority first):
 
-**Custom records only (no ODBC needed, run anytime):**
+**1. Local cache** `~/.cache/netsuite-schema/` — fastest; populated by sync or ODBC refresh.
+
+**2. Gateway (zero setup, automatic):**
+The schema cache is hosted on the gateway at `https://nsapi.twistedx.tech` and refreshed weekly by the Railway cron service. `schema_lookup.py` automatically fetches from the gateway when the local cache is missing and warms it locally for next time.
+
+First-time on a new machine — pull everything from the gateway:
 ```bash
-python3 scripts/schema_lookup.py refresh-custom --account twx --env sb2
+# Pull all schema from gateway into local cache (no ODBC needed)
+python3 scripts/schema_lookup.py sync --account twx --env sb2
+python3 scripts/schema_lookup.py sync --account twx --env prod
+python3 scripts/schema_lookup.py sync --account dm --env prod
+# Or pull all accounts/environments:
+python3 scripts/schema_lookup.py sync all
 ```
-Queries `CustomRecordType` and `CustomField` via the API gateway. Covers all custom record types and custom fields with human-readable labels.
 
-**Full schema (requires ODBC setup, run quarterly):**
+**3. Real-time probe** — last resort, discovers column names via `SELECT * WHERE ROWNUM=1`. Slow and incomplete (no types/lengths/FKs).
+
+**Check cache status:**
 ```bash
-# One-time ODBC setup (reads all account/connection details from gateway automatically)
+python3 scripts/schema_lookup.py status
+```
+
+---
+
+### Contributors: Refreshing the Gateway Cache
+
+The gateway schema cache is refreshed automatically every Monday by the `nsapi-schema-cron` Railway service. Manual refresh is only needed after a NetSuite release or schema change.
+
+**One-off manual refresh + upload** (requires ODBC driver + SuiteAnalytics Connect credentials):
+```bash
+# Full ODBC schema → gateway
+export NETSUITE_ODBC_USER='your@email.com'
+export NETSUITE_ODBC_PASSWORD='yourpassword'
+export SCHEMA_ADMIN_TOKEN='...'   # from 1Password "Twisted X AI Agent"
+python3 scripts/schema_refresh.py --all-accounts --all-environments --upload
+
+# Custom records → gateway (no ODBC; uses SuiteQL via gateway OAuth)
+python3 scripts/schema_lookup.py refresh-custom --account twx --env sb2 --upload
+python3 scripts/schema_lookup.py refresh-custom --account twx --env prod --upload
+```
+
+**First-time ODBC setup** (contributors only, one time per machine):
+```bash
 python3 scripts/setup_odbc.py \
   --driver-zip ~/Downloads/NetSuiteODBCDrivers_Linux64bit.zip \
   --cert-zip ~/Downloads/Certificates.zip
-
-# Reload shell env
 source ~/.bashrc
-
-# Refresh all accounts/environments
-export NETSUITE_ODBC_USER='your@email.com'
-export NETSUITE_ODBC_PASSWORD='yourpassword'
-python3 scripts/schema_refresh.py --all-accounts --all-environments
+python3 scripts/setup_odbc.py --check   # verify
 ```
-Queries `OA_TABLES`, `OA_COLUMNS`, `OA_FKEYS` via SuiteAnalytics Connect ODBC. Covers all standard tables, all custom tables, column types/lengths, and FK relationships.
 
 Download the driver from: NetSuite > Setup > Company > SuiteAnalytics Connect > Set Up SuiteAnalytics Connect (Linux 64-bit ODBC driver + Certificate Authority Certificates).
-
-**Check setup status on any machine:**
-```bash
-python3 scripts/setup_odbc.py --check
-```
 
 **Regenerate DSNs after adding a new account to the gateway:**
 ```bash

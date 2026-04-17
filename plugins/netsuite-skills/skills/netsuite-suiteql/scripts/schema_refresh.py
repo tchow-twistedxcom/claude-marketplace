@@ -74,6 +74,7 @@ def fetch_accounts_config() -> Dict:
             accounts[aid] = {
                 'name': acct.get('name', aid),
                 'accountId': acct.get('accountId', ''),
+                'odbcEnabled': acct.get('odbcEnabled', True),
                 'odbc': acct.get('odbc') or {},
                 'environments': [e['id'] for e in acct.get('environments', [])]
             }
@@ -129,6 +130,8 @@ def get_all_account_environments() -> List[Tuple[str, str]]:
     cfg = fetch_accounts_config()
     pairs = []
     for acct, info in cfg['accounts'].items():
+        if not info.get('odbcEnabled', True):
+            continue
         for env in info.get('environments', []):
             pairs.append((acct, env))
     return pairs

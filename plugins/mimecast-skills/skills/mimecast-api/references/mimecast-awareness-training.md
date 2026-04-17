@@ -178,9 +178,17 @@ The following MCP tools are available for AI-assisted workflows:
 | Tool | Description |
 |------|-------------|
 | `mimecast_list_campaigns` | List awareness training campaigns |
-| `mimecast_get_safe_scores` | Get per-user SAFE score details |
+| `mimecast_get_campaign_users` | Get per-user data for training campaigns |
+| `mimecast_get_performance` | Get company-wide training performance details |
+| `mimecast_get_performance_summary` | Get company-wide training performance summary |
 | `mimecast_get_phishing_results` | Get phishing simulation campaign results |
+| `mimecast_get_phishing_user_data` | Get per-user phishing click/open/report data |
+| `mimecast_get_safe_scores` | Get per-user SAFE score details |
+| `mimecast_get_safe_score_summary` | Get company-wide SAFE score distribution |
+| `mimecast_get_training_queue` | Get current training assignment queue |
+| `mimecast_get_training_details` | Get per-user training history |
 | `mimecast_get_watchlist` | Get high-risk user watchlist |
+| `mimecast_get_watchlist_summary` | Get high-risk watchlist summary statistics |
 
 ---
 

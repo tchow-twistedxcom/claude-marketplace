@@ -22,8 +22,10 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 from datetime import datetime
 
-# NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -80,7 +82,7 @@ def execute_query(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
 
@@ -208,7 +210,7 @@ def download_file_content(file_id: int, account: str, environment: str) -> Optio
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
 

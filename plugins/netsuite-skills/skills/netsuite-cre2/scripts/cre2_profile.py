@@ -14,13 +14,16 @@ Commands:
 """
 
 import sys
+import os
 import json
 import urllib.request
 import urllib.error
 from typing import Optional, Dict, Any, List
 
-# NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -96,7 +99,7 @@ def execute_query(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
 
@@ -563,7 +566,7 @@ Examples:
   python3 cre2_profile.py datasources 17 --env sb2
   python3 cre2_profile.py test 17 7850220 --env sb2
 
-Note: The NetSuite API Gateway must be running at http://localhost:3001
+Note: The NetSuite API Gateway must be running at https://nsapi.twistedx.tech
 """)
 
 

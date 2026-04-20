@@ -15,6 +15,7 @@ Built-in test matrix (3 DPI tiers per doc type):
 """
 
 import sys
+import os
 import json
 import argparse
 import webbrowser
@@ -22,8 +23,10 @@ import urllib.request
 import urllib.error
 from typing import List, Tuple, Dict, Any
 
-# NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account/environment config (shared with render_pdf.py)
 ACCOUNT_IDS = {
@@ -86,7 +89,7 @@ def render_single(profile_id: str, record_id: str, env: str) -> Dict[str, Any]:
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3002'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
 

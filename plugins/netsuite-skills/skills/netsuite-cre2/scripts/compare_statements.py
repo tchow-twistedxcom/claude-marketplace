@@ -30,7 +30,10 @@ from typing import Optional, Dict, Any, List, Tuple
 # Shared config (mirrors render_pdf.py)
 # ---------------------------------------------------------------------------
 
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
 
 ACCOUNT_ALIASES = {
     'twx': 'twistedx', 'twisted': 'twistedx', 'twistedx': 'twistedx',
@@ -96,7 +99,7 @@ def _render_native(
     req = urllib.request.Request(
         GATEWAY_URL, data=data,
         headers={'Content-Type': 'application/json', 'Accept': 'application/json',
-                 'Origin': 'http://localhost:3002'}
+                 **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})}
     )
     with urllib.request.urlopen(req, timeout=90) as resp:
         return json.loads(resp.read().decode('utf-8'))
@@ -135,7 +138,7 @@ def _render_cre2(
     req = urllib.request.Request(
         GATEWAY_URL, data=data,
         headers={'Content-Type': 'application/json', 'Accept': 'application/json',
-                 'Origin': 'http://localhost:3002'}
+                 **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})}
     )
     with urllib.request.urlopen(req, timeout=90) as resp:
         return json.loads(resp.read().decode('utf-8'))
@@ -160,7 +163,7 @@ def _download_pdf_bytes(file_id: int, account: str, environment: str) -> bytes:
     req = urllib.request.Request(
         GATEWAY_URL, data=data,
         headers={'Content-Type': 'application/json', 'Accept': 'application/json',
-                 'Origin': 'http://localhost:3002'}
+                 **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})}
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
         result = json.loads(resp.read().decode('utf-8'))
@@ -801,7 +804,7 @@ def _suiteql(query: str, account: str, environment: str) -> List[Dict]:
         req = urllib.request.Request(
             GATEWAY_URL, data=data,
             headers={'Content-Type': 'application/json', 'Accept': 'application/json',
-                     'Origin': 'http://localhost:3002'}
+                     **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})}
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read().decode('utf-8'))

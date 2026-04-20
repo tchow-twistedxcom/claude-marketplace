@@ -79,7 +79,7 @@ Environment credentials are configured in the gateway's config directory:
 **Debug**:
 ```bash
 # Test with curl
-curl -s "http://localhost:3001/api/homepage?action=getConfig" \
+curl -s "https://nsapi.twistedx.tech/api/homepage?action=getConfig" \
   -H "X-NetSuite-Environment: sandbox2" | jq '.environment'
 ```
 

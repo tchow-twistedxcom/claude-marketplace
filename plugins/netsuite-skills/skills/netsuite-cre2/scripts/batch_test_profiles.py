@@ -21,8 +21,10 @@ from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
 
 # Account/Environment aliases
 ACCOUNT_ALIASES = {
@@ -99,7 +101,7 @@ def execute_query(query: str, account: str = DEFAULT_ACCOUNT, environment: str =
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
         with urllib.request.urlopen(req, timeout=60) as response:
@@ -129,7 +131,7 @@ def render_pdf(profile_id: int, record_id: int, account: str, environment: str) 
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3002'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
 

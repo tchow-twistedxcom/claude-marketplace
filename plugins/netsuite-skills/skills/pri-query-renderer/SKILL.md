@@ -36,8 +36,8 @@ Activate this skill when:
 - `customrecord_pri_qt_query_filter` - Filter definitions (child of query)
 
 **API Access:**
-- Endpoint: `http://localhost:3001/api/suiteapi`
-- Headers: `Origin: http://localhost:3030`, `Content-Type: application/json`
+- Endpoint: `https://nsapi.twistedx.tech/api/suiteapi`
+- Headers: `X-API-Key: $NETSUITE_API_KEY`, `Content-Type: application/json`
 - Procedures: `twxUpsertRecord` (create/update), `queryRun` (execute SuiteQL)
 
 ## Core Capabilities
@@ -254,9 +254,9 @@ Query the catalog to find existing queries:
 
 **Step 1: Create the Query Record**
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -274,9 +274,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 **Step 2: Add Columns**
 ```bash
 # ID column (hidden for linking)
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -291,9 +291,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
   }'
 
 # Transaction number with record link
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -309,9 +309,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
   }'
 
 # Customer name with drill-down
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -325,9 +325,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
   }'
 
 # Total with currency formatting
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -344,9 +344,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 **Step 3: Add Filters**
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -446,9 +446,9 @@ Look for these log messages:
 
 ### Step 2: Verify Filter Configuration Directly
 ```bash
-curl -s -X POST http://localhost:3001/api/suiteapi \
+curl -s -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"queryRun","query":"SELECT id, name, custrecord_pri_qt_qf_placeholder AS placeholder, custrecord_pri_qt_qf_filter AS filter FROM customrecord_pri_qt_query_filter WHERE custrecord_pri_qt_qf_parent = [TARGET_QUERY_ID]"}'
 ```
 

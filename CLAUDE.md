@@ -28,7 +28,8 @@ tchow-essentials/
 └── docs/
     ├── INSTALLATION.md
     ├── USAGE.md
-    └── CUSTOMIZATION.md
+    ├── CUSTOMIZATION.md
+    └── solutions/           # documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (module, tags, problem_type)
 ```
 
 ## Plugin Architecture

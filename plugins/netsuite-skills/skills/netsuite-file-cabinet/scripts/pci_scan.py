@@ -37,6 +37,8 @@ from typing import Dict, Any, Optional, List, Tuple, Set
 _gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
 GATEWAY_URL = f'{_gw_base}/api/suiteapi'
 _API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in _gw_base:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 DEFAULT_ACCOUNT = 'twistedx'
 DEFAULT_ENVIRONMENT = 'production'

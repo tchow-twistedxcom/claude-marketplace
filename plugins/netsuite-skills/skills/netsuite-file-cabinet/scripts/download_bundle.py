@@ -20,8 +20,12 @@ import base64
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-# NetSuite API Gateway endpoint
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in _gw_base:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 # Account aliases
 ACCOUNT_ALIASES = {
@@ -90,7 +94,7 @@ def execute_query(
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
 
@@ -321,7 +325,7 @@ def download_via_gateway(file_id: int, account: str, environment: str) -> Option
             headers={
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'Origin': 'http://localhost:3000'
+                **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
             }
         )
 

@@ -1,6 +1,6 @@
 ---
 name: netsuite-file-cabinet
-description: Manage files in NetSuite File Cabinet - upload, find, list, and bulk download files. Use this skill when you need to upload scripts to NetSuite, find files by name or pattern, list files in a folder, or download entire folder trees. Triggers include "upload file to NetSuite", "find NetSuite file", "list files in folder", "download attachments", "backup File Cabinet", or any File Cabinet operations.
+description: Manage files in NetSuite File Cabinet - upload, find, delete, list, compare, and bulk download files. Use this skill when you need to upload scripts to NetSuite, find files by name or pattern, delete files or stale copies, list files in a folder, compare local vs remote file contents, download entire folder trees, or run PCI scans. Triggers include "upload file to NetSuite", "find NetSuite file", "delete NetSuite file", "list files in folder", "download attachments", "backup File Cabinet", "compare file", "PCI scan", or any File Cabinet operations.
 ---
 
 # NetSuite File Cabinet Management Skill
@@ -19,15 +19,15 @@ Manage files in the NetSuite File Cabinet via the NetSuite API Gateway. This ski
 
 ## Prerequisites
 
-**NetSuite API Gateway** must be running:
-```bash
-cd ~/NetSuiteApiGateway
-docker compose up -d
-```
+**NetSuite API Gateway** — the scripts default to the hosted prod gateway
+`https://nsapi.twistedx.tech`. Set `NETSUITE_API_KEY` in your environment so
+requests are authenticated. Override to a local Docker gateway only if you
+need to (set `NETSUITE_GATEWAY_URL=http://localhost:3001` and run
+`cd ~/NetSuiteApiGateway && docker compose up -d`).
 
-Verify gateway is running:
+Verify gateway is reachable:
 ```bash
-curl http://localhost:3001/health
+curl https://nsapi.twistedx.tech/health
 ```
 
 ## File Upload
@@ -142,6 +142,65 @@ python3 scripts/find_file.py --name "script.js" --format json --env prod
 - `filesize` - File size in bytes
 - `lastmodifieddate` - Last modification timestamp
 
+## File Deletion
+
+Every `--confirm` run **downloads each file to a local trash bin before deleting it**, and writes a restore manifest capturing the original folder ID, name, and metadata. Accidental deletions can be recovered by re-uploading from the trash bin to the folder listed in the manifest.
+
+### Delete a File by ID
+
+```bash
+# Dry-run first — safe preview, no downloads, no changes
+python3 scripts/delete_file.py --file-id 55342202 --name "stale_script.js" --dry-run --env sb2
+
+# Execute: downloads to ./trash-bin/<timestamp>_<env>/files/ first, then deletes
+python3 scripts/delete_file.py --file-id 55342202 --name "stale_script.js" --confirm --env sb2
+```
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `--file-id` | NetSuite file internal ID | Yes (alt: `--report`) |
+| `--report` | Path to scan_report.json (e.g. from `pci_scan.py`) | Yes (alt: `--file-id`) |
+| `--dry-run` / `--confirm` | Pick exactly one | Yes |
+| `--name` | Name hint for manifest (used with `--file-id`) | Optional |
+| `--trash-dir` | Parent trash directory (default: `./trash-bin` in CWD) | No |
+| `--force-without-backup` | Delete even if local backup fails (DANGEROUS) | No |
+| `--env` | prod, sb1, sb2 (default: production) | No |
+| `--account` | NetSuite account (default: twistedx) | No |
+
+### Trash bin layout
+
+A new per-run directory is created on each `--confirm` execution, keyed by timestamp + environment to prevent collisions:
+
+```
+./trash-bin/
+└── 20260420_193045_sandbox2/
+    ├── restore_manifest.json       # folder_id, name, type, size, backup_path per file
+    └── files/
+        ├── 55342202_twx_CS_CommChannel.js
+        └── 55342201_twx_CS_CommPref.js
+```
+
+### Restore a deleted file
+
+Use the manifest to re-upload. For each entry in `operations[]`:
+
+```bash
+# Read folder_id and name from restore_manifest.json, then:
+python3 scripts/upload_file.py \
+  --file ./trash-bin/<run_dir>/files/<backup_filename> \
+  --folder-id <folder_id_from_manifest> \
+  --name "<original_name_from_manifest>" \
+  --env <env>
+```
+
+### Critical notes
+
+- **Backup is automatic.** On `--confirm`, every file is fetched via `fileGet` and written to the trash bin *before* `fileDelete` runs. If the backup fails, the deletion is skipped by default (safer to retry than to destroy unrecoverable state). Pass `--force-without-backup` only when you genuinely don't care about recovery.
+- **`update_record.py` CANNOT delete files.** The gateway's upsert endpoint does not accept `file` as a record type — it returns `INVALID_RCRD_TYPE`. Always use `delete_file.py`.
+- **No folder-delete support exists.** To delete an empty File Cabinet folder, ask the user to remove it manually via **Documents → Files → File Cabinet** in the NetSuite UI.
+- **Manifest is written incrementally** after every operation, so partial runs (interrupted, network failure, etc.) still produce a usable restore record.
+- Add `./trash-bin/` to `.gitignore` in whichever repo you run from — deleted file contents should not be committed.
+
 ## Bulk Download
 
 ### Download Files from Folder Tree
@@ -239,14 +298,24 @@ python3 scripts/find_file.py --name "myScript.js" --env prod
 # Find by pattern
 python3 scripts/find_file.py --pattern "twx_%" --env prod
 
-# List folder contents
-python3 scripts/find_file.py --folder-id 137935 --env prod
+# List folder contents (subfolders + files)
+python3 scripts/list_folder.py --folder-id 137935 --env prod
+
+# Delete a file (auto-backs up to ./trash-bin/ before deleting — dry-run first)
+python3 scripts/delete_file.py --file-id 55342202 --name "old_script.js" --dry-run --env sb2
+python3 scripts/delete_file.py --file-id 55342202 --name "old_script.js" --confirm --env sb2
+
+# Compare local file vs NetSuite version
+python3 scripts/compare_file.py --file ./script.js --file-id 55342202 --env sb2
 
 # Download folder tree
 python3 scripts/download.py --folder-id 18625 --output ./backup --env prod
 
 # Download bundle
 python3 scripts/download.py --bundle 311735 --output ./backup --env prod
+
+# PCI scan for sensitive data in File Cabinet
+python3 scripts/pci_scan.py --folder-id 137935 --env prod
 ```
 
 ## Common Use Cases
@@ -307,6 +376,12 @@ ERROR: Gateway connection error: Connection refused
 ```
 → Start the gateway: `cd ~/NetSuiteApiGateway && docker compose up -d`
 
+**Wrong record type for file operations:**
+```
+ERROR: INVALID_RCRD_TYPE on update_record.py file <id>
+```
+→ The upsert endpoint does not support the `file` record type. Use `delete_file.py --file-id <id>` for deletion, or `upload_file.py --file-id <id>` to overwrite a specific file.
+
 ## Resources
 
 ### scripts/upload_file.py
@@ -332,7 +407,26 @@ Unified bulk download tool for File Cabinet:
 ### scripts/list_folder.py
 List folder contents and subfolders:
 - Shows files and subfolders in a specific folder
-- Useful for exploring File Cabinet structure
+- Useful for exploring File Cabinet structure and verifying target folder IDs
+
+### scripts/delete_file.py
+Delete files from NetSuite File Cabinet (general-purpose, restore-capable):
+- Requires `--dry-run` (preview) or `--confirm` (execute) — no accidental deletes
+- Target by `--file-id` (single file) or `--report` (bulk from pci_scan output)
+- **Auto-backups each file locally to `./trash-bin/<timestamp>_<env>/files/` before deletion**
+- Writes `restore_manifest.json` with folder_id/name/type/size/backup_path per file
+- Skips deletion if backup fails (override with `--force-without-backup`)
+- **Cannot delete folders** — ask user to delete empty folders via NetSuite UI
+
+### scripts/compare_file.py
+Compare local file vs version stored in NetSuite:
+- Detects whether a local edit has been deployed
+- Useful for verifying an upload took effect
+
+### scripts/pci_scan.py
+Scan File Cabinet for files containing PCI-sensitive data:
+- Produces `scan_report.json` consumed by `delete_file.py` for bulk deletion
+- Useful before PCI audits or after incidents involving sensitive data
 
 ### Deprecated Scripts
 The following scripts are superseded by `download.py`:

@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import os
 import json
 import re
 import sys
@@ -18,17 +19,24 @@ from datetime import datetime
 from typing import Any
 import requests
 
-GATEWAY_URL = "http://localhost:3001"
+# NetSuite API Gateway base URL — override with NETSUITE_GATEWAY_URL env var.
+# This script constructs per-app endpoints (e.g. /api/homepage), so
+# GATEWAY_URL holds the base host, NOT the /api/suiteapi path.
+GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in GATEWAY_URL:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 
 def fetch_api_response(app: str, action: str, env: str) -> dict | None:
     """Fetch actual API response."""
     try:
-        url = f"{GATEWAY_URL}/api/{app}?action={action}"
-        headers = {
-            "Content-Type": "application/json",
-            "X-NetSuite-Environment": env
-        }
+        url = f"{GATEWAY_URL}/api/{app}?action={action}&netsuiteEnvironment={env}"
+        headers = {"Content-Type": "application/json"}
+        if _API_KEY:
+            headers["X-API-Key"] = _API_KEY
+        else:
+            headers["Origin"] = GATEWAY_URL
         response = requests.get(url, headers=headers, timeout=30)
 
         if response.status_code == 200:

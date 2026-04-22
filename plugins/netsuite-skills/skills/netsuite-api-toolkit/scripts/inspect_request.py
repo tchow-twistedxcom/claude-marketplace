@@ -14,24 +14,32 @@ Usage:
 """
 
 import argparse
+import os
 import json
 import sys
 import time
 import requests
 
-GATEWAY_URL = "http://localhost:3001"
+# NetSuite API Gateway base URL — override with NETSUITE_GATEWAY_URL env var.
+# This script constructs per-app endpoints (e.g. /api/homepage), so
+# GATEWAY_URL holds the base host, NOT the /api/suiteapi path.
+GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in GATEWAY_URL:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 
 def make_request(app: str, action: str, env: str, method: str = "GET", body: dict = None) -> dict:
     """Make a request and capture all details."""
     url = f"{GATEWAY_URL}/api/{app}"
 
-    headers = {
-        "Content-Type": "application/json",
-        "X-NetSuite-Environment": env
-    }
+    headers = {"Content-Type": "application/json"}
+    if _API_KEY:
+        headers["X-API-Key"] = _API_KEY
+    else:
+        headers["Origin"] = GATEWAY_URL
 
-    params = {"action": action}
+    params = {"action": action, "netsuiteEnvironment": env}
 
     result = {
         "request": {
@@ -141,11 +149,11 @@ def print_request_details(result: dict, verbose: bool = False):
 
 def generate_curl(app: str, action: str, env: str, method: str = "GET", body: dict = None) -> str:
     """Generate a curl command for the request."""
-    url = f"{GATEWAY_URL}/api/{app}?action={action}"
+    url = f"{GATEWAY_URL}/api/{app}?action={action}&netsuiteEnvironment={env}"
 
     cmd = f'curl -s -X {method} "{url}" \\\n'
     cmd += f'  -H "Content-Type: application/json" \\\n'
-    cmd += f'  -H "X-NetSuite-Environment: {env}"'
+    cmd += f'  -H "X-API-Key: $NETSUITE_API_KEY"'
 
     if body:
         cmd += f' \\\n  -d \'{json.dumps(body)}\''

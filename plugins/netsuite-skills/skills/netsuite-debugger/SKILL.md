@@ -43,7 +43,7 @@ The NetSuite API Gateway (`netsuite-api-gateway`) is a **multi-tenant proxy** th
 ### Gateway Endpoints
 
 ```
-Gateway URL: http://localhost:3001/api/suiteapi
+Gateway URL: https://nsapi.twistedx.tech/api/suiteapi
 
 Required Headers:
 - Content-Type: application/json
@@ -59,16 +59,16 @@ Before investigating anything else, verify which environment is responding:
 
 ```bash
 # Test Production (no environment header)
-curl -s -X POST "http://localhost:3001/api/suiteapi" \
+curl -s -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:5173" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure": "queryRun", "query": "SELECT ACCOUNT_ID FROM DUAL"}' \
   | jq -r '.data.records[0].ACCOUNT_ID'
 
 # Test SB2 (with environment header)
-curl -s -X POST "http://localhost:3001/api/suiteapi" \
+curl -s -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:5173" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -H "X-NetSuite-Environment: sandbox2" \
   -d '{"procedure": "queryRun", "query": "SELECT ACCOUNT_ID FROM DUAL"}' \
   | jq -r '.data.records[0].ACCOUNT_ID'
@@ -85,9 +85,9 @@ If account IDs are the same, environment routing is NOT working.
 Query NetSuite to check if the record type exists in the target environment:
 
 ```bash
-curl -s -X POST "http://localhost:3001/api/suiteapi" \
+curl -s -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:5173" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -H "X-NetSuite-Environment: sandbox2" \
   -d '{
     "procedure": "queryRun",
@@ -105,9 +105,9 @@ Test the actual API call that's failing WITH and WITHOUT the environment header:
 
 ```bash
 # Test record creation WITHOUT header (hits production)
-curl -s -X POST "http://localhost:3001/api/suiteapi" \
+curl -s -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:5173" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "action": "twxUpsertRecord",
@@ -117,9 +117,9 @@ curl -s -X POST "http://localhost:3001/api/suiteapi" \
   }' | jq .
 
 # Test record creation WITH header (hits SB2)
-curl -s -X POST "http://localhost:3001/api/suiteapi" \
+curl -s -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:5173" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -H "X-NetSuite-Environment: sandbox2" \
   -d '{
     "procedure": "twxUpsertRecord",
@@ -174,9 +174,9 @@ Based on test results, categorize the issue:
 ```bash
 # Quick diagnostic
 echo "Testing environment routing..."
-curl -s -X POST "http://localhost:3001/api/suiteapi" \
+curl -s -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:5173" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -H "X-NetSuite-Environment: sandbox2" \
   -d '{"procedure": "queryRun", "query": "SELECT ACCOUNT_ID FROM DUAL"}' \
   | jq -r '.data.records[0].ACCOUNT_ID'
@@ -244,7 +244,7 @@ and verify the API gateway is hitting SB2, not production."
 **Required Headers**:
 ```bash
 -H "Content-Type: application/json"
--H "Origin: http://localhost:5173"
+-H "X-API-Key: $NETSUITE_API_KEY"
 -H "X-NetSuite-Environment: sandbox2"  # For SB2 routing
 ```
 
@@ -252,7 +252,7 @@ and verify the API gateway is hitting SB2, not production."
 
 ❌ **Missing environment header**:
 ```bash
-curl -X POST "http://localhost:3001/api/suiteapi" \
+curl -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
   -d '{...}'
 # This hits PRODUCTION, not SB2!
@@ -260,7 +260,7 @@ curl -X POST "http://localhost:3001/api/suiteapi" \
 
 ✅ **Correct with environment header**:
 ```bash
-curl -X POST "http://localhost:3001/api/suiteapi" \
+curl -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
   -H "Content-Type: application/json" \
   -H "X-NetSuite-Environment: sandbox2" \
   -d '{...}'

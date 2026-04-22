@@ -18,7 +18,12 @@ Configure the Hudu API CLI and verify connectivity to your Hudu instance.
 1. Log in to your Hudu instance
 2. Go to **Admin → API Keys** (or **Settings → API Keys**)
 3. Create a new API key (name it "Claude Integration" or similar)
-4. Copy the key — it's shown only once
+4. Enable the permissions you need:
+   - **All access** — required for list/get/create/update on all resources
+   - **Password access** — required for `asset-passwords list/get/create`
+   - **Can delete** — required for any `delete` operation (articles, companies, assets, etc.)
+   - **Can export data** — required for bulk export operations
+5. Copy the key — it's shown only once
 
 ## Step 2 — Configure
 
@@ -127,8 +132,10 @@ python3 scripts/hudu_api.py companies list --output json | jq '.[0].name'
 | Error | Cause | Fix |
 |---|---|---|
 | Config not found | Missing `hudu_config.json` | Run `cp config/hudu_config.template.json config/hudu_config.json` |
-| HTTP 401 | Wrong API key | Check `api_key` in config |
-| HTTP 403 | Key lacks permission | Check API key scope in Hudu admin |
+| HTTP 401 on any request | Wrong API key | Check `api_key` in config |
+| HTTP 401 "Bad credentials" on `/asset_passwords` | Key lacks Password access | Enable **Password access** on the API key in Hudu Admin |
+| HTTP 401 "Key does not have delete permissions" | Key lacks delete permission | Enable **Can delete** on the API key in Hudu Admin |
+| HTTP 403 | Key lacks general permission | Check API key scopes in Hudu admin |
 | Connection refused / URLError | Wrong `base_url` | Verify subdomain: `https://yourcompany.huducloud.com` |
 | Profile not found | Wrong `--profile` | Run without `--profile` to use `default_profile` |
 | tabulate not installed | Missing dependency | `pip install tabulate` |

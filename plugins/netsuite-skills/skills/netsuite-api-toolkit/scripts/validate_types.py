@@ -25,6 +25,8 @@ from typing import Any
 # GATEWAY_URL holds the base host, NOT the /api/suiteapi path.
 GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
 _API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in GATEWAY_URL:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 
 def fetch_api_response(app: str, action: str, env: str) -> dict | None:

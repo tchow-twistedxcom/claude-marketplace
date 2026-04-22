@@ -21,6 +21,8 @@ import argparse
 _gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
 GATEWAY_URL = f'{_gw_base}/api/suiteapi'
 _API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in _gw_base:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 # The corrected data source query with tp.name included
 NEW_QUERY = """SELECT h.id, h.name, h.custrecord_twx_edi_history_json AS edi_json, h.custrecord_twx_eth_edi_tp AS trading_partner, h.custrecord_twx_edi_type AS doc_type, h.custrecord_twx_edi_history_status AS status, h.created AS created_date, tp.custrecord_twx_edi_tp_logo AS tp_logo_id, tp.name AS tp_name FROM customrecord_twx_edi_history h LEFT JOIN customrecord_twx_edi_tp tp ON h.custrecord_twx_eth_edi_tp = tp.id WHERE h.id = ${record.id}"""

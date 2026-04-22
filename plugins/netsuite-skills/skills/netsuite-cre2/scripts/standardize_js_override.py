@@ -9,6 +9,7 @@ Usage:
 
 import json
 import os
+import sys
 import urllib.request
 import argparse
 from typing import Dict, List
@@ -17,6 +18,8 @@ from typing import Dict, List
 _gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
 GATEWAY_URL = f'{_gw_base}/api/suiteapi'
 _API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in _gw_base:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 # Standard JS override file ID (from batch_create_profiles.py)
 STANDARD_JS_OVERRIDE_ID = 52794157

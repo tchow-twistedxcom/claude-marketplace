@@ -17,7 +17,9 @@ The gateway checks for environment specification in this order (highest to lowes
 |----------|--------|-----------|---------|
 | 1 (Highest) | Request Body | `netsuiteEnvironment` | `{"netsuiteEnvironment": "sandbox2"}` |
 | 2 | Query String | `netsuiteEnvironment` | `?netsuiteEnvironment=sandbox2` |
-| 3 (Lowest) | HTTP Header | `X-NetSuite-Environment` | `X-NetSuite-Environment: sandbox2` |
+| 3 (Legacy) | HTTP Header | `X-NetSuite-Environment` | `X-NetSuite-Environment: sandbox2` |
+
+> **Note:** The `X-NetSuite-Environment` header is accepted for backwards compatibility but deprecated — prefer the query parameter (`?netsuiteEnvironment=`) for new integrations. The Python scripts in this plugin use the query parameter.
 
 If no environment is specified, the gateway uses the **default environment** configured in the gateway settings (typically `production`).
 

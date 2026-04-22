@@ -1,0 +1,20 @@
+{
+  "name": "hudu-skills",
+  "version": "1.0.0",
+  "description": "Hudu REST API integration — asset management, KB articles, passwords, procedures",
+  "author": {
+    "name": "Thomas Chow",
+    "url": "https://twistedx.com"
+  },
+  "license": "MIT",
+  "keywords": ["hudu", "msp", "documentation", "assets", "passwords", "procedures", "api"],
+  "commands": [
+    "./commands/hudu-setup.md",
+    "./commands/hudu-manage.md"
+  ],
+  "skills": [
+    "./skills/hudu-api"
+  ],
+  "mcpServers": [],
+  "globalInstructions": []
+}

@@ -1,0 +1,10 @@
+{
+  "default_profile": "production",
+  "profiles": {
+    "production": {
+      "name": "production",
+      "base_url": "https://YOUR_TENANT.huducloud.com",
+      "api_key": "YOUR_HUDU_API_KEY"
+    }
+  }
+}

@@ -147,22 +147,38 @@ class HuduClient:
         }
         return self._paginate("/assets", params, page_size)
 
-    def get_asset(self, asset_id: int):
-        return self._unwrap(self._request("GET", f"/assets/{asset_id}"))
+    def get_asset(self, asset_id: int, company_id: int = None):
+        if company_id:
+            return self._unwrap(self._request("GET", f"/companies/{company_id}/assets/{asset_id}"))
+        # No standalone /assets/{id} endpoint — filter by id
+        data = self._request("GET", "/assets", params={"id": asset_id})
+        results = self._unwrap(data) if isinstance(data, dict) else data
+        if isinstance(results, list):
+            return results[0] if results else None
+        return results
 
     def create_asset(self, company_id: int, name: str, asset_layout_id: int, **kwargs):
         body = {"asset": {"name": name, "asset_layout_id": asset_layout_id, **kwargs}}
         return self._unwrap(self._request("POST", f"/companies/{company_id}/assets", body=body))
 
-    def update_asset(self, asset_id: int, **kwargs):
+    def _asset_company_id(self, asset_id: int) -> int:
+        asset = self.get_asset(asset_id)
+        if not asset or not asset.get("company_id"):
+            import sys; sys.exit(f"Could not resolve company_id for asset {asset_id}")
+        return asset["company_id"]
+
+    def update_asset(self, asset_id: int, company_id: int = None, **kwargs):
+        cid = company_id or self._asset_company_id(asset_id)
         body = {"asset": kwargs}
-        return self._unwrap(self._request("PUT", f"/assets/{asset_id}", body=body))
+        return self._unwrap(self._request("PUT", f"/companies/{cid}/assets/{asset_id}", body=body))
 
-    def delete_asset(self, asset_id: int):
-        return self._request("DELETE", f"/assets/{asset_id}")
+    def delete_asset(self, asset_id: int, company_id: int = None):
+        cid = company_id or self._asset_company_id(asset_id)
+        return self._request("DELETE", f"/companies/{cid}/assets/{asset_id}")
 
-    def archive_asset(self, asset_id: int):
-        return self._unwrap(self._request("PUT", f"/assets/{asset_id}/archive"))
+    def archive_asset(self, asset_id: int, company_id: int = None):
+        cid = company_id or self._asset_company_id(asset_id)
+        return self._unwrap(self._request("PUT", f"/companies/{cid}/assets/{asset_id}/archive"))
 
     # -------------------------------------------------------------------------
     # Asset Layouts
@@ -259,8 +275,14 @@ class HuduClient:
     # -------------------------------------------------------------------------
 
     def list_networks(self, company_id=None, search=None, page_size=25):
-        params = {"company_id": company_id, "search": search}
-        return self._paginate("/networks", params, page_size)
+        # Networks endpoint does not accept page_size — returns all results at once
+        params = {k: v for k, v in {"company_id": company_id, "search": search}.items() if v is not None}
+        data = self._request("GET", "/networks", params=params or None)
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            return next((v for v in data.values() if isinstance(v, list)), [])
+        return []
 
     def get_network(self, network_id: int):
         return self._unwrap(self._request("GET", f"/networks/{network_id}"))

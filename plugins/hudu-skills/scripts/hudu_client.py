@@ -164,7 +164,7 @@ class HuduClient:
     def _asset_company_id(self, asset_id: int) -> int:
         asset = self.get_asset(asset_id)
         if not asset or not asset.get("company_id"):
-            import sys; sys.exit(f"Could not resolve company_id for asset {asset_id}")
+            sys.exit(f"Could not resolve company_id for asset {asset_id}")
         return asset["company_id"]
 
     def update_asset(self, asset_id: int, company_id: int = None, **kwargs):
@@ -211,7 +211,7 @@ class HuduClient:
 
     def create_asset_password(self, name: str, company_id: int, password: str = None, **kwargs):
         body = {"asset_password": {"name": name, "company_id": company_id, **kwargs}}
-        if password:
+        if password is not None:
             body["asset_password"]["password"] = password
         return self._unwrap(self._request("POST", "/asset_passwords", body=body))
 

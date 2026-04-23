@@ -94,7 +94,7 @@ def main():
     args = parser.parse_args()
 
     auth = HuduAuth(config_path=args.config, profile=args.profile)
-    if args.test or True:
+    if args.test:
         auth.test_connection()
 
 

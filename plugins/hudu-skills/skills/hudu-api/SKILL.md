@@ -71,6 +71,7 @@ python3 scripts/hudu_api.py asset-layouts get --id 7
 ```bash
 python3 scripts/hudu_api.py asset-passwords list --company-id 42
 python3 scripts/hudu_api.py asset-passwords get --id 300
+# Note: --password appears in shell history. Use read -rs PASSWORD && echo "$PASSWORD" | ... or rotate after use.
 python3 scripts/hudu_api.py asset-passwords create --name "Router Admin" --company-id 42 \
   --username admin --password "secret" --url "https://192.168.1.1"
 python3 scripts/hudu_api.py asset-passwords delete --id 300

@@ -10,8 +10,7 @@ try:
 except ImportError:
     HAS_TABULATE = False
 
-# Column definitions per entity type: (header, key_path)
-# key_path supports dot notation for nested fields
+# Column definitions per entity type: (header, field_key)
 COLUMNS = {
     "companies": [
         ("ID", "id"),

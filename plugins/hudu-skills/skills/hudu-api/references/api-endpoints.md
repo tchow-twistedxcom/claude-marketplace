@@ -25,12 +25,12 @@ All list endpoints support `?page=N&page_size=M` (max 100 per page).
 | Articles | PUT | `/articles/{id}` | |
 | Articles | DELETE | `/articles/{id}` | |
 | Articles | PUT | `/articles/{id}/archive` | |
-| Assets | GET | `/assets` | `?company_id=`, `?asset_layout_id=`, `?name=`, `?search=`, `?archived=` |
-| Assets | GET | `/assets/{id}` | |
+| Assets | GET | `/assets` | `?company_id=`, `?asset_layout_id=`, `?name=`, `?search=`, `?archived=`; no standalone `/assets/{id}` — use `?id=` filter |
 | Assets | POST | `/companies/{company_id}/assets` | Body: `{"asset": {"name","asset_layout_id"}}` |
-| Assets | PUT | `/assets/{id}` | |
-| Assets | DELETE | `/assets/{id}` | |
-| Assets | PUT | `/assets/{id}/archive` | |
+| Assets | GET | `/companies/{company_id}/assets/{id}` | |
+| Assets | PUT | `/companies/{company_id}/assets/{id}` | |
+| Assets | DELETE | `/companies/{company_id}/assets/{id}` | |
+| Assets | PUT | `/companies/{company_id}/assets/{id}/archive` | |
 | Asset Layouts | GET | `/asset_layouts` | `?search=` |
 | Asset Layouts | GET | `/asset_layouts/{id}` | |
 | Asset Layouts | POST | `/asset_layouts` | Body: `{"asset_layout": {...}}` |

@@ -16,6 +16,7 @@ Activate this skill when:
 - **Setting up SDF authentication:** Configuring certificate-based TBA (Token-Based Authentication) for M2M deployments
 - **Managing authIds:** Understanding how authIds work, registering new ones, or refreshing existing ones
 - **Deploying to NetSuite:** Executing deployments to sandbox or production environments
+- **Importing SDF objects:** Pulling object XMLs (saved searches, custom records, etc.) from any NetSuite environment without the OS keyring requirement
 - **CI/CD setup:** Configuring GitHub Actions or other CI systems for automated NetSuite deployments
 - **Troubleshooting deployments:** Debugging authentication errors, deployment failures, or configuration issues
 - **Multi-environment management:** Working with multiple NetSuite accounts (SB1, SB2, production)
@@ -33,6 +34,7 @@ Activate this skill when:
 - twx-sdf.config.json, .sdfcli.json, project.json
 - Monorepo, multi-project, shared credentials, workspace
 - PathResolver, ProjectContext, environment-specific paths
+- import objects, IMPORTOBJECTS, object import, pull XML, scriptid, SAVEDSEARCH, CUSTOMRECORDTYPE
 
 ## Core Capabilities
 
@@ -288,6 +290,62 @@ For comprehensive CI/CD setup guide, see `references/ci-cd-setup.md`.
 
 For complete troubleshooting guide, see `references/troubleshooting.md`.
 
+### 8. Object Import (v0.3.0+)
+
+Pull SDF object XMLs directly from any NetSuite environment without the OS keyring requirement that causes `suitecloud object:import` to fail on headless/server boxes.
+
+**Basic usage:**
+```bash
+# Single object
+npx twx-deploy import sb2 --type SAVEDSEARCH --scriptid customsearch_twx_orders
+
+# Multiple objects (repeat --scriptid)
+npx twx-deploy import sb2 -t SAVEDSEARCH -s customsearch_twx_a -s customsearch_twx_b
+
+# Wildcard (server-side expansion by NetSuite)
+npx twx-deploy import sb2 --type SAVEDSEARCH --scriptid 'customsearch_twx_*'
+
+# Custom destination folder
+npx twx-deploy import sb2 --type SAVEDSEARCH --scriptid customsearch_twx_orders \
+  --dest Objects/savedsearch/custom
+
+# Overwrite existing files
+npx twx-deploy import sb2 --type SAVEDSEARCH --scriptid customsearch_twx_orders --overwrite
+
+# Dry-run: prints JWT-signed request without making network calls
+npx twx-deploy import sb2 --type SAVEDSEARCH --scriptid customsearch_twx_orders --dry-run
+```
+
+**Options:**
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--type <type>` | `-t` | SDF object type (SAVEDSEARCH, CUSTOMRECORDTYPE, etc.) |
+| `--scriptid <id>` | `-s` | Script ID to import; repeatable; supports wildcards |
+| `--dest <path>` | | Override destination folder (default: `Objects/<lowercase type>`) |
+| `--dry-run` | `-d` | Print request details without making API calls |
+| `--overwrite` | | Overwrite existing XML files (default: error if file exists) |
+| `--config <path>` | `-c` | Path to twx-sdf.config.json |
+
+**How it works:**
+
+1. Loads `twx-sdf.config.json` and resolves credentials (same as `deploy` command)
+2. Fetches an OAuth2 access token using cert-based PS256 JWT — no OS keyring, no `suitecloud` subprocess
+3. POSTs to NetSuite's SDF IDE endpoint (`/app/ide/ide.nl`) with `Sdf-Action: IMPORTOBJECTS`
+4. Parses the XML response, splits multi-object responses by tag boundaries
+5. Writes each object to `<sdfPath>/Objects/<lowercase type>/<scriptId>.xml`
+
+**Exit codes:**
+- `0` — all objects imported successfully
+- `1` — one or more imports failed (errors printed; successful imports are still written)
+
+**Error handling:**
+- Missing `--scriptid` → exits immediately with error
+- Unknown environment → exits with config error  
+- Token fetch failure → exits before any import attempts
+- Per-object failures → logged and skipped; remaining objects continue; exits 1 at end
+- File exists without `--overwrite` → exits with helpful message
+
 ## How to Use This Skill
 
 ### For Authentication Setup
@@ -311,16 +369,31 @@ For complete troubleshooting guide, see `references/troubleshooting.md`.
 3. Configure secrets in repository settings
 4. Test workflow with manual dispatch
 
+### For Object Import
+
+1. Ensure `twx-sdf.config.json` has the target environment configured (same requirements as deploy)
+2. Run with `--dry-run` first to verify the request shape without network calls
+3. Import a known scriptid to verify credentials and connectivity
+4. Use `--scriptid` repeatedly for batch imports, or pass a wildcard like `'customsearch_twx_*'`
+5. Imported XMLs land in `<sdfPath>/Objects/<lowercase type>/` by default; use `--dest` to override
+
 ## Package Information
 
 - **Package:** `@twisted-x/netsuite-deploy`
-- **Version:** 0.1.8 (as of November 2025)
+- **Version:** 0.3.0 (as of April 2026)
 - **Node:** 18+, npm 9+
 - **Type:** ESM Module
 - **Registry:** GitHub Packages (Private)
 - **Repository:** `/home/tchow/netsuite-deploy`
 
-**Latest Features (v0.1.8):**
+**Latest Features (v0.3.0):**
+- ✅ **Object Import:** `twx-deploy import` subcommand — pull SDF object XMLs via cert-OAuth2, no OS keyring
+- ✅ **Keyring Bypass:** Direct PS256 JWT auth to NetSuite OAuth2 endpoint; works on headless/CI boxes
+- ✅ **Multi-ScriptId Batch:** Repeat `--scriptid` for multiple objects; continue-on-error with final summary
+- ✅ **Wildcard Support:** Pass `'customsearch_twx_*'` — NetSuite expands server-side
+- ✅ **Safe Write Semantics:** Errors on existing files unless `--overwrite` is set
+
+**Earlier Features (v0.1.8):**
 - ✅ **Monorepo Support:** Multi-project deployments with shared credentials and code
 - ✅ **Automatic Monorepo Detection:** Discovers workspace roots automatically
 - ✅ **Shared Resources:** Centralized credentials, keys, and SuiteScript modules

@@ -131,27 +131,82 @@ curl -X POST "https://api.integrator.io/v1/exports" \
   }'
 ```
 
-### Create NetSuite Export
+### Create NetSuite Export (Restlet — TWX Standard)
 
-```bash
-curl -X POST "https://api.integrator.io/v1/exports" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "NetSuite Customer Export",
-    "_connectionId": "ns_connection_id",
-    "_integrationId": "integration_id",
-    "adaptorType": "NetSuiteExport",
-    "netsuite": {
-      "type": "search",
-      "searches": [{
-        "recordType": "customer",
-        "searchId": "customsearch_customers"
-      }]
+TWX uses `type: "restlet"` for all NetSuite exports. This is the correct pattern for saved-search exports against standard or custom record types.
+
+**Critical rules for `searchId`:**
+- **Always use the numeric internal ID** (e.g., `"264138"`), never the script ID (e.g., `"customsearch_twx_locally_feed_export"`).
+- Celigo resolves saved searches by numeric ID internally. When you pick a search from the Celigo UI dropdown, it stores the numeric ID. Using a script ID causes the UI to display the search as a "private saved search" reference and may not resolve the Record Type picker.
+- To find the numeric ID: run the saved search in NetSuite and note the `id=` parameter in the URL, or query `SELECT id FROM savedsearch WHERE scriptid = 'customsearch_...'` via SuiteQL.
+
+**Flat export (no row grouping) — e.g., Locally Feed:**
+```json
+{
+  "name": "NS Mirror Record Export - Locally Feed",
+  "_connectionId": "5b5f3bc70732ab2b95d98894",
+  "adaptorType": "NetSuiteExport",
+  "asynchronous": true,
+  "pageSize": 1,
+  "oneToMany": false,
+  "netsuite": {
+    "type": "restlet",
+    "skipGrouping": true,
+    "statsOnly": false,
+    "restlet": {
+      "recordType": "customrecord_twx_locally_feed_row",
+      "searchId": "264138",
+      "restletVersion": "suiteapp2.0",
+      "markExportedBatchSize": 100
     },
-    "pageSize": 100
-  }'
+    "distributed": {}
+  }
+}
 ```
+
+**Grouped export (EDI style, multiple rows per page) — e.g., Family Center 855:**
+```json
+{
+  "name": "Family Center Farm & Home - Get NetSuite Sales Orders to Acknowledgement",
+  "_connectionId": "5b5f3bc70732ab2b95d98894",
+  "adaptorType": "NetSuiteExport",
+  "asynchronous": true,
+  "pageSize": 1,
+  "oneToMany": false,
+  "netsuite": {
+    "type": "restlet",
+    "skipGrouping": false,
+    "statsOnly": false,
+    "restlet": {
+      "recordType": "customrecord_twx_edi_history",
+      "searchId": "177563",
+      "restletVersion": "suiteapp2.0",
+      "markExportedBatchSize": 100
+    },
+    "distributed": {}
+  }
+}
+```
+
+**Field notes:**
+| Field | Notes |
+|-------|-------|
+| `pageSize` | Always `1` for restlet exports. Controls pages passed to imports per batch. |
+| `skipGrouping` | `true` = flat records (one row per page, e.g., CSV feed). `false` = group related rows under one key (EDI). |
+| `distributed` | Must be `{}` (empty object). **Cannot be set via API PUT — Celigo strips it silently.** Must be set via the Celigo UI. |
+| `markExportedBatchSize` | `100` is standard. Controls how many records Celigo marks as exported per RESTlet call. |
+| `restletVersion` | Always `"suiteapp2.0"` for TWX. |
+| `mockOutput` | **Cannot be cleared via API PUT** — Celigo preserves it as a system field even when omitted from the PUT body. Clear it via the Celigo UI. |
+
+**⚠️ API vs UI limitations for NetSuiteExport restlet exports:**
+
+After creating or updating a NetSuiteExport via the API, two fields require a manual UI step to finalize:
+1. **Open the export in the Celigo UI** and save it — this properly writes `distributed: {}` into the netsuite block.
+2. **Clear `mockOutput`** via the UI if it was auto-generated or stale.
+
+These fields work correctly when configured through the UI but are silently dropped/preserved by the API. The export will run correctly either way, but the UI will display differently (notably the Record Type picker) until the UI save is done.
+
+**TWX NetSuite Production Connection ID:** `5b5f3bc70732ab2b95d98894`
 
 ### Update Export
 

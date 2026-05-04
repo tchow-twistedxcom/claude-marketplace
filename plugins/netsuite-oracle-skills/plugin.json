@@ -1,0 +1,17 @@
+{
+  "name": "netsuite-oracle-skills",
+  "version": "1.0.0",
+  "description": "Oracle's official NetSuite agent skills (vanilla SuiteCloud / SuiteScript reference, vendored from oracle/netsuite-suitecloud-sdk under UPL-1.0)",
+  "skills": [
+    "skills/netsuite-ai-connector-instructions/SKILL.md",
+    "skills/netsuite-owasp-secure-coding/SKILL.md",
+    "skills/netsuite-sdf-project-documentation/SKILL.md",
+    "skills/netsuite-sdf-roles-and-permissions/SKILL.md",
+    "skills/netsuite-suitescript-records-reference/SKILL.md",
+    "skills/netsuite-suitescript-upgrade/SKILL.md",
+    "skills/netsuite-uif-spa-reference/SKILL.md"
+  ],
+  "commands": [],
+  "mcpServers": [],
+  "globalInstructions": []
+}

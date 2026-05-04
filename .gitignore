@@ -70,6 +70,7 @@ ENV/
 
 # Claude Code specific
 .claude-cache/
+.serena/
 
 # Skill credentials (live configs - NOT templates)
 **/shopify_config.json

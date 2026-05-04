@@ -29,6 +29,7 @@ Exit codes:
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -68,13 +69,16 @@ NS_DOC_TYPE_MAP = {
 INBOUND_TYPES = frozenset(["850", "856", "860"])
 OUTBOUND_TYPES = frozenset(["810", "846", "855", "820"])
 
-# Regex to extract partner name + doc type + direction from Celigo integration name
-# Matches: "PartnerName - EDI 850 IB", "PartnerName - EDI 850 INB", "PartnerName - EDI 810 OB"
+# Regex to extract partner name + doc type + direction from Celigo FLOW names.
+# Actual flow naming: "Amazon Vendor Central - 850 IB - EDI Purchase Order"
+# Matches: "Partner - 850 IB", "Partner - 850 INB", "Partner - 810 OB"
 _EDI_FLOW_RE = re.compile(
-    r"^(?P<partner>.+?)\s*-\s*EDI\s+(?P<doc_type>\d{3})\s+(?P<dir>IB|OB|INB)\b",
+    r"^(?P<partner>.+?)\s*-\s*(?P<doc_type>\d{3})\s+(?P<dir>IB|OB|INB)\b",
     re.IGNORECASE,
 )
-_STAGING_RE = re.compile(r"\(\d{1,2}/\d{1,2}/\d{4}\)\s*$")
+
+# Integration name prefix for EDI integrations (matches "EDI - " and "EDI | ")
+_EDI_INTEGRATION_RE = re.compile(r"^EDI\s*[-|]\s*", re.IGNORECASE)
 
 # Regex to extract PO number from NS externalid: HIST_{PO}_{PARTNER}_00
 _EXTERNALID_RE = re.compile(r"^HIST_(?P<po>.+?)_[^_]+_\d+$")
@@ -110,6 +114,11 @@ def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _ns_date(dt: datetime) -> str:
+    """Format a datetime for NetSuite SuiteQL date comparisons (MM/DD/YYYY)."""
+    return dt.strftime("%m/%d/%Y")
+
+
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
@@ -120,7 +129,8 @@ def _http_get(url: str, headers: dict = None, timeout: int = DEFAULT_TIMEOUT) ->
         try:
             req = Request(url, headers=headers)
             with urlopen(req, timeout=timeout) as r:
-                return json.loads(r.read().decode())
+                body = r.read().decode()
+                return json.loads(body) if body.strip() else []
         except HTTPError as e:
             if e.code == 429 and attempt < MAX_RETRIES - 1:
                 time.sleep(2 ** attempt * 10)
@@ -211,24 +221,36 @@ def _celigo_get(api_url: str, api_key: str, endpoint: str,
 def _ns_query(sql: str) -> list:
     payload = {
         "action": "queryRun",
+        "procedure": "queryRun",
         "query": sql,
+        "params": [],
+        "returnAllRows": True,
         "netsuiteAccount": NS_ACCOUNT,
         "netsuiteEnvironment": NS_ENVIRONMENT,
     }
-    result = _http_post(NS_GATEWAY_URL, payload)
-    if isinstance(result, dict) and result.get("error"):
-        print(f"Fatal: NS gateway error: {result.get('message')} — {result.get('details', '')}",
-              file=sys.stderr)
-        sys.exit(2)
-    # Gateway returns list of rows or {items: [...]}
+    ns_api_key = os.environ.get("NETSUITE_API_KEY", "")
+    headers = {"X-API-Key": ns_api_key} if ns_api_key else {}
+    result = _http_post(NS_GATEWAY_URL, payload, headers=headers)
+    # Gateway response: {success: bool, data: {records: [...]}} on success
+    #                   {success: false, error: {message, type, ...}} on failure
+    if isinstance(result, dict):
+        if not result.get("success"):
+            err = result.get("error") or {}
+            msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+            print(f"Fatal: NS gateway error: {msg}", file=sys.stderr)
+            sys.exit(2)
+        return result.get("data", {}).get("records", [])
+    # Fallback: bare list (shouldn't happen with this gateway)
     if isinstance(result, list):
         return result
-    return result.get("items", result.get("rows", []))
+    return []
 
 
-def _ns_edi_history_inbound(doc_type_id: int, since_iso: str,
-                            until_iso: str) -> list:
+def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
+                            until_dt: datetime) -> list:
     """Fetch NS EDI History rows for an inbound doc type in the given window."""
+    since_ns = _ns_date(since_dt)
+    until_ns = _ns_date(until_dt)
     sql = (
         f"SELECT h.id, h.externalid, h.custrecord_twx_edi_history_status AS status, "
         f"h.custrecord_twx_edi_history_transaction AS transaction_id, "
@@ -236,15 +258,17 @@ def _ns_edi_history_inbound(doc_type_id: int, since_iso: str,
         f"h.created "
         f"FROM customrecord_twx_edi_history h "
         f"WHERE h.custrecord_twx_edi_type = {doc_type_id} "
-        f"AND h.created >= '{since_iso}' AND h.created <= '{until_iso}' "
+        f"AND h.created >= '{since_ns}' AND h.created <= '{until_ns}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
     return _ns_query(sql)
 
 
-def _ns_edi_history_outbound(doc_type_id: int, since_iso: str,
-                             until_iso: str) -> list:
+def _ns_edi_history_outbound(doc_type_id: int, since_dt: datetime,
+                             until_dt: datetime) -> list:
     """Fetch NS EDI History rows for an outbound doc type marked sent (status=2)."""
+    since_ns = _ns_date(since_dt)
+    until_ns = _ns_date(until_dt)
     sql = (
         f"SELECT h.id, h.externalid, h.custrecord_twx_edi_history_status AS status, "
         f"h.custrecord_twx_edi_history_transaction AS transaction_id, "
@@ -253,7 +277,7 @@ def _ns_edi_history_outbound(doc_type_id: int, since_iso: str,
         f"FROM customrecord_twx_edi_history h "
         f"WHERE h.custrecord_twx_edi_type = {doc_type_id} "
         f"AND h.custrecord_twx_edi_history_status = 2 "
-        f"AND h.created >= '{since_iso}' AND h.created <= '{until_iso}' "
+        f"AND h.created >= '{since_ns}' AND h.created <= '{until_ns}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
     return _ns_query(sql)
@@ -270,39 +294,58 @@ def _extract_po_from_externalid(externalid: str) -> Optional[str]:
 # EDI integration discovery
 # ---------------------------------------------------------------------------
 
-def _get_edi_integrations(api_url: str, api_key: str,
-                          partner_filter: Optional[str] = None) -> list:
-    """Return all non-staging EDI integrations, parsed for partner/doc-type/direction."""
+def _get_edi_flows(api_url: str, api_key: str,
+                   partner_filter: Optional[str] = None) -> list:
+    """
+    Return all enabled production EDI flows, parsed for partner/doc-type/direction.
+
+    Flow naming convention: "PartnerName - 850 IB - Description"
+    Integration naming convention: "EDI - PartnerName" (sandbox=False for production)
+    """
     all_ints = _celigo_get(api_url, api_key, "/integrations")
     result = []
     for intg in all_ints:
         name = intg.get("name", "")
-        if _STAGING_RE.search(name):
+        # Skip sandbox (non-production) integrations
+        if intg.get("sandbox") is True:
             continue
-        m = _EDI_FLOW_RE.match(name)
-        if not m:
-            continue
-        partner = m.group("partner").strip()
-        doc_type = m.group("doc_type")
-        direction = m.group("dir").upper()
-
-        if partner_filter and partner_filter.lower() not in partner.lower():
+        # Only process integrations named "EDI - ..." or "EDI | ..."
+        if not _EDI_INTEGRATION_RE.match(name):
             continue
 
-        result.append({
-            "_id": intg["_id"],
-            "name": name,
-            "partner": partner,
-            "doc_type": doc_type,
-            "direction": direction,
-        })
+        # List flows within this integration
+        flows = _celigo_get(api_url, api_key, f"/integrations/{intg['_id']}/flows")
+        for flow in flows:
+            # Skip disabled flows
+            if flow.get("disabled"):
+                continue
+            flow_name = flow.get("name", "")
+            m = _EDI_FLOW_RE.match(flow_name)
+            if not m:
+                continue
+            partner = m.group("partner").strip()
+            doc_type = m.group("doc_type")
+            direction = m.group("dir").upper()
+
+            if partner_filter and partner_filter.lower() not in partner.lower():
+                continue
+
+            result.append({
+                "_id": flow["_id"],
+                "_integrationId": intg["_id"],
+                "integration_name": name,
+                "flow_name": flow_name,
+                "partner": partner,
+                "doc_type": doc_type,
+                "direction": direction,
+            })
     return result
 
 
 def _get_jobs_for_integration(api_url: str, api_key: str,
                               integration_id: str, since_iso: str,
                               until_iso: str) -> list:
-    """Fetch successful jobs for an integration in the given window."""
+    """Fetch completed jobs for an integration in the given window."""
     return _celigo_get(api_url, api_key, "/jobs", {
         "_integrationId": integration_id,
         "status": "completed",
@@ -317,97 +360,72 @@ def _get_jobs_for_integration(api_url: str, api_key: str,
 # Reconciliation logic
 # ---------------------------------------------------------------------------
 
-def _reconcile_inbound(celigo_jobs: list, ns_rows: list,
-                       partner: str, doc_type: str) -> list:
+def _reconcile_inbound(celigo_num_success: int, ns_rows: list,
+                       doc_type: str) -> list:
     """
-    Compare Celigo successful jobs (inbound) against NS EDI History rows.
-    Returns list of mismatch dicts.
+    Compare Celigo activity (sum numSuccess) against NS EDI History rows for a doc type.
+    Flags NS processing failures, 850s without linked SOs, and Celigo-only activity.
     """
     mismatches = []
+    ns_success_rows = [r for r in ns_rows if str(r.get("status", "")) == "2"]
+    ns_error_rows = [r for r in ns_rows if str(r.get("status", "")) != "2"]
 
-    # Build NS lookup by PO number
-    ns_by_po: dict = {}
-    for row in ns_rows:
-        po = _extract_po_from_externalid(row.get("externalid", ""))
-        if po:
-            ns_by_po[po] = row
-
-    # Build NS lookup by NS id for status checks
-    ns_errors = [r for r in ns_rows if str(r.get("status", "")) != "2"]
-    for row in ns_errors:
+    # NS processing failures
+    for row in ns_error_rows:
         mismatches.append({
             "bucket": "ns_status_error",
             "type": "ns_processing_failed",
             "doc_type": doc_type,
-            "partner": partner,
             "ns_id": row.get("id"),
             "externalid": row.get("externalid"),
             "ns_status": row.get("status"),
             "created": row.get("created"),
         })
 
-    # For 850, check transaction link
+    # For 850: flag POs that landed in NS but have no linked SO
     if doc_type == "850":
-        for row in ns_rows:
-            if str(row.get("status", "")) == "2" and not row.get("transaction_id"):
+        for row in ns_success_rows:
+            if not row.get("transaction_id"):
                 mismatches.append({
                     "bucket": "ns_status_error",
                     "type": "pos_without_order",
                     "doc_type": doc_type,
-                    "partner": partner,
                     "ns_id": row.get("id"),
                     "externalid": row.get("externalid"),
                     "created": row.get("created"),
                 })
 
-    # Count Celigo successes vs NS rows
-    celigo_success_count = sum(1 for j in celigo_jobs if j.get("status") == "completed")
-    ns_success_count = sum(1 for r in ns_rows if str(r.get("status", "")) == "2")
-
-    if celigo_success_count > ns_success_count:
+    # Celigo processed records but NS has nothing in the window
+    if celigo_num_success > 0 and len(ns_rows) == 0:
         mismatches.append({
             "bucket": "celigo_success_ns_missing",
-            "type": "count_mismatch",
+            "type": "no_ns_records",
             "doc_type": doc_type,
-            "partner": partner,
-            "celigo_success_count": celigo_success_count,
-            "ns_success_count": ns_success_count,
-            "note": "More Celigo successes than NS records — some may not have landed",
+            "celigo_num_success": celigo_num_success,
+            "ns_record_count": 0,
+            "note": f"Celigo processed {celigo_num_success} record(s) but NS has no {doc_type} history in window",
         })
 
     return mismatches
 
 
-def _reconcile_outbound(ns_rows: list, celigo_jobs: list,
-                        partner: str, doc_type: str) -> list:
+def _reconcile_outbound(celigo_num_success: int, ns_rows: list,
+                        doc_type: str) -> list:
     """
-    For outbound, NS is the source of truth for 'sent'.
-    If NS shows a sent record but Celigo has no corresponding job, flag it.
+    For outbound, NS is the source of truth for sent records.
+    Flags when NS shows sent documents but Celigo had no activity.
     """
     mismatches = []
-    celigo_job_count = len(celigo_jobs)
-    ns_sent_count = len(ns_rows)
+    ns_count = len(ns_rows)
 
-    if ns_sent_count > 0 and celigo_job_count == 0:
+    if ns_count > 0 and celigo_num_success == 0:
         mismatches.append({
             "bucket": "ns_sent_celigo_missing",
-            "type": "no_celigo_jobs",
+            "type": "no_celigo_activity",
             "doc_type": doc_type,
-            "partner": partner,
-            "ns_sent_count": ns_sent_count,
-            "celigo_job_count": celigo_job_count,
-            "note": "NS shows sent records but no Celigo jobs found in window",
-        })
-    elif ns_sent_count > celigo_job_count * 2:
-        # Significant mismatch — flag for review
-        mismatches.append({
-            "bucket": "ns_sent_celigo_missing",
-            "type": "count_mismatch",
-            "doc_type": doc_type,
-            "partner": partner,
-            "ns_sent_count": ns_sent_count,
-            "celigo_job_count": celigo_job_count,
-            "note": "NS sent count significantly higher than Celigo job count",
+            "ns_sent_count": ns_count,
+            "celigo_num_success": 0,
+            "note": f"NS has {ns_count} sent {doc_type} record(s) but Celigo had no activity",
         })
 
     return mismatches
@@ -426,51 +444,108 @@ def run_audit(since: str, until: Optional[str], direction: str,
 
     api_url, api_key = _get_celigo_creds(env_name)
 
-    integrations = _get_edi_integrations(api_url, api_key, partner_filter)
-    if not integrations:
-        return {
-            "audit_window": {"since": since_iso, "until": until_iso},
-            "direction": direction,
-            "partner_filter": partner_filter,
-            "integrations_scanned": 0,
-            "mismatches": [],
-            "summary": "No matching EDI integrations found.",
-        }
+    _EMPTY = {
+        "audit_window": {"since": since_iso, "until": until_iso},
+        "direction": direction,
+        "partner_filter": partner_filter,
+        "flows_scanned": 0,
+        "total_mismatches": 0,
+        "buckets": {
+            "celigo_success_ns_missing": [],
+            "ns_sent_celigo_missing": [],
+            "ns_status_error": [],
+        },
+    }
 
-    all_mismatches = []
+    edi_flows = _get_edi_flows(api_url, api_key, partner_filter)
+    if not edi_flows:
+        _EMPTY["summary"] = "No matching production EDI flows found."
+        return _EMPTY
+
+    # --- Step 1: Collect jobs per integration (one query per integration) ---
+    # Group flows by integration to minimise API calls
+    intg_flows: dict = {}
+    for flow in edi_flows:
+        intg_flows.setdefault(flow["_integrationId"], []).append(flow)
+
+    jobs_by_flow: dict = {}   # _flowId -> [job, ...]
+    for intg_id in intg_flows:
+        intg_jobs = _get_jobs_for_integration(api_url, api_key, intg_id,
+                                              since_iso, until_iso)
+        for job in intg_jobs:
+            fid = job.get("_flowId")
+            if fid:
+                jobs_by_flow.setdefault(fid, []).append(job)
+
+    # --- Step 2: Aggregate Celigo activity per doc_type ---
+    # celigo_by_doctype[doc_type] = {"num_success": int, "flow_count": int, "direction": str}
+    celigo_by_doctype: dict = {}
     scanned = 0
-
-    for intg in integrations:
-        doc_type = intg["doc_type"]
-        intg_direction = intg["direction"]
-        partner = intg["partner"]
-        ns_type_id = NS_DOC_TYPE_MAP.get(doc_type)
-        if not ns_type_id:
-            continue
-
-        is_inbound = intg_direction in ("IB", "INB")
-        is_outbound = intg_direction == "OB"
+    for flow in edi_flows:
+        dt = flow["doc_type"]
+        d = flow["direction"]
+        is_inbound = d in ("IB", "INB")
+        is_outbound = d == "OB"
 
         if direction == "inbound" and not is_inbound:
             continue
         if direction == "outbound" and not is_outbound:
             continue
-        if doc_type not in INBOUND_TYPES and doc_type not in OUTBOUND_TYPES:
+        if dt not in INBOUND_TYPES and dt not in OUTBOUND_TYPES:
             continue
 
-        jobs = _get_jobs_for_integration(api_url, api_key, intg["_id"],
-                                         since_iso, until_iso)
+        flow_jobs = jobs_by_flow.get(flow["_id"], [])
+        flow_success = sum(j.get("numSuccess", 0) for j in flow_jobs)
         scanned += 1
 
-        if is_inbound and doc_type in INBOUND_TYPES:
-            ns_rows = _ns_edi_history_inbound(ns_type_id, since_iso, until_iso)
-            mismatches = _reconcile_inbound(jobs, ns_rows, partner, doc_type)
-            all_mismatches.extend(mismatches)
+        if dt not in celigo_by_doctype:
+            celigo_by_doctype[dt] = {
+                "num_success": 0,
+                "flow_count": 0,
+                "job_count": 0,
+                "direction": d,
+            }
+        celigo_by_doctype[dt]["num_success"] += flow_success
+        celigo_by_doctype[dt]["flow_count"] += 1
+        celigo_by_doctype[dt]["job_count"] += len(flow_jobs)
 
-        elif is_outbound and doc_type in OUTBOUND_TYPES:
-            ns_rows = _ns_edi_history_outbound(ns_type_id, since_iso, until_iso)
-            mismatches = _reconcile_outbound(ns_rows, jobs, partner, doc_type)
-            all_mismatches.extend(mismatches)
+    # --- Step 3: Fetch NS data once per needed doc_type ---
+    ns_by_doctype: dict = {}
+    for dt, activity in celigo_by_doctype.items():
+        ns_type_id = NS_DOC_TYPE_MAP.get(dt)
+        if not ns_type_id:
+            continue
+        is_inbound = activity["direction"] in ("IB", "INB")
+        if is_inbound:
+            ns_by_doctype[dt] = _ns_edi_history_inbound(ns_type_id, since_dt, until_dt)
+        else:
+            ns_by_doctype[dt] = _ns_edi_history_outbound(ns_type_id, since_dt, until_dt)
+
+    # --- Step 4: Reconcile per doc_type ---
+    all_mismatches = []
+    doc_type_summary = {}
+    for dt, activity in celigo_by_doctype.items():
+        ns_rows = ns_by_doctype.get(dt, [])
+        is_inbound = activity["direction"] in ("IB", "INB")
+        ns_ok = sum(1 for r in ns_rows if str(r.get("status", "")) == "2")
+        ns_err = len(ns_rows) - ns_ok
+
+        if is_inbound:
+            mismatches = _reconcile_inbound(activity["num_success"], ns_rows, dt)
+        else:
+            mismatches = _reconcile_outbound(activity["num_success"], ns_rows, dt)
+        all_mismatches.extend(mismatches)
+
+        doc_type_summary[dt] = {
+            "direction": "inbound" if is_inbound else "outbound",
+            "celigo_flows": activity["flow_count"],
+            "celigo_jobs": activity["job_count"],
+            "celigo_num_success": activity["num_success"],
+            "ns_records": len(ns_rows),
+            "ns_ok": ns_ok,
+            "ns_errors": ns_err,
+            "mismatches": len(mismatches),
+        }
 
     buckets = {
         "celigo_success_ns_missing": [m for m in all_mismatches
@@ -485,23 +560,35 @@ def run_audit(since: str, until: Optional[str], direction: str,
         "audit_window": {"since": since_iso, "until": until_iso},
         "direction": direction,
         "partner_filter": partner_filter,
-        "integrations_scanned": scanned,
+        "flows_scanned": scanned,
         "total_mismatches": len(all_mismatches),
+        "doc_type_summary": doc_type_summary,
         "buckets": buckets,
     }
 
 
 def _print_human_summary(result: dict) -> None:
     buckets = result.get("buckets", {})
-    print("=" * 60)
+    print("=" * 70)
     print("EDI Cross-System Audit Report")
-    print(f"  Window:   {result['audit_window']['since']} → {result['audit_window']['until']}")
-    print(f"  Partner:  {result.get('partner_filter') or 'all'}")
+    print(f"  Window:    {result['audit_window']['since']} → {result['audit_window']['until']}")
+    print(f"  Partner:   {result.get('partner_filter') or 'all'}")
     print(f"  Direction: {result['direction']}")
-    print(f"  Integrations scanned: {result['integrations_scanned']}")
-    print(f"  Total mismatches:     {result['total_mismatches']}")
-    print("=" * 60)
+    print(f"  Flows scanned: {result.get('flows_scanned', 0)}")
+    print(f"  Total mismatches: {result['total_mismatches']}")
+    print("=" * 70)
 
+    # Per-doc-type activity table
+    doc_summary = result.get("doc_type_summary", {})
+    if doc_summary:
+        print(f"\n{'DocType':<8} {'Dir':<9} {'Celigo Jobs':>11} {'Celigo OK':>10} {'NS Recs':>8} {'NS OK':>6} {'NS Err':>7} {'Flags':>6}")
+        print("-" * 70)
+        for dt in sorted(doc_summary.keys()):
+            s = doc_summary[dt]
+            print(f"{dt:<8} {s['direction']:<9} {s['celigo_jobs']:>11} {s['celigo_num_success']:>10} "
+                  f"{s['ns_records']:>8} {s['ns_ok']:>6} {s['ns_errors']:>7} {s['mismatches']:>6}")
+
+    # Mismatch details
     for bucket, label in [
         ("celigo_success_ns_missing", "Celigo success / NS missing"),
         ("ns_sent_celigo_missing", "NS sent / Celigo missing"),
@@ -511,8 +598,14 @@ def _print_human_summary(result: dict) -> None:
         status = "✓ clean" if not items else f"✗ {len(items)} finding(s)"
         print(f"\n{label}: {status}")
         for item in items:
-            print(f"  - [{item.get('doc_type')}] {item.get('partner')}: "
-                  f"{item.get('type')} — {item.get('note', '')}")
+            exid = item.get("externalid", "")
+            note = item.get("note", "")
+            line = f"  - [{item.get('doc_type')}] {item.get('type')}"
+            if exid:
+                line += f" — {exid}"
+            elif note:
+                line += f" — {note}"
+            print(line)
 
     if result["total_mismatches"] == 0:
         print("\n✓ All EDI records reconcile cleanly.")

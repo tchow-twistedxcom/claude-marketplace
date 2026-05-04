@@ -335,6 +335,22 @@
         "lfg",
         "compound-engineering"
       ]
+    },
+    {
+      "name": "netsuite-oracle-skills",
+      "source": "./plugins/netsuite-oracle-skills",
+      "description": "Oracle's official NetSuite agent skills (vanilla SuiteCloud / SuiteScript reference, vendored from oracle/netsuite-suitecloud-sdk under UPL-1.0)",
+      "version": "1.0.0",
+      "keywords": [
+        "netsuite",
+        "suitescript",
+        "suitecloud",
+        "sdf",
+        "owasp",
+        "records-reference",
+        "uif-spa",
+        "oracle"
+      ]
     }
   ]
 }

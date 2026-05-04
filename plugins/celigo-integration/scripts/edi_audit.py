@@ -250,7 +250,9 @@ def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
                             until_dt: datetime) -> list:
     """Fetch NS EDI History rows for an inbound doc type in the given window."""
     since_ns = _ns_date(since_dt)
-    until_ns = _ns_date(until_dt)
+    # Use exclusive upper bound (next day) so records created on until_dt's date are included.
+    # SuiteQL treats 'MM/DD/YYYY' as midnight, so <= today excludes records created after 00:00.
+    until_exclusive = _ns_date(until_dt + timedelta(days=1))
     sql = (
         f"SELECT h.id, h.externalid, h.custrecord_twx_edi_history_status AS status, "
         f"h.custrecord_twx_edi_history_transaction AS transaction_id, "
@@ -258,7 +260,7 @@ def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
         f"h.created "
         f"FROM customrecord_twx_edi_history h "
         f"WHERE h.custrecord_twx_edi_type = {doc_type_id} "
-        f"AND h.created >= '{since_ns}' AND h.created <= '{until_ns}' "
+        f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
     return _ns_query(sql)
@@ -268,7 +270,7 @@ def _ns_edi_history_outbound(doc_type_id: int, since_dt: datetime,
                              until_dt: datetime) -> list:
     """Fetch NS EDI History rows for an outbound doc type marked sent (status=2)."""
     since_ns = _ns_date(since_dt)
-    until_ns = _ns_date(until_dt)
+    until_exclusive = _ns_date(until_dt + timedelta(days=1))
     sql = (
         f"SELECT h.id, h.externalid, h.custrecord_twx_edi_history_status AS status, "
         f"h.custrecord_twx_edi_history_transaction AS transaction_id, "
@@ -277,7 +279,7 @@ def _ns_edi_history_outbound(doc_type_id: int, since_dt: datetime,
         f"FROM customrecord_twx_edi_history h "
         f"WHERE h.custrecord_twx_edi_type = {doc_type_id} "
         f"AND h.custrecord_twx_edi_history_status = 2 "
-        f"AND h.created >= '{since_ns}' AND h.created <= '{until_ns}' "
+        f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
     return _ns_query(sql)
@@ -579,14 +581,16 @@ def _print_human_summary(result: dict) -> None:
     print("=" * 70)
 
     # Per-doc-type activity table
+    # Celigo 'num_success' counts processed line items (not documents) and is not
+    # directly comparable to NS record counts, so the table shows job/flow counts instead.
     doc_summary = result.get("doc_type_summary", {})
     if doc_summary:
-        print(f"\n{'DocType':<8} {'Dir':<9} {'Celigo Jobs':>11} {'Celigo OK':>10} {'NS Recs':>8} {'NS OK':>6} {'NS Err':>7} {'Flags':>6}")
-        print("-" * 70)
+        print(f"\n{'DocType':<8} {'Dir':<9} {'Flows':>6} {'Jobs':>6} {'NS Records':>11} {'NS OK':>6} {'NS Err':>7} {'Flags':>6}")
+        print("-" * 62)
         for dt in sorted(doc_summary.keys()):
             s = doc_summary[dt]
-            print(f"{dt:<8} {s['direction']:<9} {s['celigo_jobs']:>11} {s['celigo_num_success']:>10} "
-                  f"{s['ns_records']:>8} {s['ns_ok']:>6} {s['ns_errors']:>7} {s['mismatches']:>6}")
+            print(f"{dt:<8} {s['direction']:<9} {s['celigo_flows']:>6} {s['celigo_jobs']:>6} "
+                  f"{s['ns_records']:>11} {s['ns_ok']:>6} {s['ns_errors']:>7} {s['mismatches']:>6}")
 
     # Mismatch details
     for bucket, label in [

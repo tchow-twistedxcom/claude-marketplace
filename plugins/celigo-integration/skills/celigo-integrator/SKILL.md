@@ -1,8 +1,8 @@
 ---
 name: celigo-integrator
-description: "Execute Celigo operations via Python CLI. Full REST API coverage: ~160 operations across 20 resource types."
+description: "Execute Celigo operations via Python CLI. Full REST API coverage: integrations, flows, connections, exports, imports, scripts, jobs, errors, caches, state, EDI profiles, EDI transactions, EDI audit, trading partner connectors, file definitions, Tools, builder-mode APIs, MCP Servers, async helpers, notifications, OPA management, and cross-system EDI reconciliation against NetSuite."
 license: MIT
-version: 3.0.0
+version: 4.0.0
 ---
 
 # Celigo Integrator CLI Skill
@@ -164,14 +164,21 @@ python3 scripts/celigo_api.py caches data <cache_id> --starts-with "ABC"
 | tags | list, get, create, update, delete |
 | users | list, get, update, delete, disable, invite, invite-multiple, reinvite, sso-update |
 | state | list, get, set, delete, list-scoped, get-scoped, set-scoped |
-| filedefinitions | list, get, create, update, delete |
+| filedefinitions | list, get, create, update, delete, dependencies |
 | recyclebin | list, get, restore, delete |
 | audit | list |
 | iclients | list, get, create, update, patch, delete, dependencies |
 | connectors | list, get, create, update, delete, install-base, publish-update, list-licenses, create-license, get-license, update-license, delete-license |
 | processors | parse-xml, parse-csv, generate-csv, generate-structured, parse-structured |
 | templates | list, update |
-| edi | list, get, create, update, patch, delete, update-transactions, query-transactions, fa-details |
+| edi | list, get, create, update, patch, delete, dependencies, update-transactions, update-transaction, download-transaction, query-transactions, fa-details |
+| tools | list, get, create, update, delete, invoke, dependencies |
+| builder-apis | list, get, create, update, delete, deploy, versions |
+| mcp-servers | list, get, create, update, delete, start, stop, status |
+| async | submit, poll, result, wait |
+| notifications | list, get, create, update, delete |
+| opa | list, get, create, update, delete, status, restart |
+| trading-partners | list, get, create, update |
 
 ### Output Formats
 
@@ -302,6 +309,95 @@ python3 scripts/celigo_api.py users disable <share_id>
 python3 scripts/celigo_api.py users reinvite --email user@example.com
 ```
 
+### Workflow 8: EDI Cross-System Audit
+
+```bash
+# Audit last 24 hours (all partners, both directions)
+python3 scripts/edi_audit.py --since 24h
+
+# Audit specific date range, inbound only
+python3 scripts/edi_audit.py \
+  --since "2024-01-01T00:00:00Z" \
+  --until "2024-01-31T23:59:59Z" \
+  --direction inbound
+
+# Filter to one partner, exit non-zero if mismatches found (useful in CI)
+python3 scripts/edi_audit.py --since 24h --partner "ACME" --exit-nonzero-on-mismatch
+
+# JSON output only (no summary table)
+python3 scripts/edi_audit.py --since 7d --json-only | jq '.summary'
+```
+
+**Or use the slash command:**
+```bash
+/celigo-edi-audit
+```
+
+### Workflow 9: OPA (On-Premise Agent) Management
+
+```bash
+# List all OPAs
+python3 scripts/celigo_api.py opa list
+
+# Check if an OPA is connected
+python3 scripts/celigo_api.py opa status <opa_id>
+
+# Restart a disconnected OPA
+python3 scripts/celigo_api.py opa restart <opa_id>
+```
+
+### Workflow 10: Tools & MCP Servers
+
+```bash
+# List custom Tools
+python3 scripts/celigo_api.py tools list
+
+# Invoke a tool
+python3 scripts/celigo_api.py tools invoke <tool_id> --data '{"param": "value"}'
+
+# List MCP server configs
+python3 scripts/celigo_api.py mcp-servers list
+
+# Start/stop an MCP server
+python3 scripts/celigo_api.py mcp-servers start <mcp_id>
+python3 scripts/celigo_api.py mcp-servers status <mcp_id>
+
+# Submit async helper job and wait for result
+python3 scripts/celigo_api.py async submit <helper_id> --data '{"input": "..."}'
+python3 scripts/celigo_api.py async wait <token_id>   # polls until done
+```
+
+### Workflow 11: Trading Partner & EDI Profile Setup
+
+```bash
+# Create EDI profile (X12)
+python3 scripts/celigo_api.py edi create --data '{
+  "name": "ACME X12 Prod",
+  "fileType": "x12",
+  "isa06": "ACMECORP",
+  "isa08": "PARTNERCODE",
+  "gs02": "ACMECORP"
+}'
+
+# Create file definition (850)
+python3 scripts/celigo_api.py filedefinitions create \
+  --data '{"name": "850 Purchase Order", "format": "x12", "documentType": "850", "globalId": "004010850"}'
+
+# Create trading partner connector
+python3 scripts/celigo_api.py trading-partners create --data '{
+  "name": "ACME B2B Connector",
+  "supportedBy": [
+    {"type": "ediProfile", "_id": "<profile_id>"},
+    {"type": "connection",  "_id": "<connection_id>"},
+    {"type": "export",      "_id": "<export_id>"},
+    {"type": "import",      "_id": "<import_id>"}
+  ]
+}'
+
+# Check EDI profile dependencies before deleting
+python3 scripts/celigo_api.py edi dependencies <profile_id>
+```
+
 ## Configuration
 
 The CLI uses configuration from:
@@ -326,6 +422,11 @@ For detailed API documentation, see `references/` directory:
 - connections.md, exports.md, imports.md, jobs.md
 - errors.md, lookup-caches.md, tags.md, users.md
 - state-api.md, file-definitions.md, templates.md
+
+For new resource families (v4.0.0), see `docs/new-resources/`:
+- tools.md, apis.md, mcp-servers.md, async-helpers.md
+- notifications.md, opa.md, edi-profiles.md
+- trading-partner-connectors.md, file-definitions-edi.md
 
 ## Error Sources
 

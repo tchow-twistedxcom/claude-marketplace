@@ -56,18 +56,27 @@ DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 3
 
 # EDI doc type code → NS custrecord_twx_edi_type value
+# Note: some doc types map to multiple NS type IDs depending on partner implementation.
+#   855 uses type=7 for most partners but type=4 for Amazon/Boot Barn/Sheplers.
+#   Unmapped NS types in use: 8 (NXP logistics), 18 (BIG Logistics), 19 (Deal Rise).
 NS_DOC_TYPE_MAP = {
-    "850": 3,   # Purchase Order inbound
-    "856": 5,   # ASN inbound
-    "860": 14,  # PO Change inbound
-    "810": 1,   # Invoice outbound
-    "846": 2,   # Inventory Advice outbound
-    "855": 7,   # PO Acknowledgement outbound
-    "820": 9,   # Payment Order outbound
+    "850": 3,   # Purchase Order (inbound)
+    "856": 5,   # ASN (outbound — we send to retailers)
+    "860": 14,  # PO Change Request (inbound)
+    "810": 1,   # Invoice (outbound)
+    "846": 2,   # Inventory Advice (outbound)
+    "855": 7,   # PO Acknowledgement (outbound); type=4 used by some partners (Amazon, Boot Barn)
+    "820": 9,   # Payment Order/Remittance Advice (inbound from retailers)
+    "824": 13,  # Application Advice/Rejection Notice (inbound)
+    "852": 11,  # Product Activity Data (inbound)
 }
 
-INBOUND_TYPES = frozenset(["850", "856", "860"])
-OUTBOUND_TYPES = frozenset(["810", "846", "855", "820"])
+INBOUND_TYPES = frozenset(["850", "860", "820", "824", "852"])
+OUTBOUND_TYPES = frozenset(["810", "846", "855", "856"])
+
+# NS trading partner field value for Celigo-integrated partners.
+# Partners with int=3 are on TrueCommerce and must be excluded from this audit.
+NS_CELIGO_INT = 6
 
 # Regex to extract partner name + doc type + direction from Celigo FLOW names.
 # Handles two naming conventions used in production:
@@ -254,8 +263,8 @@ def _ns_edi_summary(since_dt: datetime, until_dt: datetime) -> dict:
     Single aggregated query: counts per doc type for the entire window.
     Returns: {str(type_id): {"total": int, "ok": int, "err": int}}
 
-    Much more efficient than per-doc-type queries — NS is the source of truth
-    for what was exchanged, so start here rather than iterating Celigo flows.
+    Joins the trading partner record to filter to Celigo-only (int=NS_CELIGO_INT),
+    excluding TrueCommerce (int=3) and other non-Celigo platforms.
     """
     since_ns = _ns_date(since_dt)
     until_exclusive = _ns_date(until_dt + timedelta(days=1))
@@ -265,7 +274,9 @@ def _ns_edi_summary(since_dt: datetime, until_dt: datetime) -> dict:
         "SUM(CASE WHEN h.custrecord_twx_edi_history_status = 2 THEN 1 ELSE 0 END) AS ok_cnt, "
         "SUM(CASE WHEN h.custrecord_twx_edi_history_status != 2 THEN 1 ELSE 0 END) AS err_cnt "
         "FROM customrecord_twx_edi_history h "
-        f"WHERE h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
+        "JOIN customrecord_twx_edi_tp tp ON tp.id = h.custrecord_twx_eth_edi_tp "
+        f"WHERE tp.custrecord_twx_edi_tp_int = {NS_CELIGO_INT} "
+        f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
         "GROUP BY h.custrecord_twx_edi_type"
     )
     rows = _ns_query(sql)
@@ -282,10 +293,8 @@ def _ns_edi_summary(since_dt: datetime, until_dt: datetime) -> dict:
 
 def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
                             until_dt: datetime) -> list:
-    """Fetch NS EDI History rows for an inbound doc type in the given window."""
+    """Fetch NS EDI History rows for an inbound doc type (Celigo partners only)."""
     since_ns = _ns_date(since_dt)
-    # Use exclusive upper bound (next day) so records created on until_dt's date are included.
-    # SuiteQL treats 'MM/DD/YYYY' as midnight, so <= today excludes records created after 00:00.
     until_exclusive = _ns_date(until_dt + timedelta(days=1))
     sql = (
         f"SELECT h.id, h.externalid, h.custrecord_twx_edi_history_status AS status, "
@@ -293,7 +302,9 @@ def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
         f"h.custrecord_twx_eth_edi_tp AS trading_partner_id, "
         f"h.created "
         f"FROM customrecord_twx_edi_history h "
-        f"WHERE h.custrecord_twx_edi_type = {doc_type_id} "
+        f"JOIN customrecord_twx_edi_tp tp ON tp.id = h.custrecord_twx_eth_edi_tp "
+        f"WHERE tp.custrecord_twx_edi_tp_int = {NS_CELIGO_INT} "
+        f"AND h.custrecord_twx_edi_type = {doc_type_id} "
         f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
@@ -302,7 +313,7 @@ def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
 
 def _ns_edi_history_outbound(doc_type_id: int, since_dt: datetime,
                              until_dt: datetime) -> list:
-    """Fetch NS EDI History rows for an outbound doc type marked sent (status=2)."""
+    """Fetch NS EDI History rows for an outbound doc type marked sent (Celigo partners only)."""
     since_ns = _ns_date(since_dt)
     until_exclusive = _ns_date(until_dt + timedelta(days=1))
     sql = (
@@ -311,7 +322,9 @@ def _ns_edi_history_outbound(doc_type_id: int, since_dt: datetime,
         f"h.custrecord_twx_eth_edi_tp AS trading_partner_id, "
         f"h.created "
         f"FROM customrecord_twx_edi_history h "
-        f"WHERE h.custrecord_twx_edi_type = {doc_type_id} "
+        f"JOIN customrecord_twx_edi_tp tp ON tp.id = h.custrecord_twx_eth_edi_tp "
+        f"WHERE tp.custrecord_twx_edi_tp_int = {NS_CELIGO_INT} "
+        f"AND h.custrecord_twx_edi_type = {doc_type_id} "
         f"AND h.custrecord_twx_edi_history_status = 2 "
         f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"

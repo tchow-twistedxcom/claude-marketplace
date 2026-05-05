@@ -70,10 +70,13 @@ INBOUND_TYPES = frozenset(["850", "856", "860"])
 OUTBOUND_TYPES = frozenset(["810", "846", "855", "820"])
 
 # Regex to extract partner name + doc type + direction from Celigo FLOW names.
-# Actual flow naming: "Amazon Vendor Central - 850 IB - EDI Purchase Order"
-# Matches: "Partner - 850 IB", "Partner - 850 INB", "Partner - 810 OB"
+# Handles two naming conventions used in production:
+#   "Partner - 850 IB - Description"          (minority, no EDI keyword)
+#   "Partner - EDI 850 IB - Description"      (majority, has EDI keyword)
+#   "Partner - EDI 850 - Inbound/Outbound"    (spelled-out direction)
 _EDI_FLOW_RE = re.compile(
-    r"^(?P<partner>.+?)\s*-\s*(?P<doc_type>\d{3})\s+(?P<dir>IB|OB|INB)\b",
+    r"^(?P<partner>.+?)\s*-\s*(?:EDI\s+)?(?P<doc_type>\d{3})\s+"
+    r"(?P<dir>IB|OB|INB|Inbound|Outbound)\b",
     re.IGNORECASE,
 )
 
@@ -246,6 +249,37 @@ def _ns_query(sql: str) -> list:
     return []
 
 
+def _ns_edi_summary(since_dt: datetime, until_dt: datetime) -> dict:
+    """
+    Single aggregated query: counts per doc type for the entire window.
+    Returns: {str(type_id): {"total": int, "ok": int, "err": int}}
+
+    Much more efficient than per-doc-type queries — NS is the source of truth
+    for what was exchanged, so start here rather than iterating Celigo flows.
+    """
+    since_ns = _ns_date(since_dt)
+    until_exclusive = _ns_date(until_dt + timedelta(days=1))
+    sql = (
+        "SELECT h.custrecord_twx_edi_type AS doc_type_id, "
+        "COUNT(*) AS total, "
+        "SUM(CASE WHEN h.custrecord_twx_edi_history_status = 2 THEN 1 ELSE 0 END) AS ok_cnt, "
+        "SUM(CASE WHEN h.custrecord_twx_edi_history_status != 2 THEN 1 ELSE 0 END) AS err_cnt "
+        "FROM customrecord_twx_edi_history h "
+        f"WHERE h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
+        "GROUP BY h.custrecord_twx_edi_type"
+    )
+    rows = _ns_query(sql)
+    result = {}
+    for row in rows:
+        tid = str(row.get("doc_type_id", ""))
+        result[tid] = {
+            "total": int(row.get("total", 0)),
+            "ok": int(row.get("ok_cnt", 0)),
+            "err": int(row.get("err_cnt", 0)),
+        }
+    return result
+
+
 def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
                             until_dt: datetime) -> list:
     """Fetch NS EDI History rows for an inbound doc type in the given window."""
@@ -327,7 +361,8 @@ def _get_edi_flows(api_url: str, api_key: str,
                 continue
             partner = m.group("partner").strip()
             doc_type = m.group("doc_type")
-            direction = m.group("dir").upper()
+            raw_dir = m.group("dir").upper()
+            direction = "IB" if raw_dir in ("IB", "INB", "INBOUND") else "OB"
 
             if partner_filter and partner_filter.lower() not in partner.lower():
                 continue
@@ -459,13 +494,19 @@ def run_audit(since: str, until: Optional[str], direction: str,
         },
     }
 
+    # --- Step 1: NS is the source of truth — one aggregated query for all doc types ---
+    # This tells us exactly what was exchanged in the window without touching Celigo flows.
+    ns_rev_map = {str(v): k for k, v in NS_DOC_TYPE_MAP.items()}  # type_id → doc_type code
+    ns_agg = _ns_edi_summary(since_dt, until_dt)  # {type_id_str: {total, ok, err}}
+
+    # --- Step 2: Celigo flow discovery (needed for cross-validation) ---
+    # Only enumerate flows — jobs are fetched per-integration below.
     edi_flows = _get_edi_flows(api_url, api_key, partner_filter)
-    if not edi_flows:
-        _EMPTY["summary"] = "No matching production EDI flows found."
+    if not edi_flows and not ns_agg:
+        _EMPTY["summary"] = "No EDI activity found in NS and no matching production flows."
         return _EMPTY
 
-    # --- Step 1: Collect jobs per integration (one query per integration) ---
-    # Group flows by integration to minimise API calls
+    # Group flows by integration to minimise Celigo API calls
     intg_flows: dict = {}
     for flow in edi_flows:
         intg_flows.setdefault(flow["_integrationId"], []).append(flow)
@@ -479,22 +520,20 @@ def run_audit(since: str, until: Optional[str], direction: str,
             if fid:
                 jobs_by_flow.setdefault(fid, []).append(job)
 
-    # --- Step 2: Aggregate Celigo activity per doc_type ---
-    # celigo_by_doctype[doc_type] = {"num_success": int, "flow_count": int, "direction": str}
+    # --- Step 3: Aggregate Celigo activity per doc_type ---
     celigo_by_doctype: dict = {}
     scanned = 0
     for flow in edi_flows:
         dt = flow["doc_type"]
-        d = flow["direction"]
-        is_inbound = d in ("IB", "INB")
-        is_outbound = d == "OB"
+        d = flow["direction"]   # normalised to "IB" or "OB"
+        is_inbound = d == "IB"
 
         if direction == "inbound" and not is_inbound:
             continue
-        if direction == "outbound" and not is_outbound:
+        if direction == "outbound" and is_inbound:
             continue
-        if dt not in INBOUND_TYPES and dt not in OUTBOUND_TYPES:
-            continue
+        if dt not in NS_DOC_TYPE_MAP:
+            continue  # no NS record type for this doc type; skip
 
         flow_jobs = jobs_by_flow.get(flow["_id"], [])
         flow_success = sum(j.get("numSuccess", 0) for j in flow_jobs)
@@ -511,41 +550,98 @@ def run_audit(since: str, until: Optional[str], direction: str,
         celigo_by_doctype[dt]["flow_count"] += 1
         celigo_by_doctype[dt]["job_count"] += len(flow_jobs)
 
-    # --- Step 3: Fetch NS data once per needed doc_type ---
-    ns_by_doctype: dict = {}
-    for dt, activity in celigo_by_doctype.items():
-        ns_type_id = NS_DOC_TYPE_MAP.get(dt)
-        if not ns_type_id:
-            continue
-        is_inbound = activity["direction"] in ("IB", "INB")
-        if is_inbound:
-            ns_by_doctype[dt] = _ns_edi_history_inbound(ns_type_id, since_dt, until_dt)
-        else:
-            ns_by_doctype[dt] = _ns_edi_history_outbound(ns_type_id, since_dt, until_dt)
+    # --- Step 4: Build combined doc-type set (NS activity + Celigo activity) ---
+    # Include doc types seen in NS even if no Celigo flows matched (and vice versa).
+    all_doc_types = set(celigo_by_doctype.keys())
+    for type_id_str, counts in ns_agg.items():
+        dt = ns_rev_map.get(type_id_str)
+        if dt:
+            all_doc_types.add(dt)
 
-    # --- Step 4: Reconcile per doc_type ---
+    # Direction filter: only include doc types matching the requested direction
+    def _dt_direction(dt: str) -> str:
+        return "inbound" if dt in INBOUND_TYPES else "outbound"
+
+    # --- Step 5: For 850 (needs per-row SO-link check) and types with NS errors,
+    #             fetch individual rows; otherwise use aggregated counts ---
+    ns_rows_cache: dict = {}  # dt -> list of NS rows (fetched on demand)
+
+    def _get_ns_rows(dt: str, inbound: bool) -> list:
+        if dt not in ns_rows_cache:
+            type_id = NS_DOC_TYPE_MAP.get(dt)
+            if not type_id:
+                ns_rows_cache[dt] = []
+            elif inbound:
+                ns_rows_cache[dt] = _ns_edi_history_inbound(type_id, since_dt, until_dt)
+            else:
+                ns_rows_cache[dt] = _ns_edi_history_outbound(type_id, since_dt, until_dt)
+        return ns_rows_cache[dt]
+
+    # --- Step 6: Reconcile per doc_type ---
     all_mismatches = []
     doc_type_summary = {}
-    for dt, activity in celigo_by_doctype.items():
-        ns_rows = ns_by_doctype.get(dt, [])
-        is_inbound = activity["direction"] in ("IB", "INB")
-        ns_ok = sum(1 for r in ns_rows if str(r.get("status", "")) == "2")
-        ns_err = len(ns_rows) - ns_ok
+    for dt in sorted(all_doc_types):
+        type_id_str = str(NS_DOC_TYPE_MAP.get(dt, ""))
+        ns_counts = ns_agg.get(type_id_str, {"total": 0, "ok": 0, "err": 0})
 
-        if is_inbound:
-            mismatches = _reconcile_inbound(activity["num_success"], ns_rows, dt)
+        # Direction: use actual flow data when available; fall back to type classification.
+        # Celigo flows are the ground truth (e.g. 856 is OB for us even though the spec
+        # allows both directions).
+        if dt in celigo_by_doctype:
+            actual_dir = celigo_by_doctype[dt]["direction"]   # "IB" or "OB"
         else:
-            mismatches = _reconcile_outbound(activity["num_success"], ns_rows, dt)
-        all_mismatches.extend(mismatches)
+            actual_dir = "IB" if dt in INBOUND_TYPES else "OB"
+        is_inbound = actual_dir == "IB"
+        dir_label = "inbound" if is_inbound else "outbound"
 
+        activity = celigo_by_doctype.get(dt, {
+            "num_success": 0, "flow_count": 0, "job_count": 0, "direction": actual_dir,
+        })
+
+        if direction == "inbound" and not is_inbound:
+            continue
+        if direction == "outbound" and is_inbound:
+            continue
+
+        # Fetch per-row detail only when needed for deep reconciliation:
+        #   - 850: check each row's transaction_id (SO-link audit)
+        #   - any type with NS errors: surface the individual failed rows
+        if dt == "850" or ns_counts["err"] > 0:
+            ns_rows = _get_ns_rows(dt, is_inbound)
+            mismatches = (_reconcile_inbound(activity["num_success"], ns_rows, dt)
+                          if is_inbound
+                          else _reconcile_outbound(activity["num_success"], ns_rows, dt))
+        else:
+            # Use aggregate counts only — no per-row fetch needed
+            mismatches = []
+            if is_inbound and activity["num_success"] > 0 and ns_counts["total"] == 0:
+                mismatches.append({
+                    "bucket": "celigo_success_ns_missing",
+                    "type": "no_ns_records",
+                    "doc_type": dt,
+                    "celigo_num_success": activity["num_success"],
+                    "ns_record_count": 0,
+                    "note": f"Celigo processed {activity['num_success']} record(s) but NS has no {dt} history in window",
+                })
+            elif not is_inbound and ns_counts["ok"] > 0 and activity["job_count"] == 0:
+                mismatches.append({
+                    "bucket": "ns_sent_celigo_missing",
+                    "type": "no_celigo_activity",
+                    "doc_type": dt,
+                    "ns_sent_count": ns_counts["ok"],
+                    "celigo_num_success": 0,
+                    "note": f"NS has {ns_counts['ok']} sent {dt} record(s) but Celigo ran 0 jobs",
+                })
+
+        all_mismatches.extend(mismatches)
         doc_type_summary[dt] = {
-            "direction": "inbound" if is_inbound else "outbound",
+            "direction": dir_label,
             "celigo_flows": activity["flow_count"],
             "celigo_jobs": activity["job_count"],
             "celigo_num_success": activity["num_success"],
-            "ns_records": len(ns_rows),
-            "ns_ok": ns_ok,
-            "ns_errors": ns_err,
+            "ns_records": ns_counts["total"],
+            "ns_ok": ns_counts["ok"],
+            "ns_errors": ns_counts["err"],
             "mismatches": len(mismatches),
         }
 

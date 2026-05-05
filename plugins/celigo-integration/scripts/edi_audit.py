@@ -58,20 +58,22 @@ MAX_RETRIES = 3
 # EDI doc type code → NS custrecord_twx_edi_type value
 # Note: some doc types map to multiple NS type IDs depending on partner implementation.
 #   855 uses type=7 for most partners but type=4 for Amazon/Boot Barn/Sheplers.
-#   Unmapped NS types in use: 8 (NXP logistics), 18 (BIG Logistics), 19 (Deal Rise).
+#   NS type=9 is 945 (NXP Warehouse Shipping Advice), not 820 — 945s arrive via a direct
+#   RESTlet path, not Celigo flows, so they are intentionally excluded from this audit.
+#   NS type=8 is 940 (NXP Warehouse Shipping Order); also not routed through Celigo.
+#   997 (Functional ACK), 812 (Credit/Debit), 864 (Text Message) have no NS history type.
 NS_DOC_TYPE_MAP = {
     "850": 3,   # Purchase Order (inbound)
     "856": 5,   # ASN (outbound — we send to retailers)
     "860": 14,  # PO Change Request (inbound)
     "810": 1,   # Invoice (outbound)
     "846": 2,   # Inventory Advice (outbound)
-    "855": 7,   # PO Acknowledgement (outbound); type=4 used by some partners (Amazon, Boot Barn)
-    "820": 9,   # Payment Order/Remittance Advice (inbound from retailers)
+    "855": 7,   # PO Acknowledgement (outbound); type=4 also used by some partners
     "824": 13,  # Application Advice/Rejection Notice (inbound)
     "852": 11,  # Product Activity Data (inbound)
 }
 
-INBOUND_TYPES = frozenset(["850", "860", "820", "824", "852"])
+INBOUND_TYPES = frozenset(["850", "860", "824", "852"])
 OUTBOUND_TYPES = frozenset(["810", "846", "855", "856"])
 
 # NS trading partner field value for Celigo-integrated partners.

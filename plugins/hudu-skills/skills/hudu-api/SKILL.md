@@ -122,38 +122,42 @@ python3 scripts/hudu_api.py activity-logs list --resource-type Company --start-d
 
 ### Upsert (layout-aware, works for any asset layout)
 ```bash
-# Discover field slugs for a layout
-python3 scripts/hudu_api.py upsert "Software License" --describe
+# Discover field slugs for a layout (shows allowed values for dropdowns)
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" --describe
 
 # Dry-run upsert (safe preview — no API write)
-python3 scripts/hudu_api.py upsert "Software License" \
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" \
   --company "Acme Corp" \
-  --vendor "Microsoft 365" \
+  --name "Microsoft 365" \
   --license-id "ABC-123" \
-  --seats 50 \
+  --license-seats "50" \
+  --category "ERP" \
   --dry-run
 
 # Live upsert
-python3 scripts/hudu_api.py upsert "Software License" \
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" \
   --company "Acme Corp" \
-  --vendor "Microsoft 365" \
+  --name "Microsoft 365" \
   --license-id "ABC-123" \
-  --seats 50
+  --license-seats "50" \
+  --category "ERP"
 
-# Vendor contract
-python3 scripts/hudu_api.py upsert "Vendor Contract" \
+# With renewal date and importance
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" \
   --company "Acme Corp" \
-  --vendor "Cloudflare" \
-  --renewal-date "2027-01-01" \
+  --name "Cloudflare Enterprise" \
+  --expiration-renewal-date "2027-01-01" \
+  --category "Other" \
+  --importance "High" \
   --dry-run
 
 # Add custom fields not covered by named flags (--field escape hatch)
-python3 scripts/hudu_api.py upsert "Software License" \
-  --company "Acme" --vendor "Zoom" \
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" \
+  --company "Acme" --name "Zoom" \
   --field po-number="PO-2026-0042"
 
 # Refresh stale schema cache
-python3 scripts/hudu_api.py upsert "Software License" --refresh-schema --describe
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" --refresh-schema --describe
 ```
 
 **Upsert semantics:**
@@ -162,8 +166,7 @@ python3 scripts/hudu_api.py upsert "Software License" --refresh-schema --describ
 - 2+ matches → fail with candidate list; add `--asset-id <id>` to disambiguate
 
 Default match keys (from `config/layout-defaults.json`):
-- `Software License` → `license-id` (falls back to `name`)
-- `Vendor Contract` → `vendor`
+- `Contracts / Licenses` → `license-id` (falls back to `name`)
 - Any other layout → `name`
 
 Override per-call: `--match-on slug1,slug2`

@@ -1,6 +1,4 @@
 {
-  "Software License": ["license-id"],
-  "Vendor Contract": ["vendor"],
   "Contracts / Licenses": ["license-id"],
   "Applications": ["name"]
 }

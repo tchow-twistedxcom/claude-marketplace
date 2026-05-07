@@ -27,15 +27,17 @@
     {
       "name": "celigo-integration",
       "source": "./plugins/celigo-integration",
-      "description": "Celigo iPaaS integration via Python CLI - ~160 operations across 20 resource types with full REST API coverage",
-      "version": "3.0.0",
+      "description": "Celigo iPaaS integration via Python CLI - ~170 operations across 27 resource types with full REST API coverage including EDI profiles, trading partner connectors, Tools, MCP Servers, OPA management, async helpers, and cross-system EDI audit against NetSuite",
+      "version": "4.0.0",
       "keywords": [
         "celigo",
         "integration",
         "etl",
         "data-sync",
         "workflow",
-        "iPaaS"
+        "iPaaS",
+        "edi",
+        "opa"
       ]
     },
     {
@@ -318,9 +320,9 @@
     {
       "name": "hudu-skills",
       "source": "./plugins/hudu-skills",
-      "description": "Hudu IT documentation platform REST API integration. Full CRUD for companies, KB articles, assets, asset layouts, passwords, procedures, and websites. Read access to users, networks, folders, and activity logs.",
-      "version": "1.0.0",
-      "keywords": ["hudu", "msp", "documentation", "assets", "passwords", "procedures", "knowledge-base"]
+      "description": "Hudu IT documentation platform REST API integration. Full CRUD for companies, KB articles, assets, asset layouts, passwords, procedures, and websites. Layout-aware upsert primitive with schema introspection, dry-run, duplicate detection, and custom-field mapping for any asset layout (contracts, licenses, vendors, hardware, etc.). Read access to users, networks, folders, expirations, and activity logs.",
+      "version": "1.1.0",
+      "keywords": ["hudu", "msp", "documentation", "assets", "passwords", "procedures", "knowledge-base", "upsert", "licenses", "contracts"]
     },
     {
       "name": "codex-workflows",

@@ -1,7 +1,7 @@
 {
   "name": "celigo-integration",
-  "version": "3.0.0",
-  "description": "Celigo iPaaS integration via Python CLI - ~160 operations across 20 resource types with full REST API coverage including PATCH, clone, invoke, state, recycle bin, EDI, connectors, and processors",
+  "version": "4.0.0",
+  "description": "Celigo iPaaS integration via Python CLI - ~170 operations across 27 resource types: integrations, flows, connections, jobs, errors, state, EDI profiles, trading partner connectors, file definitions, Tools, builder-mode APIs, MCP Servers, async helpers, notifications, OPA management, and cross-system EDI audit against NetSuite",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"
@@ -9,10 +9,11 @@
   "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
   "license": "MIT",
-  "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "automation", "iPaaS", "cli"],
+  "keywords": ["celigo", "integration", "etl", "data-sync", "workflow", "automation", "iPaaS", "cli", "edi", "opa"],
   "commands": [
     "./commands/celigo-setup.md",
-    "./commands/celigo-manage.md"
+    "./commands/celigo-manage.md",
+    "./commands/celigo-edi-audit.md"
   ],
   "skills": [
     "./skills/celigo-integration-patterns",

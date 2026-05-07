@@ -26,15 +26,15 @@ All list endpoints support `?page=N&page_size=M` (max 100 per page).
 | Articles | DELETE | `/articles/{id}` | |
 | Articles | PUT | `/articles/{id}/archive` | |
 | Assets | GET | `/assets` | `?company_id=`, `?asset_layout_id=`, `?name=`, `?search=`, `?archived=`; no standalone `/assets/{id}` — use `?id=` filter |
-| Assets | POST | `/companies/{company_id}/assets` | Body: `{"asset": {"name","asset_layout_id"}}` |
-| Assets | GET | `/companies/{company_id}/assets/{id}` | |
-| Assets | PUT | `/companies/{company_id}/assets/{id}` | |
+| Assets | POST | `/companies/{company_id}/assets` | Body: `{"asset": {"name","asset_layout_id","custom_fields":[{"label","value"},...]}}` |
+| Assets | GET | `/companies/{company_id}/assets/{id}` | Response includes `custom_fields` array with `label`, `value`, `field_type` |
+| Assets | PUT | `/companies/{company_id}/assets/{id}` | Full body; always send merged `custom_fields` to avoid dropping existing fields |
 | Assets | DELETE | `/companies/{company_id}/assets/{id}` | |
 | Assets | PUT | `/companies/{company_id}/assets/{id}/archive` | |
 | Asset Layouts | GET | `/asset_layouts` | `?search=` |
-| Asset Layouts | GET | `/asset_layouts/{id}` | |
-| Asset Layouts | POST | `/asset_layouts` | Body: `{"asset_layout": {...}}` |
-| Asset Layouts | PUT | `/asset_layouts/{id}` | |
+| Asset Layouts | GET | `/asset_layouts/{id}` | Response includes `fields` array with `label`, `field_type`, `required` |
+| Asset Layouts | POST | `/asset_layouts` | Body: `{"asset_layout": {"name": ..., "fields": [{"label","field_type","required",...}]}}` |
+| Asset Layouts | PUT | `/asset_layouts/{id}` | Full-replace body |
 | Asset Passwords | GET | `/asset_passwords` | `?company_id=`, `?name=`, `?search=` |
 | Asset Passwords | GET | `/asset_passwords/{id}` | |
 | Asset Passwords | POST | `/asset_passwords` | Body: `{"asset_password": {"name","company_id","password"}}` |
@@ -56,4 +56,5 @@ All list endpoints support `?page=N&page_size=M` (max 100 per page).
 | Users | GET | `/users/{id}` | |
 | Folders | GET | `/folders` | `?company_id=`, `?search=` |
 | Folders | GET | `/folders/{id}` | |
+| Expirations | GET | `/expirations` | `?company_id=`, `?expiration_type=`, `?search=`, `?page=`, `?page_size=` |
 | Activity Logs | GET | `/activity_logs` | `?user_id=`, `?resource_type=`, `?resource_id=`, `?start_date=`, `?end_date=` |

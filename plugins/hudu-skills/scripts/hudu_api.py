@@ -80,7 +80,15 @@ def _load_layout_schema(client, layout_name_or_id, refresh=False, ttl=None):
         age = time.time() - cache_path.stat().st_mtime
         if age < ttl:
             with open(cache_path) as f:
-                return json.load(f)
+                cached = json.load(f)
+            # Guard against layout ID reuse: if requested by name, verify the cached
+            # layout name still matches. A mismatch means the cache is stale post-delete.
+            if (isinstance(layout_name_or_id, str)
+                    and not layout_name_or_id.lstrip("-").isdigit()
+                    and cached.get("name", "").lower() != layout_name_or_id.lower()):
+                pass  # fall through to re-fetch
+            else:
+                return cached
 
     fresh = client.get_asset_layout(layout_id)
     with open(cache_path, "w") as f:
@@ -99,19 +107,19 @@ def _label_for_slug(schema_fields, slug):
 def _resolve_json_input(args) -> dict:
     """Merge JSON data from --file and --data flags. --file wins on key conflicts."""
     data = {}
+    if getattr(args, "data", None):
+        try:
+            data = json.loads(args.data)
+        except json.JSONDecodeError as e:
+            sys.exit(f"Invalid JSON in --data: {e}")
     if getattr(args, "file", None):
         try:
             with open(args.file) as f:
-                data = json.load(f)
+                data.update(json.load(f))  # --file overrides --data on key conflicts
         except FileNotFoundError:
             sys.exit(f"File not found: {args.file}")
         except json.JSONDecodeError as e:
             sys.exit(f"Invalid JSON in --file: {e}")
-    if getattr(args, "data", None):
-        try:
-            data.update(json.loads(args.data))
-        except json.JSONDecodeError as e:
-            sys.exit(f"Invalid JSON in --data: {e}")
     return data
 
 
@@ -152,22 +160,32 @@ def _build_label_value_map(args1, args2, schema_fields):
 def _build_fields_payload(schema_fields, lv_map):
     """Convert {label: value} map → API format [{asset_layout_field_id, value}]."""
     field_id_map = {f["label"]: f["id"] for f in schema_fields}
-    return [
-        {"asset_layout_field_id": field_id_map[label],
-         "value": str(value) if value is not None else ""}
-        for label, value in lv_map.items()
-        if label in field_id_map
-    ]
+    result = []
+    for label, value in lv_map.items():
+        if label not in field_id_map:
+            continue
+        if isinstance(value, bool):
+            str_val = "true" if value else "false"
+        elif value is None:
+            str_val = ""
+        else:
+            str_val = str(value)
+        result.append({"asset_layout_field_id": field_id_map[label], "value": str_val})
+    return result
 
 
 def _merge_label_value_maps(existing_asset_fields, new_lv_map):
-    """Merge new {label: value} into existing asset fields, preserving untouched fields."""
+    """Merge new {label: value} into existing asset fields, preserving untouched fields.
+
+    Null-valued existing fields are kept as "" so they remain present in the PUT payload.
+    Absent fields are not added — only fields the layout already knows about are preserved.
+    """
     merged = {}
     for f in (existing_asset_fields or []):
         label = f.get("label")
-        val = f.get("value")
-        if label and val is not None:
-            merged[label] = val
+        if label is not None:
+            val = f.get("value")
+            merged[label] = val if val is not None else ""
     merged.update(new_lv_map)
     return merged
 
@@ -424,6 +442,9 @@ def cmd_upsert_do(client, args1, args2, schema):
         for v in lv_map.values():
             if v:
                 asset_name = str(v)
+                print(f"Warning: no vendor/product/match-slug found; using first field "
+                      f"value as asset name: {asset_name!r}. Use --name to set explicitly.",
+                      file=sys.stderr)
                 break
     if not asset_name:
         sys.exit("Cannot determine asset name. Provide --name <name>, --vendor <name>, "
@@ -465,7 +486,12 @@ def cmd_upsert_do(client, args1, args2, schema):
     else:
         print(f"Ambiguous: {len(candidates)} matching assets found. "
               f"Use --asset-id to specify one:")
-        for a in candidates[:8]:
+        display_list = candidates[:8]
+        # list_assets returns fields: null — fetch full records for meaningful display
+        if any(a.get("fields") is None for a in display_list):
+            display_list = [client.get_asset(a["id"], company_id) or a
+                            for a in display_list]
+        for a in display_list:
             cf_preview = {_slug_for_label(f["label"]): f.get("value")
                           for f in a.get("fields", [])[:3]}
             print(f"  ID={a['id']} name={a.get('name')!r} fields={cf_preview}")

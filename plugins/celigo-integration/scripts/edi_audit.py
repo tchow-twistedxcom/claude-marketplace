@@ -160,7 +160,11 @@ def _midnight_local(date_offset: int, tz_name: str) -> datetime:
     """Return midnight (start of day) offset days from today in the given timezone as UTC."""
     tz = _get_tz(tz_name)
     if tz is None:
-        # Fall back to UTC midnight
+        import sys as _sys
+        _sys.stderr.write(
+            f"WARNING: zoneinfo unavailable; --tz {tz_name!r} ignored, falling back to UTC. "
+            "Install 'backports.zoneinfo' on Python < 3.9 for accurate local-midnight dates.\n"
+        )
         base = _now_utc().replace(hour=0, minute=0, second=0, microsecond=0)
         return base + timedelta(days=date_offset)
     now_local = datetime.now(tz)
@@ -399,7 +403,15 @@ def _ns_edi_history_inbound(doc_type_ids: tuple, since_dt: datetime,
         f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
-    return _ns_query(sql)
+    rows = _ns_query(sql)
+    if len(rows) == 1000:
+        import sys as _sys
+        _sys.stderr.write(
+            f"WARNING: NS inbound detail query returned exactly 1000 rows for type IDs "
+            f"{doc_type_ids}; results may be truncated. Narrow the time window to get "
+            "accurate reconciliation.\n"
+        )
+    return rows
 
 
 def _ns_edi_history_outbound(doc_type_ids: tuple, since_dt: datetime,
@@ -424,7 +436,15 @@ def _ns_edi_history_outbound(doc_type_ids: tuple, since_dt: datetime,
         f"AND h.custrecord_twx_edi_history_dat < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
-    return _ns_query(sql)
+    rows = _ns_query(sql)
+    if len(rows) == 1000:
+        import sys as _sys
+        _sys.stderr.write(
+            f"WARNING: NS outbound detail query returned exactly 1000 rows for type IDs "
+            f"{doc_type_ids}; results may be truncated. Narrow the time window to get "
+            "accurate reconciliation.\n"
+        )
+    return rows
 
 
 def _extract_po_from_externalid(externalid: str) -> Optional[str]:

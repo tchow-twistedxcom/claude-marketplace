@@ -10,16 +10,17 @@ Inbound leg (850/856/860):
   customrecord_twx_edi_history row exists in NetSuite with status=2 (success)
   and (for 850) a non-null transaction link.
 
-Outbound leg (810/846/855/820):
+Outbound leg (810/846/855/856):
   For each NetSuite EDI History row with status=2 (sent) on outbound doc types,
   verify a corresponding successful Celigo job exists in the same window.
 
 Output: structured JSON + human-readable summary (three failure buckets).
 
 Usage:
-    python3 edi_audit.py [--since 24h] [--until now] [--partner NAME]
-                         [--direction inbound|outbound|both]
-                         [--json-only] [--exit-nonzero-on-mismatch]
+    python3 edi_audit.py [--since 24h|today|yesterday] [--until now|today]
+                         [--partner NAME] [--direction inbound|outbound|both]
+                         [--tz America/Chicago] [--json-only]
+                         [--exit-nonzero-on-mismatch]
 
 Exit codes:
     0  No mismatches (or --exit-nonzero-on-mismatch not set)
@@ -40,6 +41,14 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    try:
+        from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
+    except ImportError:
+        ZoneInfo = None  # type: ignore[assignment,misc]
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -54,26 +63,57 @@ NS_ENVIRONMENT = "production"
 
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 3
+DEFAULT_TZ = "America/Chicago"
 
-# EDI doc type code → NS custrecord_twx_edi_type value
-# Note: some doc types map to multiple NS type IDs depending on partner implementation.
-#   855 uses type=7 for most partners but type=4 for Amazon/Boot Barn/Sheplers.
-#   NS type=9 is 945 (NXP Warehouse Shipping Advice), not 820 — 945s arrive via a direct
-#   RESTlet path, not Celigo flows, so they are intentionally excluded from this audit.
-#   NS type=8 is 940 (NXP Warehouse Shipping Order); also not routed through Celigo.
-#   997 (Functional ACK), 812 (Credit/Debit), 864 (Text Message) have no NS history type.
+# EDI doc type code → tuple of NS custrecord_twx_edi_type internal IDs.
+# Multiple type IDs per doc type are supported (counts merged in reconciliation).
+#
+# Authoritative source: SELECT id, name FROM CUSTOMLIST_TWX_EDI_DOCUMENTS ORDER BY id
+#   id=1   810 - Invoice
+#   id=2   846 - Inventory Advice
+#   id=3   850 - Purchase Order
+#   id=4   855 - Purchase Order Acknowledgement
+#   id=5   856 - Advance Ship Notice
+#   id=6   860 - Purchase Order Change Request
+#   id=7   864 - Text Message
+#   id=8   940 - Warehouse Shipping Order         (NXP only, no Celigo flows)
+#   id=9   945 - Warehouse Shipping Advice        (NXP only, no Celigo flows)
+#   id=10  870 - Order Status Report              (no Celigo flows)
+#   id=11  852 - Product Activity Data
+#   id=12  812 - Credit/Debit Adjustment
+#   id=13  824 - Application Advice
+#   id=14  943 - Warehouse Stock Transfer Shipment Advice  (NXP only)
+#   id=15  944 - Warehouse Stock Transfer Receipt Advice   (NXP only)
+#   id=16  820 - Remittance Advice
+#   id=17  940 V2                                 (NXP only, inactive)
+#   id=18  BIG CSV IF Order                       (non-EDI CSV, no standard flows)
+#   id=19  Inventory Feed CSV                     (non-EDI CSV, no standard flows)
+#   id=20  816 - Organizational Relationships     (no Celigo flows)
+#
+# 997 (Functional Acknowledgement) has no list entry: 997 Celigo flows update the
+# FA status field on existing EDI TH records — they do not create new records.
+#
+# NXP types (8,9,14,15,17), non-EDI CSV types (18,19), and types with no active
+# Celigo flows (10,20) are intentionally absent from this map.
+#
+# 820 note: the only enabled Celigo 820 flow is Buckle, whose NS trading partner
+# is tagged TrueCommerce (int=3) — those records are excluded by the int=6 filter,
+# so 820 will typically show ns_records=0 in this audit.
 NS_DOC_TYPE_MAP = {
-    "850": 3,   # Purchase Order (inbound)
-    "856": 5,   # ASN (outbound — we send to retailers)
-    "860": 14,  # PO Change Request (inbound)
-    "810": 1,   # Invoice (outbound)
-    "846": 2,   # Inventory Advice (outbound)
-    "855": 7,   # PO Acknowledgement (outbound); type=4 also used by some partners
-    "824": 13,  # Application Advice/Rejection Notice (inbound)
-    "852": 11,  # Product Activity Data (inbound)
+    "810": (1,),   # Invoice (outbound)
+    "812": (12,),  # Credit/Debit Adjustment (inbound) — Buckle, Rural King
+    "820": (16,),  # Remittance Advice (inbound) — Buckle (TrueCommerce in NS, see note)
+    "824": (13,),  # Application Advice (inbound)
+    "846": (2,),   # Inventory Advice (outbound)
+    "850": (3,),   # Purchase Order (inbound)
+    "852": (11,),  # Product Activity Data (inbound)
+    "855": (4,),   # PO Acknowledgement (outbound)
+    "856": (5,),   # ASN (outbound)
+    "860": (6,),   # PO Change Request (inbound)
+    "864": (7,),   # Text Message (inbound) — Boot Barn, Shoe Carnival
 }
 
-INBOUND_TYPES = frozenset(["850", "860", "824", "852"])
+INBOUND_TYPES = frozenset(["850", "812", "820", "824", "852", "860", "864"])
 OUTBOUND_TYPES = frozenset(["810", "846", "855", "856"])
 
 # NS trading partner field value for Celigo-integrated partners.
@@ -106,11 +146,48 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _parse_since(value: str) -> datetime:
-    """Parse a relative (e.g. '24h', '7d') or ISO 8601 timestamp into datetime."""
+def _get_tz(tz_name: str):
+    """Return a ZoneInfo object, or None if zoneinfo is unavailable."""
+    if ZoneInfo is None:
+        return None
+    try:
+        return ZoneInfo(tz_name)
+    except Exception:
+        return None
+
+
+def _midnight_local(date_offset: int, tz_name: str) -> datetime:
+    """Return midnight (start of day) offset days from today in the given timezone as UTC."""
+    tz = _get_tz(tz_name)
+    if tz is None:
+        # Fall back to UTC midnight
+        base = _now_utc().replace(hour=0, minute=0, second=0, microsecond=0)
+        return base + timedelta(days=date_offset)
+    now_local = datetime.now(tz)
+    target_date = (now_local + timedelta(days=date_offset)).date()
+    midnight_local = datetime(target_date.year, target_date.month, target_date.day, tzinfo=tz)
+    return midnight_local.astimezone(timezone.utc)
+
+
+def _format_local(dt: datetime, tz_name: str) -> str:
+    """Format a UTC datetime as a human-readable string in the given timezone."""
+    tz = _get_tz(tz_name)
+    if tz is None:
+        return dt.strftime("%Y-%m-%d %H:%M UTC")
+    local = dt.astimezone(tz)
+    return local.strftime("%Y-%m-%d %H:%M %Z")
+
+
+def _parse_since(value: str, tz_name: str = DEFAULT_TZ) -> datetime:
+    """Parse a relative (e.g. '24h', '7d'), keyword (today/yesterday), or ISO 8601 timestamp."""
     if not value:
         return _now_utc() - timedelta(hours=24)
-    m = re.match(r"^(\d+)(h|d|m)$", value.strip().lower())
+    v = value.strip().lower()
+    if v == "today":
+        return _midnight_local(0, tz_name)
+    if v == "yesterday":
+        return _midnight_local(-1, tz_name)
+    m = re.match(r"^(\d+)(h|d|m)$", v)
     if m:
         n, unit = int(m.group(1)), m.group(2)
         delta = timedelta(hours=n) if unit == "h" else (timedelta(days=n) if unit == "d" else timedelta(minutes=n))
@@ -118,9 +195,15 @@ def _parse_since(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
-def _parse_until(value: Optional[str]) -> datetime:
+def _parse_until(value: Optional[str], tz_name: str = DEFAULT_TZ) -> datetime:
     if not value:
         return _now_utc()
+    v = value.strip().lower()
+    if v == "today":
+        # End of today = start of tomorrow
+        return _midnight_local(1, tz_name)
+    if v == "yesterday":
+        return _midnight_local(0, tz_name)
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
@@ -267,9 +350,13 @@ def _ns_edi_summary(since_dt: datetime, until_dt: datetime) -> dict:
 
     Joins the trading partner record to filter to Celigo-only (int=NS_CELIGO_INT),
     excluding TrueCommerce (int=3) and other non-Celigo platforms.
+
+    Uses COALESCE(custrecord_twx_edi_history_dat, created) so outbound records are
+    bucketed by actual transmission date while inbound records (where dat is null)
+    fall back to their creation date.
     """
     since_ns = _ns_date(since_dt)
-    until_exclusive = _ns_date(until_dt + timedelta(days=1))
+    until_exclusive = _ns_date(until_dt)
     sql = (
         "SELECT h.custrecord_twx_edi_type AS doc_type_id, "
         "COUNT(*) AS total, "
@@ -278,7 +365,8 @@ def _ns_edi_summary(since_dt: datetime, until_dt: datetime) -> dict:
         "FROM customrecord_twx_edi_history h "
         "JOIN customrecord_twx_edi_tp tp ON tp.id = h.custrecord_twx_eth_edi_tp "
         f"WHERE tp.custrecord_twx_edi_tp_int = {NS_CELIGO_INT} "
-        f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
+        f"AND COALESCE(h.custrecord_twx_edi_history_dat, h.created) >= '{since_ns}' "
+        f"AND COALESCE(h.custrecord_twx_edi_history_dat, h.created) < '{until_exclusive}' "
         "GROUP BY h.custrecord_twx_edi_type"
     )
     rows = _ns_query(sql)
@@ -293,11 +381,12 @@ def _ns_edi_summary(since_dt: datetime, until_dt: datetime) -> dict:
     return result
 
 
-def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
+def _ns_edi_history_inbound(doc_type_ids: tuple, since_dt: datetime,
                             until_dt: datetime) -> list:
     """Fetch NS EDI History rows for an inbound doc type (Celigo partners only)."""
     since_ns = _ns_date(since_dt)
-    until_exclusive = _ns_date(until_dt + timedelta(days=1))
+    until_exclusive = _ns_date(until_dt)
+    type_id_sql = ",".join(str(i) for i in doc_type_ids)
     sql = (
         f"SELECT h.id, h.externalid, h.custrecord_twx_edi_history_status AS status, "
         f"h.custrecord_twx_edi_history_transaction AS transaction_id, "
@@ -306,29 +395,33 @@ def _ns_edi_history_inbound(doc_type_id: int, since_dt: datetime,
         f"FROM customrecord_twx_edi_history h "
         f"JOIN customrecord_twx_edi_tp tp ON tp.id = h.custrecord_twx_eth_edi_tp "
         f"WHERE tp.custrecord_twx_edi_tp_int = {NS_CELIGO_INT} "
-        f"AND h.custrecord_twx_edi_type = {doc_type_id} "
+        f"AND h.custrecord_twx_edi_type IN ({type_id_sql}) "
         f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
     return _ns_query(sql)
 
 
-def _ns_edi_history_outbound(doc_type_id: int, since_dt: datetime,
+def _ns_edi_history_outbound(doc_type_ids: tuple, since_dt: datetime,
                              until_dt: datetime) -> list:
-    """Fetch NS EDI History rows for an outbound doc type marked sent (Celigo partners only)."""
+    """Fetch NS EDI History rows for an outbound doc type marked sent (Celigo partners only).
+    Filters by custrecord_twx_edi_history_dat (actual transmission date/time).
+    """
     since_ns = _ns_date(since_dt)
-    until_exclusive = _ns_date(until_dt + timedelta(days=1))
+    until_exclusive = _ns_date(until_dt)
+    type_id_sql = ",".join(str(i) for i in doc_type_ids)
     sql = (
         f"SELECT h.id, h.externalid, h.custrecord_twx_edi_history_status AS status, "
         f"h.custrecord_twx_edi_history_transaction AS transaction_id, "
         f"h.custrecord_twx_eth_edi_tp AS trading_partner_id, "
-        f"h.created "
+        f"h.custrecord_twx_edi_history_dat AS transmitted_at "
         f"FROM customrecord_twx_edi_history h "
         f"JOIN customrecord_twx_edi_tp tp ON tp.id = h.custrecord_twx_eth_edi_tp "
         f"WHERE tp.custrecord_twx_edi_tp_int = {NS_CELIGO_INT} "
-        f"AND h.custrecord_twx_edi_type = {doc_type_id} "
+        f"AND h.custrecord_twx_edi_type IN ({type_id_sql}) "
         f"AND h.custrecord_twx_edi_history_status = 2 "
-        f"AND h.created >= '{since_ns}' AND h.created < '{until_exclusive}' "
+        f"AND h.custrecord_twx_edi_history_dat >= '{since_ns}' "
+        f"AND h.custrecord_twx_edi_history_dat < '{until_exclusive}' "
         f"FETCH FIRST 1000 ROWS ONLY"
     )
     return _ns_query(sql)
@@ -412,10 +505,10 @@ def _get_jobs_for_integration(api_url: str, api_key: str,
 # Reconciliation logic
 # ---------------------------------------------------------------------------
 
-def _reconcile_inbound(celigo_num_success: int, ns_rows: list,
+def _reconcile_inbound(celigo_docs: int, ns_rows: list,
                        doc_type: str) -> list:
     """
-    Compare Celigo activity (sum numSuccess) against NS EDI History rows for a doc type.
+    Compare Celigo EDI document count (numPagesGenerated) against NS EDI History rows.
     Flags NS processing failures, 850s without linked SOs, and Celigo-only activity.
     """
     mismatches = []
@@ -447,21 +540,21 @@ def _reconcile_inbound(celigo_num_success: int, ns_rows: list,
                     "created": row.get("created"),
                 })
 
-    # Celigo processed records but NS has nothing in the window
-    if celigo_num_success > 0 and len(ns_rows) == 0:
+    # Celigo processed EDI docs but NS has nothing in the window
+    if celigo_docs > 0 and len(ns_rows) == 0:
         mismatches.append({
             "bucket": "celigo_success_ns_missing",
             "type": "no_ns_records",
             "doc_type": doc_type,
-            "celigo_num_success": celigo_num_success,
+            "celigo_docs": celigo_docs,
             "ns_record_count": 0,
-            "note": f"Celigo processed {celigo_num_success} record(s) but NS has no {doc_type} history in window",
+            "note": f"Celigo processed {celigo_docs} EDI doc(s) but NS has no {doc_type} history in window",
         })
 
     return mismatches
 
 
-def _reconcile_outbound(celigo_num_success: int, ns_rows: list,
+def _reconcile_outbound(celigo_docs: int, ns_rows: list,
                         doc_type: str) -> list:
     """
     For outbound, NS is the source of truth for sent records.
@@ -470,13 +563,13 @@ def _reconcile_outbound(celigo_num_success: int, ns_rows: list,
     mismatches = []
     ns_count = len(ns_rows)
 
-    if ns_count > 0 and celigo_num_success == 0:
+    if ns_count > 0 and celigo_docs == 0:
         mismatches.append({
             "bucket": "ns_sent_celigo_missing",
             "type": "no_celigo_activity",
             "doc_type": doc_type,
             "ns_sent_count": ns_count,
-            "celigo_num_success": 0,
+            "celigo_docs": 0,
             "note": f"NS has {ns_count} sent {doc_type} record(s) but Celigo had no activity",
         })
 
@@ -488,16 +581,23 @@ def _reconcile_outbound(celigo_num_success: int, ns_rows: list,
 # ---------------------------------------------------------------------------
 
 def run_audit(since: str, until: Optional[str], direction: str,
-              partner_filter: Optional[str], env_name: Optional[str]) -> dict:
-    since_dt = _parse_since(since)
-    until_dt = _parse_until(until)
+              partner_filter: Optional[str], env_name: Optional[str],
+              tz_name: str = DEFAULT_TZ) -> dict:
+    since_dt = _parse_since(since, tz_name)
+    until_dt = _parse_until(until, tz_name)
     since_iso = _iso(since_dt)
     until_iso = _iso(until_dt)
 
     api_url, api_key = _get_celigo_creds(env_name)
 
     _EMPTY = {
-        "audit_window": {"since": since_iso, "until": until_iso},
+        "audit_window": {
+            "since": since_iso,
+            "until": until_iso,
+            "since_local": _format_local(since_dt, tz_name),
+            "until_local": _format_local(until_dt, tz_name),
+            "tz": tz_name,
+        },
         "direction": direction,
         "partner_filter": partner_filter,
         "flows_scanned": 0,
@@ -511,8 +611,24 @@ def run_audit(since: str, until: Optional[str], direction: str,
 
     # --- Step 1: NS is the source of truth — one aggregated query for all doc types ---
     # This tells us exactly what was exchanged in the window without touching Celigo flows.
-    ns_rev_map = {str(v): k for k, v in NS_DOC_TYPE_MAP.items()}  # type_id → doc_type code
-    ns_agg = _ns_edi_summary(since_dt, until_dt)  # {type_id_str: {total, ok, err}}
+    # ns_rev_map: type_id_str → doc_type (supports multiple type_ids per doc type)
+    ns_rev_map = {}
+    for dt_code, type_ids in NS_DOC_TYPE_MAP.items():
+        for tid in type_ids:
+            ns_rev_map[str(tid)] = dt_code
+    ns_agg_raw = _ns_edi_summary(since_dt, until_dt)  # {type_id_str: {total, ok, err}}
+
+    # Merge multi-type_id doc types (e.g. 855 uses both type_id=4 and type_id=7)
+    ns_agg: dict = {}  # {doc_type_code: {total, ok, err}}
+    for type_id_str, counts in ns_agg_raw.items():
+        dt_code = ns_rev_map.get(type_id_str)
+        if not dt_code:
+            continue  # NXP/unknown type_ids — intentionally excluded
+        if dt_code not in ns_agg:
+            ns_agg[dt_code] = {"total": 0, "ok": 0, "err": 0}
+        ns_agg[dt_code]["total"] += counts["total"]
+        ns_agg[dt_code]["ok"] += counts["ok"]
+        ns_agg[dt_code]["err"] += counts["err"]
 
     # --- Step 2: Celigo flow discovery (needed for cross-validation) ---
     # Only enumerate flows — jobs are fetched per-integration below.
@@ -551,31 +667,29 @@ def run_audit(since: str, until: Optional[str], direction: str,
             continue  # no NS record type for this doc type; skip
 
         flow_jobs = jobs_by_flow.get(flow["_id"], [])
-        flow_success = sum(j.get("numSuccess", 0) for j in flow_jobs)
+        # numPagesGenerated = pages from the source (pageGenerator) = EDI document count (1:1 with NS records)
+        # numSuccess = inflated sum across all pipeline steps; not suitable for 1:1 comparison
+        flow_docs = sum(j.get("numPagesGenerated", 0) for j in flow_jobs)
+        flow_active = sum(1 for j in flow_jobs if j.get("numPagesGenerated", 0) > 0)
         scanned += 1
 
         if dt not in celigo_by_doctype:
             celigo_by_doctype[dt] = {
-                "num_success": 0,
+                "num_docs": 0,
                 "flow_count": 0,
                 "job_count": 0,
+                "active_job_count": 0,
                 "direction": d,
             }
-        celigo_by_doctype[dt]["num_success"] += flow_success
+        celigo_by_doctype[dt]["num_docs"] += flow_docs
         celigo_by_doctype[dt]["flow_count"] += 1
         celigo_by_doctype[dt]["job_count"] += len(flow_jobs)
+        celigo_by_doctype[dt]["active_job_count"] += flow_active
 
     # --- Step 4: Build combined doc-type set (NS activity + Celigo activity) ---
     # Include doc types seen in NS even if no Celigo flows matched (and vice versa).
-    all_doc_types = set(celigo_by_doctype.keys())
-    for type_id_str, counts in ns_agg.items():
-        dt = ns_rev_map.get(type_id_str)
-        if dt:
-            all_doc_types.add(dt)
-
-    # Direction filter: only include doc types matching the requested direction
-    def _dt_direction(dt: str) -> str:
-        return "inbound" if dt in INBOUND_TYPES else "outbound"
+    # ns_agg is now keyed by doc_type directly (merged from multiple type_ids).
+    all_doc_types = set(celigo_by_doctype.keys()) | set(ns_agg.keys())
 
     # --- Step 5: For 850 (needs per-row SO-link check) and types with NS errors,
     #             fetch individual rows; otherwise use aggregated counts ---
@@ -583,21 +697,20 @@ def run_audit(since: str, until: Optional[str], direction: str,
 
     def _get_ns_rows(dt: str, inbound: bool) -> list:
         if dt not in ns_rows_cache:
-            type_id = NS_DOC_TYPE_MAP.get(dt)
-            if not type_id:
+            type_ids = NS_DOC_TYPE_MAP.get(dt)
+            if not type_ids:
                 ns_rows_cache[dt] = []
             elif inbound:
-                ns_rows_cache[dt] = _ns_edi_history_inbound(type_id, since_dt, until_dt)
+                ns_rows_cache[dt] = _ns_edi_history_inbound(type_ids, since_dt, until_dt)
             else:
-                ns_rows_cache[dt] = _ns_edi_history_outbound(type_id, since_dt, until_dt)
+                ns_rows_cache[dt] = _ns_edi_history_outbound(type_ids, since_dt, until_dt)
         return ns_rows_cache[dt]
 
     # --- Step 6: Reconcile per doc_type ---
     all_mismatches = []
     doc_type_summary = {}
     for dt in sorted(all_doc_types):
-        type_id_str = str(NS_DOC_TYPE_MAP.get(dt, ""))
-        ns_counts = ns_agg.get(type_id_str, {"total": 0, "ok": 0, "err": 0})
+        ns_counts = ns_agg.get(dt, {"total": 0, "ok": 0, "err": 0})
 
         # Direction: use actual flow data when available; fall back to type classification.
         # Celigo flows are the ground truth (e.g. 856 is OB for us even though the spec
@@ -610,7 +723,7 @@ def run_audit(since: str, until: Optional[str], direction: str,
         dir_label = "inbound" if is_inbound else "outbound"
 
         activity = celigo_by_doctype.get(dt, {
-            "num_success": 0, "flow_count": 0, "job_count": 0, "direction": actual_dir,
+            "num_docs": 0, "flow_count": 0, "job_count": 0, "active_job_count": 0, "direction": actual_dir,
         })
 
         if direction == "inbound" and not is_inbound:
@@ -623,20 +736,20 @@ def run_audit(since: str, until: Optional[str], direction: str,
         #   - any type with NS errors: surface the individual failed rows
         if dt == "850" or ns_counts["err"] > 0:
             ns_rows = _get_ns_rows(dt, is_inbound)
-            mismatches = (_reconcile_inbound(activity["num_success"], ns_rows, dt)
+            mismatches = (_reconcile_inbound(activity["num_docs"], ns_rows, dt)
                           if is_inbound
-                          else _reconcile_outbound(activity["num_success"], ns_rows, dt))
+                          else _reconcile_outbound(activity["num_docs"], ns_rows, dt))
         else:
             # Use aggregate counts only — no per-row fetch needed
             mismatches = []
-            if is_inbound and activity["num_success"] > 0 and ns_counts["total"] == 0:
+            if is_inbound and activity["num_docs"] > 0 and ns_counts["total"] == 0:
                 mismatches.append({
                     "bucket": "celigo_success_ns_missing",
                     "type": "no_ns_records",
                     "doc_type": dt,
-                    "celigo_num_success": activity["num_success"],
+                    "celigo_docs": activity["num_docs"],
                     "ns_record_count": 0,
-                    "note": f"Celigo processed {activity['num_success']} record(s) but NS has no {dt} history in window",
+                    "note": f"Celigo processed {activity['num_docs']} EDI doc(s) but NS has no {dt} history in window",
                 })
             elif not is_inbound and ns_counts["ok"] > 0 and activity["job_count"] == 0:
                 mismatches.append({
@@ -644,7 +757,7 @@ def run_audit(since: str, until: Optional[str], direction: str,
                     "type": "no_celigo_activity",
                     "doc_type": dt,
                     "ns_sent_count": ns_counts["ok"],
-                    "celigo_num_success": 0,
+                    "celigo_docs": 0,
                     "note": f"NS has {ns_counts['ok']} sent {dt} record(s) but Celigo ran 0 jobs",
                 })
 
@@ -653,7 +766,7 @@ def run_audit(since: str, until: Optional[str], direction: str,
             "direction": dir_label,
             "celigo_flows": activity["flow_count"],
             "celigo_jobs": activity["job_count"],
-            "celigo_num_success": activity["num_success"],
+            "celigo_docs": activity["num_docs"],
             "ns_records": ns_counts["total"],
             "ns_ok": ns_counts["ok"],
             "ns_errors": ns_counts["err"],
@@ -670,7 +783,13 @@ def run_audit(since: str, until: Optional[str], direction: str,
     }
 
     return {
-        "audit_window": {"since": since_iso, "until": until_iso},
+        "audit_window": {
+            "since": since_iso,
+            "until": until_iso,
+            "since_local": _format_local(since_dt, tz_name),
+            "until_local": _format_local(until_dt, tz_name),
+            "tz": tz_name,
+        },
         "direction": direction,
         "partner_filter": partner_filter,
         "flows_scanned": scanned,
@@ -682,9 +801,12 @@ def run_audit(since: str, until: Optional[str], direction: str,
 
 def _print_human_summary(result: dict) -> None:
     buckets = result.get("buckets", {})
+    aw = result.get("audit_window", {})
+    since_display = aw.get("since_local") or aw.get("since", "?")
+    until_display = aw.get("until_local") or aw.get("until", "?")
     print("=" * 70)
     print("EDI Cross-System Audit Report")
-    print(f"  Window:    {result['audit_window']['since']} → {result['audit_window']['until']}")
+    print(f"  Window:    {since_display} → {until_display}")
     print(f"  Partner:   {result.get('partner_filter') or 'all'}")
     print(f"  Direction: {result['direction']}")
     print(f"  Flows scanned: {result.get('flows_scanned', 0)}")
@@ -692,15 +814,14 @@ def _print_human_summary(result: dict) -> None:
     print("=" * 70)
 
     # Per-doc-type activity table
-    # Celigo 'num_success' counts processed line items (not documents) and is not
-    # directly comparable to NS record counts, so the table shows job/flow counts instead.
+    # "Celigo Docs" = numPagesGenerated sum — EDI documents processed (1:1 with NS records).
     doc_summary = result.get("doc_type_summary", {})
     if doc_summary:
-        print(f"\n{'DocType':<8} {'Dir':<9} {'Flows':>6} {'Jobs':>6} {'NS Records':>11} {'NS OK':>6} {'NS Err':>7} {'Flags':>6}")
-        print("-" * 62)
+        print(f"\n{'DocType':<8} {'Dir':<9} {'Flows':>6} {'Celigo Docs':>12} {'NS Records':>11} {'NS OK':>6} {'NS Err':>7} {'Flags':>6}")
+        print("-" * 66)
         for dt in sorted(doc_summary.keys()):
             s = doc_summary[dt]
-            print(f"{dt:<8} {s['direction']:<9} {s['celigo_flows']:>6} {s['celigo_jobs']:>6} "
+            print(f"{dt:<8} {s['direction']:<9} {s['celigo_flows']:>6} {s['celigo_docs']:>12} "
                   f"{s['ns_records']:>11} {s['ns_ok']:>6} {s['ns_errors']:>7} {s['mismatches']:>6}")
 
     # Mismatch details
@@ -738,12 +859,14 @@ def _build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument("--since", default="24h",
-                   help="Start of audit window (ISO 8601 or relative: 24h, 7d)")
+                   help="Start of audit window (ISO 8601, relative: 24h/7d, or: today/yesterday)")
     p.add_argument("--until", default=None,
-                   help="End of audit window (ISO 8601 or relative; default: now)")
+                   help="End of audit window (ISO 8601, relative, today/yesterday; default: now)")
     p.add_argument("--partner",
                    help="Filter to integrations matching this partner name (substring)")
     p.add_argument("--direction", choices=["inbound", "outbound", "both"], default="both")
+    p.add_argument("--tz", default=DEFAULT_TZ,
+                   help="Timezone for today/yesterday keywords and display")
     p.add_argument("--env", default=None, help="Celigo environment (production/sandbox)")
     p.add_argument("--json-only", action="store_true",
                    help="Emit only JSON output; suppress human-readable summary")
@@ -762,6 +885,7 @@ def main():
         direction=args.direction,
         partner_filter=args.partner,
         env_name=args.env,
+        tz_name=args.tz,
     )
 
     print(json.dumps(result, indent=2))

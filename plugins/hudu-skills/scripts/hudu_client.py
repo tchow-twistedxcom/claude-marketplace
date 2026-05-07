@@ -322,3 +322,16 @@ class HuduClient:
             "end_date": end_date,
         }
         return self._paginate("/activity_logs", params, page_size)
+
+    # -------------------------------------------------------------------------
+    # Expirations
+    # -------------------------------------------------------------------------
+
+    def list_expirations(self, company_id=None, expiration_type=None, search=None,
+                         page_size=25):
+        params = {
+            "company_id": company_id,
+            "expiration_type": expiration_type,
+            "search": search,
+        }
+        return self._paginate("/expirations", params, page_size)

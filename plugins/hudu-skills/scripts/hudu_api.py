@@ -160,12 +160,16 @@ def _build_label_value_map(args1, args2, schema_fields):
 def _build_fields_payload(schema_fields, lv_map):
     """Convert {label: value} map → API format [{asset_layout_field_id, value}]."""
     field_id_map = {f["label"]: f["id"] for f in schema_fields}
+    field_type_map = {f["label"]: f.get("field_type", "text").lower() for f in schema_fields}
     result = []
     for label, value in lv_map.items():
         if label not in field_id_map:
             continue
+        field_type = field_type_map.get(label, "text")
         if isinstance(value, bool):
             str_val = "true" if value else "false"
+        elif field_type == "checkbox" and isinstance(value, str):
+            str_val = "true" if value.lower() in ("true", "yes", "1") else "false"
         elif value is None:
             str_val = ""
         else:

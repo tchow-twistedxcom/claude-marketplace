@@ -306,11 +306,44 @@ def _print_layout_describe(schema):
         ftype = f.get("field_type", f.get("fieldType", "text"))
         required = "yes" if f.get("required") else "no"
         print(f"  {slug:<32} {label:<32} {ftype:<16} {required}")
+        options_raw = f.get("options", "")
+        if options_raw and ftype == "Dropdown":
+            allowed = [o.strip() for o in options_raw.splitlines() if o.strip()]
+            if allowed:
+                print(f"    Allowed: {', '.join(allowed)}")
     print()
     if fields:
         example = " ".join(f"--{_slug_for_label(f['label'])} <value>" for f in fields[:3])
         print(f"Example:\n  python3 scripts/hudu_api.py upsert {name!r} "
               f"--company <name> {example}")
+
+
+def _validate_dropdown_fields(schema_fields, lv_map):
+    """Fail early if any Dropdown field value is not in the allowed options list."""
+    errors = []
+    for f in schema_fields:
+        if f.get("field_type") != "Dropdown":
+            continue
+        label = f.get("label", "")
+        if label not in lv_map:
+            continue
+        value = lv_map[label]
+        if not value:
+            continue
+        options_raw = f.get("options", "")
+        if not options_raw:
+            continue
+        allowed = [o.strip() for o in options_raw.splitlines() if o.strip()]
+        if not allowed:
+            continue
+        if value not in allowed:
+            slug = _slug_for_label(label)
+            errors.append(
+                f"  --{slug}: {value!r} is not a valid option.\n"
+                f"    Allowed values: {', '.join(allowed)}"
+            )
+    if errors:
+        sys.exit("Dropdown validation failed:\n" + "\n".join(errors))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -351,7 +384,7 @@ def handle_upsert_command(argv):
         print("  --output table|json Output format")
         print("  --profile NAME      Config profile")
         print("\nTo see layout-specific field flags:")
-        print('  python3 scripts/hudu_api.py upsert "Software License" --describe')
+        print('  python3 scripts/hudu_api.py upsert "Contracts / Licenses" --describe')
         return
 
     # ── Pass 1 ──────────────────────────────────────────────────────────────
@@ -423,6 +456,9 @@ def cmd_upsert_do(client, args1, args2, schema):
 
     # Build {label: value} map from all input sources
     lv_map = _build_label_value_map(args1, args2, schema_fields)
+
+    # Validate dropdown values against allowed options (fails before any API call)
+    _validate_dropdown_fields(schema_fields, lv_map)
 
     # Determine asset name
     asset_name = args1.name

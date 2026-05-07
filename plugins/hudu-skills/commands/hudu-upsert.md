@@ -73,17 +73,17 @@ Default match key comes from `config/layout-defaults.json` for the layout, or fa
 
 ```bash
 # --field: set a field not covered by named flags
-python3 scripts/hudu_api.py upsert "Software License" \
-  --company "Acme" --vendor "Adobe" \
-  --field internal-tag="renewals-q1" --dry-run
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" \
+  --company "Acme" --name "Adobe CC" \
+  --field notes="Approved by finance Q1" --dry-run
 
-# --data: full payload override
-python3 scripts/hudu_api.py upsert "Software License" \
+# --data: full payload override (fields array uses asset_layout_field_id)
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" \
   --company "Acme" \
-  --data '{"name": "Adobe CC", "custom_fields": [{"label": "Vendor", "value": "Adobe"}]}'
+  --data '{"name": "Adobe CC", "fields": [{"asset_layout_field_id": 111, "value": "ADOBE-001"}]}'
 
 # --file: load payload from file
-python3 scripts/hudu_api.py upsert "Software License" \
+python3 scripts/hudu_api.py upsert "Contracts / Licenses" \
   --company "Acme" --file ~/license-payload.json
 ```
 

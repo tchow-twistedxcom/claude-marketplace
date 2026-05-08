@@ -121,17 +121,17 @@ def transform_record(
     return payload, resolved_account, resolved_env
 
 
-def call_gateway(payload: Dict[str, Any]) -> Dict[str, Any]:
+def call_gateway(payload: Dict[str, Any], gateway_url: str, gw_base: str) -> Dict[str, Any]:
     """POST payload to the gateway and return the parsed JSON response."""
     data = json.dumps(payload).encode('utf-8')
     _api_key = os.environ.get('NETSUITE_API_KEY', '')
     req = urllib.request.Request(
-        GATEWAY_URL,
+        gateway_url,
         data=data,
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            **({'X-API-Key': _api_key} if _api_key else {'Origin': _gw_base}),
+            **({'X-API-Key': _api_key} if _api_key else {'Origin': gw_base}),
         },
     )
     try:
@@ -146,7 +146,7 @@ def call_gateway(payload: Dict[str, Any]) -> Dict[str, Any]:
     except urllib.error.URLError as e:
         return {
             'success': False,
-            'error': f'Gateway connection error: {e.reason}. Is the gateway running at {GATEWAY_URL}?',
+            'error': f'Gateway connection error: {e.reason}. Is the gateway running at {gateway_url}?',
         }
     except Exception as e:
         return {'success': False, 'error': f'Unexpected error: {e}'}
@@ -209,7 +209,8 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
                         help='Override gateway base URL (also: NETSUITE_GATEWAY_URL env var)')
 
     # Transform options
-    parser.add_argument('--is-dynamic', default=True, type=lambda x: x.lower() != 'false',
+    parser.add_argument('--is-dynamic', default=True,
+                        type=lambda x: x.lower() in ('true', '1', 'yes'),
                         metavar='BOOL', help='Dynamic mode (default: true)')
     parser.add_argument('--default-values', default=None, metavar='JSON',
                         help='JSON object passed to record.transform at sourcing time '
@@ -228,8 +229,9 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
                         help='JSON object for subrecord field values '
                              '(e.g. \'{"shippingaddress":{"addr1":"123 Main"}}\')')
     parser.add_argument('--save', default=None, metavar='JSON',
-                        help='JSON object to override record.save() options '
-                             '(default: {"enableSourcing":true,"ignoreMandatoryFields":true})')
+                        help='JSON object to override record.save() options. '
+                             'If omitted, twxTransformRecord applies its own defaults '
+                             '(enableSourcing:true, ignoreMandatoryFields:true).')
 
     parser.add_argument('--idempotency-key', default=None, metavar='KEY',
                         help='Unique key forwarded in payload for dedup auditing. '
@@ -245,11 +247,9 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
 
     args = parser.parse_args()
 
-    # Override gateway URL if provided
-    global _gw_base, GATEWAY_URL
-    if args.gateway_url:
-        _gw_base = args.gateway_url.rstrip('/')
-        GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+    # Resolve gateway URL (--gateway-url flag overrides env var / module default)
+    resolved_gw_base = args.gateway_url.rstrip('/') if args.gateway_url else _gw_base
+    resolved_gateway_url = f'{resolved_gw_base}/api/suiteapi'
 
     # Parse JSON arguments
     default_values = parse_json_arg(args.default_values, '--default-values')
@@ -283,9 +283,9 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
         sys.exit(0)
 
     print(f"Transforming {args.from_type} {args.from_id} → {args.to_type} "
-          f"in {resolved_account}/{resolved_env}...\n", file=sys.stderr)
+          f"in {resolved_account}/{resolved_env}...", file=sys.stderr)
 
-    result = call_gateway(payload)
+    result = call_gateway(payload, resolved_gateway_url, resolved_gw_base)
 
     if args.json_output:
         out = sys.stdout if result.get('success') else sys.stderr

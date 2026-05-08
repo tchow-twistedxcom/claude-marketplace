@@ -133,13 +133,13 @@ PROJECT_CLEAN=$(echo "$PROJECT_NAME" | sed 's/[^a-zA-Z0-9_-]/-/g' | cut -c1-40)
 
 Create the artifact folder:
 ```bash
-mkdir -p ~/cowork-bridge/inbox/$ARTIFACT_ID
+mkdir -p ~/cowork-bridge/inbox/"$ARTIFACT_ID"
 ```
 
 Copy files into the artifact folder:
 ```bash
-cp "$FILE1" ~/cowork-bridge/inbox/$ARTIFACT_ID/analysis.md
-cp "$FILE2" ~/cowork-bridge/inbox/$ARTIFACT_ID/data.json
+cp "$FILE1" ~/cowork-bridge/inbox/"$ARTIFACT_ID"/analysis.md
+cp "$FILE2" ~/cowork-bridge/inbox/"$ARTIFACT_ID"/data.json
 ```
 
 Write `metadata.json` into the artifact folder:

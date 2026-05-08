@@ -59,7 +59,7 @@ If `PLUGIN_DIR` is empty:
 Copy templates (only if they don't already exist in `~/cowork-bridge/templates/`):
 ```bash
 for tmpl in audit-to-report.md analysis-to-proposal.md data-to-deck.md; do
-  if [ ! -f ~/cowork-bridge/templates/$tmpl ]; then
+  if [ ! -f ~/cowork-bridge/templates/"$tmpl" ]; then
     cp "$PLUGIN_DIR/templates/$tmpl" ~/cowork-bridge/templates/
     echo "Copied: $tmpl"
   else

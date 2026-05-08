@@ -475,6 +475,77 @@ ERROR: Gateway connection error: Connection refused
 5. **Document Updates:** Keep track of what you changed and why
 6. **Verify After:** Always query after update to confirm changes took effect
 
+## Record Transform Operations (Create Transaction Chains)
+
+Use `transform_record.py` for workflows that require `record.transform` — the primitive behind NetSuite's "Fulfill", "Bill", "Invoice", and "Receive" UI buttons. `update_record.py` uses `record.create` and cannot source lines from a parent transaction.
+
+### Quick Start — Transaction Chains
+
+**SO → Item Fulfillment (set all lines to receive at location 1):**
+```bash
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type itemfulfillment \
+  --fields '{"shipstatus":"A"}' \
+  --line-updates '{"item":[{"matchAll":true,"fields":{"itemreceive":true,"location":1}}]}'
+```
+
+**SO → Invoice:**
+```bash
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type invoice
+```
+
+**PO → Item Receipt:**
+```bash
+python3 scripts/transform_record.py \
+  --from-type purchaseorder --from-id 99999 --to-type itemreceipt
+```
+
+**Dry-run (inspect payload before firing):**
+```bash
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type itemfulfillment \
+  --fields '{"shipstatus":"A"}' \
+  --dry-run
+```
+
+### lineUpdates vs sublists
+
+| Scenario | Use |
+|----------|-----|
+| Modify existing lines after transform (e.g. IF item sublist) | `--line-updates` |
+| Add new lines to a non-static sublist | `--sublists` |
+
+The IF item sublist is **static** after `record.transform`. Any attempt to use `--sublists` for it will result in `SSS_INVALID_SUBLIST_OPERATION`. Always use `--line-updates` for IF line mutations.
+
+### lineUpdates targeting strategies
+
+```json
+{ "item": [ { "matchAll": true, "fields": { "itemreceive": true } } ] }
+{ "item": [ { "matchIndex": 0, "fields": { "location": 1 } } ] }
+{ "item": [ { "match": { "item": "73494" }, "fields": { "location": 1 } } ] }
+```
+
+### defaultValues — transform-time sourcing overrides
+
+```bash
+# Override inventory location at sourcing time (before post-transform field sets)
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type itemfulfillment \
+  --default-values '{"inventorylocation":1}'
+```
+
+### Verify the result
+
+After transform, query EDI history to confirm the type-8 (940) row was created:
+```bash
+python3 scripts/query_netsuite.py \
+  'SELECT h.id, h.custrecord_twx_edi_type AS edi_type, h.custrecord_twx_eth_edi_tp AS tp_id
+   FROM customrecord_twx_edi_history h
+   WHERE h.custrecord_twx_edi_history_transaction = ?' \
+  --params <new-IF-id> --env sb2
+```
+
 ## Resources
 
 ### scripts/query_netsuite.py
@@ -515,6 +586,15 @@ Executable Python script for record CRUD operations. Handles:
 - Multiple field updates in single operation
 - Same account/environment support as query_netsuite.py
 - Error handling for field validation and record access
+
+### scripts/transform_record.py
+Wraps record.transform via twxTransformRecord — SO→IF, SO→Invoice, PO→IR, etc.
+- Drives NetSuite's native transaction-chain creation (same primitive as UI "Fulfill/Bill/Invoice/Receive" buttons)
+- `--from-type` / `--from-id` / `--to-type` are required; all other args are optional JSON objects
+- `--line-updates` for mutating existing lines on static sublists (e.g. IF item sublist after transform)
+- `--fields` for post-transform field values; `--default-values` for transform-time sourcing overrides
+- `--dry-run` prints the assembled payload without calling the API
+- Same auth pattern as update_record.py (NETSUITE_API_KEY → Origin fallback)
 
 ### references/common_queries.md
 Library of pre-built query patterns including:

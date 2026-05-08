@@ -1,5 +1,8 @@
 # Ignore actual config with credentials
 mimecast_config.json
 
+# Ignore OAuth token cache (contains live access tokens)
+.mimecast_token_cache.json
+
 # Keep template
 !mimecast_config.template.json

@@ -27,7 +27,7 @@ docker compose up -d
 
 Verify gateway is running:
 ```bash
-curl http://localhost:3001/health
+curl https://nsapi.twistedx.tech/health
 ```
 
 ## List Deployments

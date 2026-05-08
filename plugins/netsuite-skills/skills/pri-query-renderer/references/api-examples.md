@@ -2,7 +2,7 @@
 
 ## API Endpoint Configuration
 
-**Endpoint:** `http://localhost:3001/api/suiteapi`
+**Endpoint:** `https://nsapi.twistedx.tech/api/suiteapi`
 
 **Headers:**
 ```
@@ -15,9 +15,9 @@ Origin: http://localhost:3030
 ## Creating a New Query
 
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -46,9 +46,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Basic Text Column
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -64,9 +64,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Reference Column (Hidden, for linking)
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -83,9 +83,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Column with Record Detail Link
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -103,9 +103,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Column with Linked Query
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -124,9 +124,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Currency Column with Totals
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -143,9 +143,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Date Column
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -165,9 +165,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Select Filter (Record Type)
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -187,9 +187,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Text Filter
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -208,9 +208,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Date Filter
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -229,9 +229,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Hidden Filter (Preset)
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -256,9 +256,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 To update an existing record, provide the record ID instead of null:
 
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": 205,
@@ -275,9 +275,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### List All Queries
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "queryRun",
     "query": "SELECT id, name, custrecord_pri_qt_q_description, custrecord_twx_qt_q_category FROM customrecord_pri_qt_query ORDER BY name"
@@ -286,9 +286,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### List Columns for Query ID 205
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "queryRun",
     "query": "SELECT id, name, custrecord_pri_qt_qc_heading, custrecord_pri_qt_qc_data_type FROM customrecord_pri_qt_query_column WHERE custrecord_pri_qt_qc_parent = 205"
@@ -297,9 +297,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### List Filters for Query ID 205
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "queryRun",
     "query": "SELECT id, name, custrecord_pri_qt_qf_label, custrecord_pri_qt_qf_type, custrecord_pri_qt_qf_placeholder FROM customrecord_pri_qt_query_filter WHERE custrecord_pri_qt_qf_parent = 205"
@@ -308,9 +308,9 @@ curl -X POST http://localhost:3001/api/suiteapi \
 
 ### Get Query Details
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "queryRun",
     "query": "SELECT id, name, custrecord_pri_qt_q_query, custrecord_pri_qt_q_description FROM customrecord_pri_qt_query WHERE id = 205"
@@ -325,9 +325,9 @@ This example creates a complete query with columns and filters:
 
 ### Step 1: Create Query
 ```bash
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{
     "procedure": "twxUpsertRecord",
     "id": null,
@@ -346,48 +346,48 @@ curl -X POST http://localhost:3001/api/suiteapi \
 ### Step 2: Add Columns
 ```bash
 # ID column (reference)
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_column","fields":{"name":"id","custrecord_pri_qt_qc_parent":206,"custrecord_pri_qt_qc_heading":"ID","custrecord_pri_qt_qc_data_type":"number","custrecord_pri_qt_qc_reference":"T"}}'
 
 # Item ID with record link
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_column","fields":{"name":"itemid","custrecord_pri_qt_qc_parent":206,"custrecord_pri_qt_qc_heading":"Item","custrecord_pri_qt_qc_data_type":"text","custrecord_pri_qt_qc_link_type":"record_detail","custrecord_pri_qt_qc_recordtype":"inventoryitem"}}'
 
 # Display name
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_column","fields":{"name":"displayname","custrecord_pri_qt_qc_parent":206,"custrecord_pri_qt_qc_heading":"Description","custrecord_pri_qt_qc_data_type":"text"}}'
 
 # Location name
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_column","fields":{"name":"location_name","custrecord_pri_qt_qc_parent":206,"custrecord_pri_qt_qc_heading":"Location","custrecord_pri_qt_qc_data_type":"text"}}'
 
 # Quantity with totals
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_column","fields":{"name":"quantityavailable","custrecord_pri_qt_qc_parent":206,"custrecord_pri_qt_qc_heading":"Qty Available","custrecord_pri_qt_qc_data_type":"number","custrecord_pri_qt_qc_totals_row":"T"}}'
 ```
 
 ### Step 3: Add Filters
 ```bash
 # Location filter
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_filter","fields":{"name":"location_filter","custrecord_pri_qt_qf_parent":206,"custrecord_pri_qt_qf_placeholder":"location_filter","custrecord_pri_qt_qf_label":"Location","custrecord_pri_qt_qf_type":"5","custrecord_pri_qt_qf_select_recordtype":"location","custrecord_pri_qt_qf_filter":"l.id = {location_filter}","custrecord_pri_qt_qf_help":"Select a location"}}'
 
 # Item filter
-curl -X POST http://localhost:3001/api/suiteapi \
+curl -X POST https://nsapi.twistedx.tech/api/suiteapi \
   -H "Content-Type: application/json" \
-  -H "Origin: http://localhost:3030" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
   -d '{"procedure":"twxUpsertRecord","id":null,"type":"customrecord_pri_qt_query_filter","fields":{"name":"item_filter","custrecord_pri_qt_qf_parent":206,"custrecord_pri_qt_qf_placeholder":"item_filter","custrecord_pri_qt_qf_label":"Item Contains","custrecord_pri_qt_qf_type":"1","custrecord_pri_qt_qf_filter":"UPPER(i.itemid) LIKE '\''%'\'' || UPPER('\''{item_filter}'\'') || '\''%'\''","custrecord_pri_qt_qf_help":"Enter item ID to search"}}'
 ```
 

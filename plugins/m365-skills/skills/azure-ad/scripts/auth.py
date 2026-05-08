@@ -22,11 +22,12 @@ Usage:
 import json
 import os
 import sys
+import tempfile
 import time
 import argparse
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Any
 
 try:
     from msal import ConfidentialClientApplication
@@ -49,7 +50,7 @@ class AzureAuth:
     GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
     TOKEN_REFRESH_BUFFER = 300  # Refresh 5 minutes before expiry
 
-    def __init__(self, tenant: Optional[str] = None, config_path: Optional[str] = None):
+    def __init__(self, tenant: str | None = None, config_path: str | None = None):
         """
         Initialize Azure AD authentication.
 
@@ -85,17 +86,17 @@ class AzureAuth:
 
         raise AuthError(f"Config file not found at {config_file}")
 
-    def _load_config(self) -> Dict[str, Any]:
+    def _load_config(self) -> dict[str, Any]:
         """Load configuration from file."""
         try:
             with open(self.config_path, 'r') as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            raise AuthError(f"Invalid JSON in config file: {e}")
+            raise AuthError(f"Invalid JSON in config file: {e}") from e
         except Exception as e:
-            raise AuthError(f"Failed to load config: {e}")
+            raise AuthError(f"Failed to load config: {e}") from e
 
-    def _resolve_tenant_name(self, tenant: Optional[str]) -> str:
+    def _resolve_tenant_name(self, tenant: str | None) -> str:
         """Resolve tenant name from alias or use default."""
         if tenant is None:
             return self.config.get('defaults', {}).get('tenant', 'default')
@@ -116,7 +117,7 @@ class AzureAuth:
             f"aliases: {list(aliases.keys())}"
         )
 
-    def _get_tenant_config(self) -> Dict[str, Any]:
+    def _get_tenant_config(self) -> dict[str, Any]:
         """Get configuration for the current tenant."""
         tenants = self.config.get('tenants', {})
         if self.tenant_name not in tenants:
@@ -135,10 +136,10 @@ class AzureAuth:
 
         return tenant_config
 
-    def _get_token_cache_path(self) -> str:
+    def _get_token_cache_path(self) -> Path:
         """Get path for token cache file."""
         config_dir = Path(self.config_path).parent
-        return str(config_dir / ".azure_tokens.json")
+        return config_dir / ".azure_tokens.json"
 
     def _create_msal_app(self) -> ConfidentialClientApplication:
         """Create MSAL confidential client application."""
@@ -150,7 +151,7 @@ class AzureAuth:
             authority=authority
         )
 
-    def _load_token_cache(self) -> Dict[str, Any]:
+    def _load_token_cache(self) -> dict[str, Any]:
         """Load token cache from file."""
         try:
             if os.path.exists(self.token_cache_path):
@@ -160,22 +161,32 @@ class AzureAuth:
             pass
         return {}
 
-    def _save_token_cache(self, cache: Dict[str, Any]):
-        """Save token cache to file."""
+    def _save_token_cache(self, cache: dict[str, Any]):
+        """Save token cache to file atomically with secure permissions."""
         try:
-            with open(self.token_cache_path, 'w') as f:
-                json.dump(cache, f, indent=2)
-            # Set restrictive permissions
-            os.chmod(self.token_cache_path, 0o600)
+            tmp_fd, tmp_path = tempfile.mkstemp(
+                dir=self.token_cache_path.parent, suffix='.tmp'
+            )
+            try:
+                os.chmod(tmp_path, 0o600)
+                with os.fdopen(tmp_fd, 'w') as f:
+                    json.dump(cache, f, indent=2)
+                os.replace(tmp_path, self.token_cache_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except Exception as e:
-            print(f"Warning: Could not save token cache: {e}", file=sys.stderr)
+            print(f"Warning: Failed to save token cache: {e}", file=sys.stderr)
 
-    def _get_cached_token(self) -> Optional[Dict[str, Any]]:
+    def _get_cached_token(self) -> dict[str, Any] | None:
         """Get cached token for current tenant."""
         cache = self._load_token_cache()
         return cache.get(self.tenant_name)
 
-    def _cache_token(self, token_data: Dict[str, Any]):
+    def _cache_token(self, token_data: dict[str, Any]):
         """Cache token with expiry time."""
         cache = self._load_token_cache()
 
@@ -191,7 +202,7 @@ class AzureAuth:
 
         self._save_token_cache(cache)
 
-    def _is_token_expired(self, token_data: Dict[str, Any]) -> bool:
+    def _is_token_expired(self, token_data: dict[str, Any]) -> bool:
         """Check if token is expired or will expire soon."""
         expires_at = token_data.get('expires_at', 0)
         return time.time() >= (expires_at - self.TOKEN_REFRESH_BUFFER)
@@ -221,10 +232,9 @@ class AzureAuth:
             return result['access_token']
         else:
             error = result.get('error', 'Unknown error')
-            error_desc = result.get('error_description', 'No description')
-            raise AuthError(f"Failed to acquire token: {error} - {error_desc}")
+            raise AuthError(f"Failed to acquire token: {error}")
 
-    def get_auth_headers(self) -> Dict[str, str]:
+    def get_auth_headers(self) -> dict[str, str]:
         """
         Get HTTP headers with authorization.
 
@@ -237,7 +247,7 @@ class AzureAuth:
             'Content-Type': 'application/json'
         }
 
-    def test_connection(self) -> Dict[str, Any]:
+    def test_connection(self) -> dict[str, Any]:
         """
         Test the connection by fetching organization info.
 
@@ -258,11 +268,11 @@ class AzureAuth:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.HTTPError as e:
-            raise AuthError(f"API request failed: {e.response.status_code} - {e.response.text}")
+            raise AuthError(f"API request failed: {e.response.status_code} - {e.response.text}") from e
         except requests.exceptions.RequestException as e:
-            raise AuthError(f"Connection failed: {e}")
+            raise AuthError(f"Connection failed: {e}") from e
 
-    def get_token_info(self) -> Dict[str, Any]:
+    def get_token_info(self) -> dict[str, Any]:
         """Get information about the current token."""
         cached = self._get_cached_token()
         if cached:

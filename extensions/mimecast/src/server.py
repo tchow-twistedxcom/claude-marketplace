@@ -16,6 +16,7 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from email.utils import formatdate
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 import httpx
@@ -52,7 +53,8 @@ def _get_region_urls(region: str) -> tuple[str, str]:
     return legacy.get(region, legacy["us"]), oauth.get(region, oauth["global"])
 
 
-def _get_auth_config() -> dict:
+@lru_cache(maxsize=4)
+def _get_auth_config(profile: str = "default") -> dict:
     """Get auth configuration from env vars or config file."""
     region = os.environ.get("MIMECAST_REGION", "us")
     client_id = os.environ.get("MIMECAST_CLIENT_ID", "")
@@ -201,16 +203,48 @@ def _handle_error(e: Exception) -> str:
 
 
 def _truncate(result: str) -> str:
-    if len(result) > CHARACTER_LIMIT:
-        try:
-            data = json.loads(result)
-            if isinstance(data, list):
-                half = max(1, len(data) // 2)
-                return json.dumps({"items": data[:half], "truncated": True,
-                                   "message": f"Showing {half}/{len(data)} items."}, indent=2)
-        except Exception:
-            return result[:CHARACTER_LIMIT] + "\n... [truncated]"
-    return result
+    """Safely truncate large responses while preserving valid JSON."""
+    if len(result) <= CHARACTER_LIMIT:
+        return result
+    try:
+        data = json.loads(result)
+        if isinstance(data, list):
+            # Trim list to fit within limit
+            half = max(1, len(data) // 2)
+            trimmed = data[:half]
+            truncated = json.dumps(
+                {"items": trimmed, "truncated": True,
+                 "total_returned": half, "total_available": len(data),
+                 "hint": "Use date filters or --limit to narrow results."},
+                indent=2
+            )
+            # Recurse once in case half is still too large
+            if len(truncated) > CHARACTER_LIMIT:
+                quarter = max(1, half // 2)
+                trimmed = data[:quarter]
+                truncated = json.dumps(
+                    {"items": trimmed, "truncated": True,
+                     "total_returned": quarter, "total_available": len(data),
+                     "hint": "Use date filters or --limit to narrow results."},
+                    indent=2
+                )
+            return truncated
+        elif isinstance(data, dict):
+            # For dicts, return a note instead of breaking the structure
+            return json.dumps(
+                {"truncated": True,
+                 "message": f"Response too large ({len(result)} chars). Use more specific filters.",
+                 "keys": list(data.keys())[:20]},
+                indent=2
+            )
+    except Exception:
+        pass
+    # Fallback: return a valid JSON error rather than broken truncated string
+    return json.dumps(
+        {"truncated": True,
+         "message": f"Response too large to display ({len(result)} chars). Use more specific filters."},
+        indent=2
+    )
 
 
 # =============================================================================
@@ -512,8 +546,503 @@ async def mimecast_list_policies(policy_type: str = "blocked-senders") -> str:
             "permitted-senders": "/api/policy/permittedsenders/get-policy",
             "anti-spoofing": "/api/policy/antispoofing-bypass/get-policy",
         }
-        uri = endpoint_map.get(policy_type, f"/api/policy/{policy_type}/get-policy")
+        if policy_type not in endpoint_map:
+            raise ValueError(f"Unknown policy type: {policy_type!r}. Valid types: {list(endpoint_map)}")
+        uri = endpoint_map[policy_type]
         resp = await _mimecast_request(uri, {})
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# Quarantine & Message Actions
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_release_held_message",
+    annotations={"title": "Release Held Message", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_release_held_message(message_id: str, reason: str = "") -> str:
+    """Release a held message from the Mimecast hold queue so it can be delivered.
+
+    Args:
+        message_id: ID of the held message to release (required)
+        reason: Optional reason for releasing the message
+
+    Returns:
+        JSON confirmation of the release action.
+    """
+    try:
+        body = {"id": message_id, "reason": reason}
+        resp = await _mimecast_request("/api/gateway/accept-hold-message", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# Sender Management
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_block_sender",
+    annotations={"title": "Block Sender", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_block_sender(
+    sender: str,
+    to: str = "",
+    comment: str = "",
+) -> str:
+    """Add an email sender to the Mimecast blocked senders list.
+
+    Args:
+        sender: Email address to block (required)
+        to: Recipient address to scope the block to (optional, empty = all recipients)
+        comment: Optional comment describing why sender is blocked
+
+    Returns:
+        JSON confirmation with the created managed sender entry.
+    """
+    try:
+        body = {
+            "sender": sender,
+            "to": to,
+            "type": "block",
+        }
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/managedsender/permit-or-block-sender", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_permit_sender",
+    annotations={"title": "Permit Sender", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_permit_sender(
+    sender: str,
+    to: str = "",
+    comment: str = "",
+) -> str:
+    """Add an email sender to the Mimecast permitted senders list.
+
+    Args:
+        sender: Email address to permit (required)
+        to: Recipient address to scope the permit to (optional, empty = all recipients)
+        comment: Optional comment describing why sender is permitted
+
+    Returns:
+        JSON confirmation with the created managed sender entry.
+    """
+    try:
+        body = {
+            "sender": sender,
+            "to": to,
+            "type": "permit",
+        }
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/managedsender/permit-or-block-sender", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# TTP URL Management
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_block_url",
+    annotations={"title": "Block URL in TTP", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_block_url(url: str, comment: str = "") -> str:
+    """Add a URL to the Mimecast TTP URL block list to prevent users from accessing it.
+
+    Args:
+        url: URL to block (required)
+        comment: Optional comment describing why URL is blocked
+
+    Returns:
+        JSON confirmation with the created managed URL entry.
+    """
+    try:
+        body = {"url": url, "action": "block"}
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/ttp/url/create-managed-url", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_permit_url",
+    annotations={"title": "Permit URL in TTP", "readOnlyHint": False,
+                 "destructiveHint": False, "openWorldHint": True}
+)
+async def mimecast_permit_url(url: str, comment: str = "") -> str:
+    """Add a URL to the Mimecast TTP URL permit list to allow users to access it.
+
+    Args:
+        url: URL to permit (required)
+        comment: Optional comment describing why URL is permitted
+
+    Returns:
+        JSON confirmation with the created managed URL entry.
+    """
+    try:
+        body = {"url": url, "action": "permit"}
+        if comment:
+            body["comment"] = comment
+        resp = await _mimecast_request("/api/ttp/url/create-managed-url", body)
+        return json.dumps(_extract_data(resp), indent=2)
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# TTP Impersonation Logs
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_get_ttp_impersonation_logs",
+    annotations={"title": "Get TTP Impersonation Logs", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_ttp_impersonation_logs(
+    days: int = 1,
+    action: Optional[str] = None,
+    limit: int = 100,
+) -> str:
+    """Get TTP impersonation protection logs showing emails blocked or warned as impersonation attempts.
+
+    Args:
+        days: Number of days to look back (default: 1, max: 7)
+        action: Filter by action taken: 'block', 'warn', 'none' (optional)
+        limit: Maximum number of results to return (default: 100, max: 500)
+
+    Returns:
+        JSON array of impersonation log entries with sender, subject, action, reason, date.
+    """
+    try:
+        now = datetime.now(timezone.utc)
+        body = {
+            "from": (now - timedelta(days=min(days, 7))).strftime("%Y-%m-%dT%H:%M:%S+0000"),
+            "to": now.strftime("%Y-%m-%dT%H:%M:%S+0000"),
+            "pageSize": min(limit, 500),
+        }
+        if action:
+            body["action"] = action
+        resp = await _mimecast_request("/api/ttp/impersonation/get-logs", body)
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+# =============================================================================
+# Awareness Training (requires Awareness Training product)
+# =============================================================================
+
+@mcp.tool(
+    name="mimecast_list_campaigns",
+    annotations={"title": "List Awareness Training Campaigns", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_list_campaigns(source: Optional[str] = None) -> str:
+    """List awareness training campaigns.
+
+    Args:
+        source: Optional source filter for campaigns
+
+    Returns:
+        JSON array of training campaigns with ID, name, status, sent/completed counts.
+    """
+    try:
+        body = {}
+        if source is not None:
+            body["source"] = source
+        resp = await _mimecast_request("/api/awareness-training/campaign/get-campaigns", body)
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_safe_scores",
+    annotations={"title": "Get SAFE Score Details", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_safe_scores(email: Optional[str] = None) -> str:
+    """Get per-user SAFE (Security Awareness For Employees) score details.
+
+    Args:
+        email: Filter to a specific user email address (optional — omit for all users)
+
+    Returns:
+        JSON array of user SAFE scores with email, name, risk grade, knowledge score,
+        engagement score.
+    """
+    try:
+        body = {}
+        if email is not None:
+            body["emailAddress"] = email
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-safe-score-details", body
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_phishing_results",
+    annotations={"title": "Get Phishing Simulation Results", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_phishing_results(campaign_id: Optional[str] = None) -> str:
+    """Get phishing simulation campaign results.
+
+    Args:
+        campaign_id: Specific phishing campaign ID (optional — omit for all campaigns)
+
+    Returns:
+        JSON with campaign name, sent count, opened/clicked/submitted/reported statistics.
+    """
+    try:
+        body = {}
+        if campaign_id is not None:
+            body["campaignId"] = campaign_id
+        resp = await _mimecast_request(
+            "/api/awareness-training/phishing/campaign/get-campaign", body
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_watchlist",
+    annotations={"title": "Get High-Risk User Watchlist", "readOnlyHint": True,
+                 "openWorldHint": True}
+)
+async def mimecast_get_watchlist() -> str:
+    """Get the high-risk user watchlist — users with the lowest SAFE scores or most
+    security incidents.
+
+    Returns:
+        JSON array of high-risk users with email, name, department, risk level, risk score.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-watchlist-details", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_campaign_users",
+    description="Get per-user data for awareness training campaigns.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_campaign_users(
+    campaign_id: Optional[str] = None,
+    profile: str = "default",
+) -> str:
+    """Get per-user data for awareness training campaigns.
+
+    Args:
+        campaign_id: Specific campaign ID to filter results (optional — omit for all campaigns)
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of per-user campaign data with email, completion status, and score.
+    """
+    try:
+        body = {"data": [{"campaignId": campaign_id}]} if campaign_id else {"data": [{}]}
+        return _truncate(json.dumps(_extract_data(await _mimecast_request(
+            "/api/awareness-training/campaign/get-user-data", body
+        )), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_performance",
+    description="Get company-wide awareness training performance details.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_performance(profile: str = "default") -> str:
+    """Get company-wide awareness training performance details.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON with overall company performance metrics for awareness training.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-performance-details", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_performance_summary",
+    description="Get a summary of company-wide awareness training performance.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_performance_summary(profile: str = "default") -> str:
+    """Get a summary of company-wide awareness training performance.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON summary of overall awareness training performance including completion rates.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-performance-summary", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_phishing_user_data",
+    description="Get per-user data for phishing simulation campaigns.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_phishing_user_data(
+    campaign_id: Optional[str] = None,
+    profile: str = "default",
+) -> str:
+    """Get per-user data for phishing simulation campaigns.
+
+    Args:
+        campaign_id: Specific phishing campaign ID (optional — omit for all campaigns)
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of per-user phishing campaign data with click, open, and report actions.
+    """
+    try:
+        body = {"data": [{"campaignId": campaign_id}]} if campaign_id else {"data": [{}]}
+        return _truncate(json.dumps(_extract_data(await _mimecast_request(
+            "/api/awareness-training/phishing/campaign/get-user-data", body
+        )), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_safe_score_summary",
+    description="Get a company-wide summary of SAFE scores.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_safe_score_summary(profile: str = "default") -> str:
+    """Get a company-wide summary of SAFE (Security Awareness For Employees) scores.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON summary of SAFE score distribution across the company.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-safe-score-summary", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_training_queue",
+    description="Get the current awareness training assignment queue.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_training_queue(profile: str = "default") -> str:
+    """Get the current awareness training assignment queue.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of queued training assignments with user, module, and due date.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/queue/get-queue", {}
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_training_details",
+    description="Get training module completion details, optionally filtered by user email.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_training_details(
+    email: Optional[str] = None,
+    profile: str = "default",
+) -> str:
+    """Get training module completion details for users.
+
+    Args:
+        email: Filter to a specific user email address (optional — omit for all users)
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON array of training detail records with module name, completion date, and score.
+    """
+    try:
+        body = {}
+        if email is not None:
+            body["emailAddress"] = email
+        resp = await _mimecast_request(
+            "/api/awareness-training/user/get-training-details", body
+        )
+        return _truncate(json.dumps(_extract_data(resp), indent=2))
+    except Exception as e:
+        return _handle_error(e)
+
+
+@mcp.tool(
+    name="mimecast_get_watchlist_summary",
+    description="Get a summary of the high-risk user watchlist.",
+    annotations={"readOnlyHint": True, "openWorldHint": True},
+)
+async def mimecast_get_watchlist_summary(profile: str = "default") -> str:
+    """Get a summary of the high-risk user watchlist.
+
+    Args:
+        profile: Config profile to use (default: 'default')
+
+    Returns:
+        JSON summary of watchlist statistics including total users at risk and risk distribution.
+    """
+    try:
+        resp = await _mimecast_request(
+            "/api/awareness-training/company/get-watchlist-summary", {}
+        )
         return _truncate(json.dumps(_extract_data(resp), indent=2))
     except Exception as e:
         return _handle_error(e)

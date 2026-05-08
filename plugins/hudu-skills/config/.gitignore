@@ -1,0 +1,5 @@
+# Ignore actual config with credentials
+hudu_config.json
+
+# Keep template
+!hudu_config.template.json

@@ -8,11 +8,18 @@ Usage:
 """
 
 import json
+import os
+import sys
 import urllib.request
 import argparse
 from typing import Dict, List
 
-GATEWAY_URL = 'http://localhost:3001/api/suiteapi'
+# NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
+_gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+GATEWAY_URL = f'{_gw_base}/api/suiteapi'
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in _gw_base:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 
 # Standard JS override file ID (from batch_create_profiles.py)
 STANDARD_JS_OVERRIDE_ID = 52794157
@@ -37,7 +44,7 @@ def execute_query(query: str, account: str, environment: str) -> List[Dict]:
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Origin': 'http://localhost:3000'
+            **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
         }
     )
 
@@ -74,7 +81,7 @@ def update_profile(profile_id: int, fields: Dict, account: str, environment: str
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Origin': 'http://localhost:3000'
+            **({'X-API-Key': _API_KEY} if _API_KEY else {'Origin': _gw_base})
         }
     )
 

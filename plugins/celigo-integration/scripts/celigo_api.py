@@ -1034,6 +1034,10 @@ class FileDefinitionsAPI:
         """Delete a file definition."""
         return self.client.delete(f"/filedefinitions/{fd_id}")
 
+    def dependencies(self, fd_id: str) -> dict:
+        """Get resources that reference this file definition."""
+        return self.client.get(f"/filedefinitions/{fd_id}/dependencies")
+
 
 # =============================================================================
 # Resource: Recycle Bin
@@ -1283,6 +1287,243 @@ class EDIAPI:
         """Get functional acknowledgment details for a transaction."""
         return self.client.get(f"/ediTransactions/{transaction_id}/faDetails")
 
+    def dependencies(self, profile_id: str) -> dict:
+        """Get resources that reference this EDI profile."""
+        return self.client.get(f"/ediprofiles/{profile_id}/dependencies")
+
+    def update_transaction(self, transaction_id: str, data: dict) -> dict:
+        """Update a single EDI transaction (PATCH)."""
+        return self.client.patch(f"/ediTransactions/{transaction_id}", data)
+
+    def download_transaction(self, transaction_id: str) -> str:
+        """Download raw EDI envelope for a transaction (returns raw content)."""
+        return self.client.get(f"/ediTransactions/{transaction_id}/download")
+
+
+# =============================================================================
+# Resource: Tools
+# =============================================================================
+
+class ToolsAPI:
+    """Celigo Tools — reusable processing units."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        return self.client.get("/tools")
+
+    def get(self, tool_id: str) -> dict:
+        return self.client.get(f"/tools/{tool_id}")
+
+    def create(self, data: dict) -> dict:
+        return self.client.post("/tools", data)
+
+    def update(self, tool_id: str, data: dict) -> dict:
+        return self.client.put(f"/tools/{tool_id}", data)
+
+    def delete(self, tool_id: str) -> dict:
+        return self.client.delete(f"/tools/{tool_id}")
+
+    def invoke(self, tool_id: str, data: dict = None) -> dict:
+        return self.client.post(f"/tools/{tool_id}/invoke", data)
+
+    def dependencies(self, tool_id: str) -> dict:
+        return self.client.get(f"/tools/{tool_id}/dependencies")
+
+
+# =============================================================================
+# Resource: Builder-mode APIs
+# =============================================================================
+
+class BuilderApisAPI:
+    """Celigo builder-mode REST endpoint definitions."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        return self.client.get("/apis")
+
+    def get(self, api_id: str) -> dict:
+        return self.client.get(f"/apis/{api_id}")
+
+    def create(self, data: dict) -> dict:
+        return self.client.post("/apis", data)
+
+    def update(self, api_id: str, data: dict) -> dict:
+        return self.client.put(f"/apis/{api_id}", data)
+
+    def delete(self, api_id: str) -> dict:
+        return self.client.delete(f"/apis/{api_id}")
+
+    def deploy(self, api_id: str) -> dict:
+        return self.client.post(f"/apis/{api_id}/deploy")
+
+    def versions(self, api_id: str) -> list:
+        return self.client.get(f"/apis/{api_id}/versions")
+
+
+# =============================================================================
+# Resource: MCP Servers
+# =============================================================================
+
+class McpServersAPI:
+    """Celigo MCP Servers — expose Tools and builder APIs to AI agents."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        return self.client.get("/mcpServers")
+
+    def get(self, server_id: str) -> dict:
+        return self.client.get(f"/mcpServers/{server_id}")
+
+    def create(self, data: dict) -> dict:
+        return self.client.post("/mcpServers", data)
+
+    def update(self, server_id: str, data: dict) -> dict:
+        return self.client.put(f"/mcpServers/{server_id}", data)
+
+    def delete(self, server_id: str) -> dict:
+        return self.client.delete(f"/mcpServers/{server_id}")
+
+    def start(self, server_id: str) -> dict:
+        return self.client.post(f"/mcpServers/{server_id}/start")
+
+    def stop(self, server_id: str) -> dict:
+        return self.client.post(f"/mcpServers/{server_id}/stop")
+
+    def status(self, server_id: str) -> dict:
+        return self.client.get(f"/mcpServers/{server_id}/status")
+
+
+# =============================================================================
+# Resource: Async Helpers
+# =============================================================================
+
+class AsyncHelpersAPI:
+    """Three-phase submit/poll/result pattern for long-running Celigo operations."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def submit(self, operation: str, data: dict = None) -> dict:
+        """Submit a long-running operation and return a job ID."""
+        return self.client.post(f"/asyncHelpers/{operation}/submit", data)
+
+    def poll(self, job_id: str) -> dict:
+        """Check status of a submitted async operation."""
+        return self.client.get(f"/asyncHelpers/jobs/{job_id}")
+
+    def result(self, job_id: str) -> dict:
+        """Fetch final result of a completed async operation."""
+        return self.client.get(f"/asyncHelpers/jobs/{job_id}/result")
+
+    def wait(self, operation: str, data: dict = None,
+             timeout: int = 120, interval: int = 2) -> dict:
+        """Submit + poll until done, then return result. Raises TimeoutError."""
+        resp = self.submit(operation, data)
+        job_id = resp.get("_id") or resp.get("jobId")
+        if not job_id:
+            return resp
+
+        elapsed = 0
+        while elapsed < timeout:
+            status = self.poll(job_id)
+            state = status.get("status", "").lower()
+            if state == "done":
+                return self.result(job_id)
+            if state == "failed":
+                return {"error": True, "message": "Async operation failed", "details": status}
+            time.sleep(interval)
+            elapsed += interval
+
+        raise TimeoutError(f"Async operation {job_id} did not complete within {timeout}s")
+
+
+# =============================================================================
+# Resource: Notifications
+# =============================================================================
+
+class NotificationsAPI:
+    """Per-resource, per-event email subscription management."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        return self.client.get("/notifications")
+
+    def get(self, notification_id: str) -> dict:
+        return self.client.get(f"/notifications/{notification_id}")
+
+    def create(self, data: dict) -> dict:
+        return self.client.post("/notifications", data)
+
+    def update(self, notification_id: str, data: dict) -> dict:
+        return self.client.put(f"/notifications/{notification_id}", data)
+
+    def delete(self, notification_id: str) -> dict:
+        return self.client.delete(f"/notifications/{notification_id}")
+
+
+# =============================================================================
+# Resource: OPA (On-Premise Agents)
+# =============================================================================
+
+class OpaAPI:
+    """On-Premise Agent management."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        return self.client.get("/agents")
+
+    def get(self, agent_id: str) -> dict:
+        return self.client.get(f"/agents/{agent_id}")
+
+    def create(self, data: dict) -> dict:
+        return self.client.post("/agents", data)
+
+    def update(self, agent_id: str, data: dict) -> dict:
+        return self.client.put(f"/agents/{agent_id}", data)
+
+    def delete(self, agent_id: str) -> dict:
+        return self.client.delete(f"/agents/{agent_id}")
+
+    def status(self, agent_id: str) -> dict:
+        return self.client.get(f"/agents/{agent_id}/status")
+
+    def restart(self, agent_id: str) -> dict:
+        return self.client.post(f"/agents/{agent_id}/restart")
+
+
+# =============================================================================
+# Resource: Trading Partner Connectors
+# =============================================================================
+
+class TradingPartnerConnectorsAPI:
+    """B2B onboarding templates that bundle connection/export/import/ediProfile configurations."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        return self.client.get("/tradingPartnerConnectors")
+
+    def get(self, connector_id: str) -> dict:
+        return self.client.get(f"/tradingPartnerConnectors/{connector_id}")
+
+    def create(self, data: dict) -> dict:
+        return self.client.post("/tradingPartnerConnectors", data)
+
+    def update(self, connector_id: str, data: dict) -> dict:
+        """Update a TPC (full-replace PUT — fetch-merge first)."""
+        return self.client.put(f"/tradingPartnerConnectors/{connector_id}", data)
+
 
 # =============================================================================
 # CLI Command Handlers
@@ -1384,6 +1625,16 @@ FILEDEFINITION_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
 ICLIENT_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
 CONNECTOR_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
 EDIPROFILE_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+TOOL_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+BUILDERAPI_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+MCPSERVER_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+NOTIFICATION_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+OPA_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+TPC_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt"])
+# fileType is immutable post-create on EDI profiles; enforced client-side in cmd_edi
+EDIPROFILE_IMMUTABLE_FIELDS = frozenset(["fileType"])
+# EDI formats requiring documentType + globalId validation on file definitions
+EDI_FORMATS = frozenset(["x12", "edifact"])
 
 
 def _merge_updates_for_put(current: dict, updates: dict, readonly_fields: frozenset) -> dict:
@@ -1392,6 +1643,9 @@ def _merge_updates_for_put(current: dict, updates: dict, readonly_fields: frozen
     for field in readonly_fields:
         merged.pop(field, None)
     merged.update(updates)
+    # Strip readonly fields from updates overlay too — user-supplied --data must not re-inject them
+    for field in readonly_fields:
+        merged.pop(field, None)
     return merged
 
 
@@ -2140,6 +2394,16 @@ def cmd_filedefinitions(args):
 
     elif args.action == "create":
         data = _resolve_json_input(args)
+        fmt = data.get("format", "")
+        if fmt in EDI_FORMATS:
+            if not data.get("documentType"):
+                print(f"Error: 'documentType' required for format '{fmt}'.", file=sys.stderr)
+                sys.exit(1)
+            if not data.get("globalId"):
+                print(f"Error: 'globalId' required for format '{fmt}'.", file=sys.stderr)
+                sys.exit(1)
+        if hasattr(args, "schema_version") and args.schema_version:
+            data["version"] = int(args.schema_version)
         print_result(api.create(data), args.format)
 
     elif args.action == "update":
@@ -2147,6 +2411,8 @@ def cmd_filedefinitions(args):
         if not updates:
             print("Error: No update data provided.", file=sys.stderr)
             sys.exit(1)
+        if hasattr(args, "schema_version") and args.schema_version:
+            updates["version"] = int(args.schema_version)
         current = api.get(args.id)
         if current.get("error"):
             print_result(current, args.format)
@@ -2156,6 +2422,9 @@ def cmd_filedefinitions(args):
 
     elif args.action == "delete":
         print_result(api.delete(args.id), args.format)
+
+    elif args.action == "dependencies":
+        print_result(api.dependencies(args.id), args.format)
 
 
 def cmd_recyclebin(args):
@@ -2359,11 +2628,17 @@ def cmd_edi(args):
         if not updates:
             print("Error: No update data provided.", file=sys.stderr)
             sys.exit(1)
+        # fileType is immutable — reject mutation client-side
+        if "fileType" in updates:
+            print("Error: 'fileType' is immutable after EDI profile creation and cannot be changed.",
+                  file=sys.stderr)
+            sys.exit(1)
         current = api.get(args.id)
         if current.get("error"):
             print_result(current, args.format)
             return
-        merged = _merge_updates_for_put(current, updates, EDIPROFILE_READONLY_FIELDS)
+        readonly = EDIPROFILE_READONLY_FIELDS | EDIPROFILE_IMMUTABLE_FIELDS
+        merged = _merge_updates_for_put(current, updates, readonly)
         print_result(api.update(args.id, merged), args.format)
 
     elif args.action == "patch":
@@ -2377,9 +2652,19 @@ def cmd_edi(args):
     elif args.action == "delete":
         print_result(api.delete(args.id), args.format)
 
+    elif args.action == "dependencies":
+        print_result(api.dependencies(args.id), args.format)
+
     elif args.action == "update-transactions":
         data = _resolve_json_input(args)
         print_result(api.update_transactions(data), args.format)
+
+    elif args.action == "update-transaction":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.update_transaction(args.id, data), args.format)
 
     elif args.action == "query-transactions":
         data = _resolve_json_input(args)
@@ -2387,6 +2672,280 @@ def cmd_edi(args):
 
     elif args.action == "fa-details":
         print_result(api.get_fa_details(args.id), args.format)
+
+    elif args.action == "download-transaction":
+        result = api.download_transaction(args.id)
+        out_path = getattr(args, "out", None)
+        if out_path:
+            with open(out_path, "w") as f:
+                content = result if isinstance(result, str) else json.dumps(result, indent=2)
+                f.write(content)
+            print(f"Downloaded to {out_path}")
+        else:
+            if isinstance(result, str):
+                print(result)
+            else:
+                print_result(result, args.format)
+
+
+def cmd_tools(args):
+    """Handle Tools subcommands."""
+    client = CeligoClient(args.env)
+    api = ToolsAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, TOOL_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "invoke":
+        data = _resolve_json_input(args) if hasattr(args, 'data') and args.data else None
+        print_result(api.invoke(args.id, data), args.format)
+
+    elif args.action == "dependencies":
+        print_result(api.dependencies(args.id), args.format)
+
+
+def cmd_builder_apis(args):
+    """Handle builder-mode API subcommands."""
+    client = CeligoClient(args.env)
+    api = BuilderApisAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, BUILDERAPI_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "deploy":
+        print_result(api.deploy(args.id), args.format)
+
+    elif args.action == "versions":
+        print_result(api.versions(args.id), args.format)
+
+
+def cmd_mcp_servers(args):
+    """Handle MCP Servers subcommands."""
+    client = CeligoClient(args.env)
+    api = McpServersAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, MCPSERVER_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "start":
+        print_result(api.start(args.id), args.format)
+
+    elif args.action == "stop":
+        print_result(api.stop(args.id), args.format)
+
+    elif args.action == "status":
+        print_result(api.status(args.id), args.format)
+
+
+def cmd_async(args):
+    """Handle Async Helpers subcommands."""
+    client = CeligoClient(args.env)
+    api = AsyncHelpersAPI(client)
+
+    if args.action == "submit":
+        data = _resolve_json_input(args) if hasattr(args, 'data') and args.data else None
+        print_result(api.submit(args.operation, data), args.format)
+
+    elif args.action == "poll":
+        print_result(api.poll(args.id), args.format)
+
+    elif args.action == "result":
+        print_result(api.result(args.id), args.format)
+
+    elif args.action == "wait":
+        data = _resolve_json_input(args) if hasattr(args, 'data') and args.data else None
+        timeout = getattr(args, "timeout", 120)
+        interval = getattr(args, "interval", 2)
+        try:
+            result = api.wait(args.operation, data, timeout=timeout, interval=interval)
+            print_result(result, args.format)
+        except TimeoutError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+
+
+def cmd_notifications(args):
+    """Handle Notifications subcommands."""
+    client = CeligoClient(args.env)
+    api = NotificationsAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "_resourceId", "_resourceType", "event", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        for required in ("_resourceId", "_resourceType", "event"):
+            if not data.get(required):
+                print(f"Error: '{required}' required in notification payload.", file=sys.stderr)
+                sys.exit(1)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, NOTIFICATION_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+
+def cmd_opa(args):
+    """Handle OPA (On-Premise Agent) subcommands."""
+    client = CeligoClient(args.env)
+    api = OpaAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, OPA_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+    elif args.action == "status":
+        print_result(api.status(args.id), args.format)
+
+    elif args.action == "restart":
+        print_result(api.restart(args.id), args.format)
+
+
+def cmd_trading_partners(args):
+    """Handle Trading Partner Connectors subcommands."""
+    client = CeligoClient(args.env)
+    api = TradingPartnerConnectorsAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        # Resolve supportedBy name -> id if needed (pass-through; let API validate)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, TPC_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    else:
+        print(f"Error: Unknown action '{args.action}'. Trading Partner Connectors do not support delete via API.",
+              file=sys.stderr)
+        sys.exit(1)
 
 
 def cmd_edi_reports(args):
@@ -3316,14 +3875,21 @@ Examples:
     fd_create = fd_sub.add_parser("create", help="Create file definition")
     fd_create.add_argument("--data", help="Full JSON (inline)")
     fd_create.add_argument("--file", help="Path to JSON file")
+    fd_create.add_argument("--schema-version", choices=["1", "2"],
+                           help="Schema version for x12/edifact formats (1 or 2)")
 
     fd_update = fd_sub.add_parser("update", help="Update file definition")
     fd_update.add_argument("id", help="File definition ID")
     fd_update.add_argument("--data", help="Partial JSON (inline)")
     fd_update.add_argument("--file", help="Path to JSON file")
+    fd_update.add_argument("--schema-version", choices=["1", "2"],
+                           help="Schema version for x12/edifact formats (1 or 2)")
 
     fd_delete = fd_sub.add_parser("delete", help="Delete file definition")
     fd_delete.add_argument("id", help="File definition ID")
+
+    fd_deps = fd_sub.add_parser("dependencies", help="Get file definition dependencies")
+    fd_deps.add_argument("id", help="File definition ID")
 
     # --- Recycle Bin ---
     rb_parser = subparsers.add_parser("recyclebin", help="Recycle bin operations")
@@ -3522,6 +4088,193 @@ Examples:
     edi_fa = edi_sub.add_parser("fa-details", help="Get FA details for transaction")
     edi_fa.add_argument("id", help="Transaction ID")
 
+    edi_deps = edi_sub.add_parser("dependencies", help="Get resources referencing this EDI profile")
+    edi_deps.add_argument("id", help="EDI profile ID")
+
+    edi_utxn_single = edi_sub.add_parser("update-transaction", help="Update a single EDI transaction (PATCH)")
+    edi_utxn_single.add_argument("id", help="Transaction ID")
+    edi_utxn_single.add_argument("--data", help="Partial JSON (inline)")
+    edi_utxn_single.add_argument("--file", help="Path to JSON file")
+
+    edi_dl = edi_sub.add_parser("download-transaction", help="Download raw EDI envelope for a transaction")
+    edi_dl.add_argument("id", help="Transaction ID")
+    edi_dl.add_argument("--out", help="Write output to file path instead of stdout")
+
+    # --- Tools ---
+    tools_parser = subparsers.add_parser("tools", help="Celigo Tools (reusable processing units)")
+    tools_sub = tools_parser.add_subparsers(dest="action")
+
+    tools_sub.add_parser("list", help="List tools")
+
+    tools_get = tools_sub.add_parser("get", help="Get tool")
+    tools_get.add_argument("id", help="Tool ID")
+
+    tools_create = tools_sub.add_parser("create", help="Create tool")
+    tools_create.add_argument("--data", help="Full JSON (inline)")
+    tools_create.add_argument("--file", help="Path to JSON file")
+
+    tools_update = tools_sub.add_parser("update", help="Update tool (fetch-merge-PUT)")
+    tools_update.add_argument("id", help="Tool ID")
+    tools_update.add_argument("--data", help="Partial JSON (inline)")
+    tools_update.add_argument("--file", help="Path to JSON file")
+
+    tools_delete = tools_sub.add_parser("delete", help="Delete tool")
+    tools_delete.add_argument("id", help="Tool ID")
+
+    tools_invoke = tools_sub.add_parser("invoke", help="Invoke tool")
+    tools_invoke.add_argument("id", help="Tool ID")
+    tools_invoke.add_argument("--data", help="Invocation payload JSON")
+    tools_invoke.add_argument("--file", help="Path to JSON file")
+
+    tools_deps = tools_sub.add_parser("dependencies", help="Get tool dependencies")
+    tools_deps.add_argument("id", help="Tool ID")
+
+    # --- Builder-mode APIs ---
+    apis_parser = subparsers.add_parser("builder-apis", help="Celigo builder-mode REST endpoint definitions")
+    apis_sub = apis_parser.add_subparsers(dest="action")
+
+    apis_sub.add_parser("list", help="List builder APIs")
+
+    apis_get = apis_sub.add_parser("get", help="Get builder API")
+    apis_get.add_argument("id", help="API ID")
+
+    apis_create = apis_sub.add_parser("create", help="Create builder API")
+    apis_create.add_argument("--data", help="Full JSON (inline)")
+    apis_create.add_argument("--file", help="Path to JSON file")
+
+    apis_update = apis_sub.add_parser("update", help="Update builder API (fetch-merge-PUT)")
+    apis_update.add_argument("id", help="API ID")
+    apis_update.add_argument("--data", help="Partial JSON (inline)")
+    apis_update.add_argument("--file", help="Path to JSON file")
+
+    apis_delete = apis_sub.add_parser("delete", help="Delete builder API")
+    apis_delete.add_argument("id", help="API ID")
+
+    apis_deploy = apis_sub.add_parser("deploy", help="Deploy builder API")
+    apis_deploy.add_argument("id", help="API ID")
+
+    apis_versions = apis_sub.add_parser("versions", help="List API version history")
+    apis_versions.add_argument("id", help="API ID")
+
+    # --- MCP Servers ---
+    mcp_parser = subparsers.add_parser("mcp-servers", help="Celigo MCP Servers (expose Tools/APIs to AI agents)")
+    mcp_sub = mcp_parser.add_subparsers(dest="action")
+
+    mcp_sub.add_parser("list", help="List MCP servers")
+
+    mcp_get = mcp_sub.add_parser("get", help="Get MCP server")
+    mcp_get.add_argument("id", help="Server ID")
+
+    mcp_create = mcp_sub.add_parser("create", help="Create MCP server")
+    mcp_create.add_argument("--data", help="Full JSON (inline)")
+    mcp_create.add_argument("--file", help="Path to JSON file")
+
+    mcp_update = mcp_sub.add_parser("update", help="Update MCP server (fetch-merge-PUT)")
+    mcp_update.add_argument("id", help="Server ID")
+    mcp_update.add_argument("--data", help="Partial JSON (inline)")
+    mcp_update.add_argument("--file", help="Path to JSON file")
+
+    mcp_delete = mcp_sub.add_parser("delete", help="Delete MCP server")
+    mcp_delete.add_argument("id", help="Server ID")
+
+    mcp_start = mcp_sub.add_parser("start", help="Start MCP server")
+    mcp_start.add_argument("id", help="Server ID")
+
+    mcp_stop = mcp_sub.add_parser("stop", help="Stop MCP server")
+    mcp_stop.add_argument("id", help="Server ID")
+
+    mcp_status = mcp_sub.add_parser("status", help="Get MCP server status")
+    mcp_status.add_argument("id", help="Server ID")
+
+    # --- Async Helpers ---
+    async_parser = subparsers.add_parser("async", help="Celigo Async Helpers (submit/poll/result pattern)")
+    async_sub = async_parser.add_subparsers(dest="action")
+
+    async_submit = async_sub.add_parser("submit", help="Submit a long-running operation")
+    async_submit.add_argument("operation", help="Operation name (e.g. 'dataLoaderExport')")
+    async_submit.add_argument("--data", help="Operation payload JSON")
+    async_submit.add_argument("--file", help="Path to JSON file")
+
+    async_poll = async_sub.add_parser("poll", help="Check status of async operation")
+    async_poll.add_argument("id", help="Job ID returned from submit")
+
+    async_result = async_sub.add_parser("result", help="Fetch result of completed async operation")
+    async_result.add_argument("id", help="Job ID")
+
+    async_wait = async_sub.add_parser("wait", help="Submit + poll until done, then return result")
+    async_wait.add_argument("operation", help="Operation name")
+    async_wait.add_argument("--data", help="Operation payload JSON")
+    async_wait.add_argument("--file", help="Path to JSON file")
+    async_wait.add_argument("--timeout", type=int, default=120, help="Max wait seconds (default 120)")
+    async_wait.add_argument("--interval", type=int, default=2, help="Poll interval seconds (default 2)")
+
+    # --- Notifications ---
+    notif_parser = subparsers.add_parser("notifications", help="Email notification subscription management")
+    notif_sub = notif_parser.add_subparsers(dest="action")
+
+    notif_sub.add_parser("list", help="List notifications")
+
+    notif_get = notif_sub.add_parser("get", help="Get notification")
+    notif_get.add_argument("id", help="Notification ID")
+
+    notif_create = notif_sub.add_parser("create", help="Create notification (requires _resourceId, _resourceType, event)")
+    notif_create.add_argument("--data", help="Full JSON (inline)")
+    notif_create.add_argument("--file", help="Path to JSON file")
+
+    notif_update = notif_sub.add_parser("update", help="Update notification (fetch-merge-PUT)")
+    notif_update.add_argument("id", help="Notification ID")
+    notif_update.add_argument("--data", help="Partial JSON (inline)")
+    notif_update.add_argument("--file", help="Path to JSON file")
+
+    notif_delete = notif_sub.add_parser("delete", help="Delete notification")
+    notif_delete.add_argument("id", help="Notification ID")
+
+    # --- OPA (On-Premise Agents) ---
+    opa_parser = subparsers.add_parser("opa", help="On-Premise Agent management")
+    opa_sub = opa_parser.add_subparsers(dest="action")
+
+    opa_sub.add_parser("list", help="List OPAs")
+
+    opa_get = opa_sub.add_parser("get", help="Get OPA")
+    opa_get.add_argument("id", help="Agent ID")
+
+    opa_create = opa_sub.add_parser("create", help="Create OPA")
+    opa_create.add_argument("--data", help="Full JSON (inline)")
+    opa_create.add_argument("--file", help="Path to JSON file")
+
+    opa_update = opa_sub.add_parser("update", help="Update OPA (fetch-merge-PUT)")
+    opa_update.add_argument("id", help="Agent ID")
+    opa_update.add_argument("--data", help="Partial JSON (inline)")
+    opa_update.add_argument("--file", help="Path to JSON file")
+
+    opa_delete = opa_sub.add_parser("delete", help="Delete OPA")
+    opa_delete.add_argument("id", help="Agent ID")
+
+    opa_status = opa_sub.add_parser("status", help="Get OPA connection status")
+    opa_status.add_argument("id", help="Agent ID")
+
+    opa_restart = opa_sub.add_parser("restart", help="Restart OPA connection")
+    opa_restart.add_argument("id", help="Agent ID")
+
+    # --- Trading Partner Connectors ---
+    tpc_parser = subparsers.add_parser("trading-partners",
+                                       help="Trading Partner Connectors (B2B onboarding templates)")
+    tpc_sub = tpc_parser.add_subparsers(dest="action")
+
+    tpc_sub.add_parser("list", help="List trading partner connectors")
+
+    tpc_get = tpc_sub.add_parser("get", help="Get trading partner connector")
+    tpc_get.add_argument("id", help="Connector ID")
+
+    tpc_create = tpc_sub.add_parser("create", help="Create trading partner connector")
+    tpc_create.add_argument("--data", help="Full JSON (inline); include supportedBy array")
+    tpc_create.add_argument("--file", help="Path to JSON file")
+
+    tpc_update = tpc_sub.add_parser("update", help="Update trading partner connector (fetch-merge-PUT)")
+    tpc_update.add_argument("id", help="Connector ID")
+    tpc_update.add_argument("--data", help="Partial JSON (inline)")
+    tpc_update.add_argument("--file", help="Path to JSON file")
+
     return parser
 
 
@@ -3561,6 +4314,13 @@ def main():
         "edi": cmd_edi,
         "edi-reports": cmd_edi_reports,
         "health-digest": cmd_health_digest,
+        "tools": cmd_tools,
+        "builder-apis": cmd_builder_apis,
+        "mcp-servers": cmd_mcp_servers,
+        "async": cmd_async,
+        "notifications": cmd_notifications,
+        "opa": cmd_opa,
+        "trading-partners": cmd_trading_partners,
     }
 
     handler = handlers.get(args.resource)

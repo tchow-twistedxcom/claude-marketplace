@@ -1,7 +1,8 @@
 ---
 name: celigo-integration-patterns
-description: "Best practices and patterns for building Celigo integrations. Use when designing data integrations, ETL workflows, or connecting business applications via Celigo."
+description: "Best practices and patterns for building Celigo integrations. Use when designing data integrations, ETL workflows, connecting business applications, managing EDI partners, setting up MCP servers/Tools/OPAs, or running the EDI cross-system audit."
 license: MIT
+version: 4.0.0
 ---
 
 # Celigo Integration Patterns
@@ -14,6 +15,22 @@ This skill activates when:
 - Connecting SaaS applications
 - Troubleshooting integration issues
 - Optimizing integration performance
+- Managing EDI profiles, trading partner connectors, or file definitions
+- Setting up Tools, builder-mode APIs, or MCP Servers
+- Managing OPAs (On-Premise Agents)
+- Running or interpreting EDI cross-system audit results
+
+## CLI Architecture (v4.0.0)
+
+The Celigo integration plugin provides two complementary layers:
+
+**Core layer** (`scripts/celigo_api.py`) — pure Python REST wrapper for the full Celigo API. No external dependencies beyond `requests`. Covers ~170 operations across 27 resource types. This is the canonical tool for all Celigo operations.
+
+**CLI bridge** (`scripts/celigo_cli_wrapper.py`) — thin subprocess wrapper for `@celigo/celigo-cli` (official npm). Only used when the official CLI provides a capability not yet in the Python layer. Requires Node 22+ and `npm install -g @celigo/celigo-cli`.
+
+**EDI audit** (`scripts/edi_audit.py`) — standalone cross-system reconciliation script. Calls both Celigo API and the NetSuite gateway to surface mismatches between Celigo flow results and NS EDI History records.
+
+For all day-to-day operations, use `celigo_api.py` directly.
 
 ## Integration Architecture Patterns
 
@@ -556,6 +573,147 @@ for (var fe = 0; fe < entries.length; fe++) {
 - **preMap return `{}`**: Skips record for AI processing, but record continues through pipeline to subsequent PPs.
 
 **See also**: [Pipeline Field Persistence Solution Doc](../../docs/solutions/integration-issues/pipeline-field-persistence-premap-vs-export-CeligoIntegration-20260224.md)
+
+## New Resource Families (v4.0.0)
+
+### Tools
+
+Custom Celigo Tools are reusable callable units (HTTP, script, or connector-based).
+
+```bash
+python3 scripts/celigo_api.py tools list
+python3 scripts/celigo_api.py tools get <id>
+python3 scripts/celigo_api.py tools invoke <id> --data '{"input": "value"}'
+python3 scripts/celigo_api.py tools dependencies <id>
+```
+
+See `docs/new-resources/tools.md` for payload shape.
+
+### Builder-Mode APIs
+
+Builder APIs expose integrations as API endpoints via Celigo's API builder.
+
+```bash
+python3 scripts/celigo_api.py apis list
+python3 scripts/celigo_api.py apis deploy <id>
+python3 scripts/celigo_api.py apis versions <id>
+```
+
+See `docs/new-resources/apis.md`.
+
+### MCP Servers
+
+Celigo-hosted MCP server configurations (not to be confused with Claude Code's MCP).
+
+```bash
+python3 scripts/celigo_api.py mcp-servers list
+python3 scripts/celigo_api.py mcp-servers start <id>
+python3 scripts/celigo_api.py mcp-servers stop <id>
+python3 scripts/celigo_api.py mcp-servers status <id>
+```
+
+See `docs/new-resources/mcp-servers.md`.
+
+### Async Helpers
+
+Three-phase async pattern: submit → poll → result. Use for long-running operations.
+
+```bash
+python3 scripts/celigo_api.py async submit <helper_id> --data '{"key": "value"}'
+python3 scripts/celigo_api.py async poll <token_id>
+python3 scripts/celigo_api.py async result <token_id>
+python3 scripts/celigo_api.py async wait <token_id>   # blocks until done
+```
+
+See `docs/new-resources/async-helpers.md`.
+
+### Notifications
+
+Email/Slack notifications for integration events.
+
+```bash
+python3 scripts/celigo_api.py notifications list
+python3 scripts/celigo_api.py notifications create --data '<json>'
+```
+
+See `docs/new-resources/notifications.md`.
+
+### OPA (On-Premise Agents)
+
+OPAs bridge Celigo cloud to private/on-premise data sources.
+
+```bash
+python3 scripts/celigo_api.py opa list
+python3 scripts/celigo_api.py opa status <id>   # connected / disconnected / unknown
+python3 scripts/celigo_api.py opa restart <id>  # triggers reconnect
+```
+
+See `docs/new-resources/opa.md`.
+
+### EDI Profiles
+
+X12 and EDIFACT interchange envelope configs (ISA/GS for X12, UNB/UNG for EDIFACT).
+
+**Critical constraint**: `fileType` is immutable after creation. The CLI enforces this client-side.
+
+```bash
+python3 scripts/celigo_api.py edi create --data '{"name": "...", "fileType": "x12", ...}'
+python3 scripts/celigo_api.py edi update <id> --data '{"isa06": "NEW_ID"}'  # fileType omitted
+python3 scripts/celigo_api.py edi dependencies <id>   # check before deleting
+```
+
+See `docs/new-resources/edi-profiles.md`.
+
+### Trading Partner Connectors
+
+B2B onboarding templates bundling connection, export, import, and EDI profile.
+
+```bash
+python3 scripts/celigo_api.py trading-partners list
+python3 scripts/celigo_api.py trading-partners create --data '<json>'
+python3 scripts/celigo_api.py trading-partners update <id> --data '<partial-json>'
+```
+
+Note: Trading Partner Connectors do not support delete via API.
+
+See `docs/new-resources/trading-partner-connectors.md`.
+
+### File Definitions (EDI Formats)
+
+X12 and EDIFACT file definitions require `documentType` and `globalId` in addition to `format`.
+
+```bash
+python3 scripts/celigo_api.py filedefinitions create \
+  --data '{"name": "850 PO", "format": "x12", "documentType": "850", "globalId": "004010850"}'
+python3 scripts/celigo_api.py filedefinitions create --schema-version 2 --data '<json>'
+python3 scripts/celigo_api.py filedefinitions dependencies <id>
+```
+
+See `docs/new-resources/file-definitions-edi.md`.
+
+### EDI Cross-System Audit
+
+Reconciles Celigo flow results against NetSuite EDI History records.
+
+**What it checks:**
+- Inbound: Every Celigo success has a corresponding NS EDI record (status=2). 850s additionally verify an SO was created (`custrecord_twx_edi_history_transaction IS NOT NULL`).
+- Outbound: Every NS EDI record has a corresponding Celigo success. Also flags NS errors (status=6).
+
+**Three result buckets:**
+1. `celigo_success_ns_missing` — Celigo reports success but no NS record found
+2. `ns_sent_celigo_missing` — NS has the record but Celigo job is missing/failed
+3. `ns_status_error` — NS record exists but status = error (6)
+
+```bash
+# Standard 24-hour audit
+python3 scripts/edi_audit.py --since 24h
+
+# Weekly audit for specific partner
+python3 scripts/edi_audit.py --since 7d --partner "ACME" --direction inbound
+
+# CI mode — exit 1 if any mismatches
+python3 scripts/edi_audit.py --since 24h --exit-nonzero-on-mismatch
+```
 
 ## Troubleshooting Guide
 

@@ -23,16 +23,72 @@ A unified toolkit for debugging and validating the NetSuite API Gateway and fron
 | `validate-types` | `validate_types.py` | Compare TS interfaces to API responses |
 | `generate-types` | `generate_types.py` | Auto-generate TS types from API |
 
+## Gateway URL & Authentication
+
+**Production gateway (always available):** `https://nsapi.twistedx.tech`
+**Local dev gateway:** `http://localhost:3001` (requires Docker — see below)
+
+All requests to the production gateway require an API key sent as `X-API-Key`:
+
+```bash
+curl -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
+  -d '{"netsuiteEnvironment":"sandbox2","action":"taskCreate","procedure":"taskCreate", ...}'
+```
+
+The Python skill scripts read the key automatically from `NETSUITE_API_KEY` env var. Local dev without an API key falls back to `Origin` header instead.
+
+## Triggering Scheduled Scripts via `taskCreate`
+
+Use the `suiteapi` app's `taskCreate` procedure to trigger a scheduled script on demand.
+
+**⚠️ Common mistakes that each produce a different error:**
+
+| Mistake | Error |
+|---------|-------|
+| Wrong host (`gateway.twistedx.io`) | `curl: (6) Could not resolve host` |
+| Wrong app ID (`netsuite`, `twx`) | `{"error":"App not found"}` |
+| Missing `action` field | `{"error":"Action parameter is required"}` |
+| `action` present but no `procedure` | `{"error":"MISSING_PROCEDURE"}` |
+| `taskType`/`scriptId` nested inside `"params":{}` | `{"error":"taskType and scriptId are required"}` |
+
+**Correct format — ALL of these fields required at the top level:**
+
+```bash
+curl -X POST "https://nsapi.twistedx.tech/api/suiteapi" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $NETSUITE_API_KEY" \
+  -d '{
+    "netsuiteEnvironment": "sandbox2",
+    "action": "taskCreate",
+    "procedure": "taskCreate",
+    "taskType": "SCHEDULED_SCRIPT",
+    "scriptId": "customscript_pri_containertouch_sc",
+    "deploymentId": "customdeploy_pri_containertouch_sc"
+  }'
+```
+
+Key rules:
+- `action` AND `procedure` are both required (they are the same value: `"taskCreate"`)
+- `taskType`, `scriptId`, `deploymentId` go at the **top level**, NOT inside a `"params"` key
+- `netsuiteEnvironment` values: `"sandbox"` (SB1), `"sandbox2"` (SB2), `"production"`
+
+**Look up deployment IDs before triggering:**
+```bash
+python3 ~/.../netsuite-script-deployments/scripts/list_deployments.py \
+  --script customscript_pri_containertouch_sc --env sb2
+```
+
 ## Prerequisites
 
-**NetSuite API Gateway** must be running:
+**Production gateway** is always available — no local setup needed for most tasks.
+
+**Local dev gateway** (optional, for offline development):
 ```bash
 cd ~/NetSuiteApiGateway
 docker compose up -d
-```
-
-Verify gateway is running:
-```bash
+# Verify:
 curl http://localhost:3001/health
 ```
 

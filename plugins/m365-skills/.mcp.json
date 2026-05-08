@@ -1,0 +1,17 @@
+{
+  "azure-ad": {
+    "command": "uv",
+    "args": [
+      "run",
+      "--with", "mcp>=1.0.0",
+      "--with", "httpx>=0.27.0",
+      "--with", "msal>=1.20.0",
+      "${HOME}/.claude/plugins/marketplaces/tchow-essentials/extensions/azure-ad/src/server.py"
+    ],
+    "env": {
+      "AZURE_TENANT_ID": "${AZURE_TENANT_ID}",
+      "AZURE_CLIENT_ID": "${AZURE_CLIENT_ID}",
+      "AZURE_CLIENT_SECRET": "${AZURE_CLIENT_SECRET}"
+    }
+  }
+}

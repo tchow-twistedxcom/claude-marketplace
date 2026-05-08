@@ -14,12 +14,19 @@ Usage:
 """
 
 import argparse
+import os
 import json
 import sys
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-GATEWAY_URL = "http://localhost:3001"
+# NetSuite API Gateway base URL — override with NETSUITE_GATEWAY_URL env var.
+# Scripts in this file construct per-app endpoints (e.g. /api/homepage), so
+# GATEWAY_URL holds the base host, NOT the /api/suiteapi path.
+GATEWAY_URL = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
+_API_KEY = os.environ.get('NETSUITE_API_KEY', '')
+if not _API_KEY and 'nsapi.twistedx.tech' in GATEWAY_URL:
+    print("Warning: NETSUITE_API_KEY not set — requests to prod gateway will fail with 401", file=sys.stderr)
 ENVIRONMENTS = ["production", "sandbox", "sandbox2"]
 
 # Expected account IDs per environment
@@ -43,11 +50,14 @@ def test_environment(app: str, env: str, verbose: bool = False) -> dict:
     }
 
     try:
-        url = f"{GATEWAY_URL}/api/{app}?action=getConfig"
+        url = f"{GATEWAY_URL}/api/{app}?action=getConfig&netsuiteEnvironment={env}"
         headers = {
-            "X-NetSuite-Environment": env,
             "Content-Type": "application/json"
         }
+        if _API_KEY:
+            headers["X-API-Key"] = _API_KEY
+        else:
+            headers["Origin"] = GATEWAY_URL
 
         if verbose:
             print(f"\n[{env}] Testing: {url}")
@@ -161,8 +171,8 @@ def generate_curl_commands(app: str):
 
     for env in ENVIRONMENTS:
         print(f"\n# Test {env}:")
-        print(f'curl -s "{GATEWAY_URL}/api/{app}?action=getConfig" \\')
-        print(f'  -H "X-NetSuite-Environment: {env}" | jq \'.success\'')
+        print(f'curl -s "{GATEWAY_URL}/api/{app}?action=getConfig&netsuiteEnvironment={env}" \\')
+        print(f'  -H "X-API-Key: $NETSUITE_API_KEY" | jq \'.success\'')
 
 
 def main():

@@ -360,6 +360,34 @@ Last updated: 2025-12-17
 
 ---
 
+## Partner Data Feeds (Non-EDI)
+
+### Locally Product Feed
+**Integration ID**: `69e1240abb42fc35ed385bae`
+**Type**: Custom (not from connector template — no `_sourceId`)
+**Flow**: NetSuite → SFTP + NetSuite File Cabinet archive
+
+| Flow | Direction | Description |
+|------|-----------|-------------|
+| NetSuite - Export to Locally SFTP | Outbound | Daily dealer CSV to Locally + archive |
+
+**Flow ID**: `69e12424835bdeb9c16b5cd2`
+**Export ID**: `69e27e3d973931d194c3e321` — `NS Mirror Record Export - Locally Feed`
+- Record type: `customrecord_twx_locally_feed_row`
+- Search: `customsearch_twx_locally_feed_export` (numeric prod ID: `264138`)
+- `skipGrouping: true`, `pageSize: 1`, `distributed: {}`
+
+**SFTP Import ID**: *(FTPImport → Locally SFTP)*
+**Archive Import ID**: `69ebf64f2dc4e45f908f3793` — File Cabinet `/B2B/Locally/outbox/`
+**Schedule**: `0 11 * * *` America/Chicago (06:00 CDT — after nightly M/R at 01:00 CDT)
+
+**Notes:**
+- Uses numeric `searchId: "264138"` — NOT the script ID `customsearch_twx_locally_feed_export`. Celigo always stores/resolves saved searches by numeric internal ID; using a script ID shows as "private saved search" in the UI.
+- No `_sourceId` on the integration or export — this is a custom (non-template) integration. The UI shows raw JSON config view instead of the connector-style view. This is cosmetic only; functionality is identical.
+- SFTP creds for Locally in 1Password.
+
+---
+
 ## Infrastructure Integrations
 
 ### EDI - Lookup Cache

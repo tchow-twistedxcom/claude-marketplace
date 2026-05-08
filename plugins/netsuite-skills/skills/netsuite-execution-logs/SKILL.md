@@ -19,14 +19,11 @@ Query script execution logs from NetSuite via the SuiteAPI gateway. This skill e
 
 ## Prerequisites
 
-**NetSuite API Gateway** must be running:
-```bash
-cd ~/NetSuiteApiGateway
-docker compose up -d
-```
+**Production gateway** is always available at `https://nsapi.twistedx.tech` — no local setup needed.
 
-Verify gateway is running:
+**Local dev gateway** (optional):
 ```bash
+cd ~/NetSuiteApiGateway && docker compose up -d
 curl http://localhost:3001/health
 ```
 
@@ -213,6 +210,49 @@ filters.push(search.createFilter({
     values: 'CUSTOMSCRIPT_MY_SCRIPT'  // Uppercase!
 }));
 ```
+
+## Log Attribution: Which Script Do Logs Appear Under?
+
+### ⚠️ Critical: Logs from Library Functions Appear Under the Calling Script, Not the Trigger
+
+In NetSuite, `log.debug()` calls inside a shared library (AMD module) are attributed to whichever **script record** loaded that module — not the script that kicked off the execution chain.
+
+**Example — PRI Container Tracking:**
+
+```
+containerTouch_sc (Scheduled Script)
+  → adds TOUCH_CONTAINER queue entry
+  → triggers Container UE (customscript_pri_container_ss)
+    → calls healTrnfrOrd() in pri_itemrcpt_lib.js
+      → emits log.debug('HEAL_DIAG_5', ...)
+```
+
+Where do the `HEAL_DIAG_*` logs appear?
+- ✅ Under `customscript_pri_container_ss` (the Container UE that loaded the lib)
+- ❌ NOT under `customscript_pri_containertouch_sc` (the scheduled script that triggered the chain)
+
+```bash
+# WRONG — logs from healTrnfrOrd won't appear here
+python3 scripts/query_execution_logs.py --script customscript_pri_containertouch_sc ...
+
+# CORRECT — healTrnfrOrd logs appear under the Container UE
+python3 scripts/query_execution_logs.py --script customscript_pri_container_ss ...
+```
+
+### How to Find the Right Script When Logs Are Missing
+
+1. Identify the library function emitting the logs (e.g., `healTrnfrOrd` in `pri_itemrcpt_lib.js`)
+2. Find which script `define()`s / `require()`s that library (e.g., `pri_container_ss.js` imports `pri_itemrcpt_lib`)
+3. Look up that script's deployment ID and query under it
+
+**Quick map for PRI Container Tracking:**
+
+| Log source | Query under script |
+|------------|-------------------|
+| `healTrnfrOrd`, `pri_itemrcpt_lib.js` | `customscript_pri_container_ss` |
+| `pri_containerTouch_sc.js` | `customscript_pri_containertouch_sc` |
+| `pri_trnfrord_ss.js` | `customscript_pri_trnfrord_ss` (or similar) |
+| `pri_itemrcpt_ss.js` | `customscript_pri_itemrcpt_ss` |
 
 ## Gotchas & Troubleshooting
 

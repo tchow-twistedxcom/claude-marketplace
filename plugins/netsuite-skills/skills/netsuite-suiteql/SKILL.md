@@ -21,19 +21,20 @@ Execute SuiteQL queries directly against NetSuite environments (Production, Sand
 
 ## Prerequisites
 
-**NetSuite API Gateway** must be running:
-```bash
-cd ~/NetSuiteApiGateway
-docker compose up -d
-```
+**NetSuite API Gateway** is hosted at `https://nsapi.twistedx.tech`. No local setup needed.
 
-Verify gateway is running:
+Verify the gateway is reachable:
 ```bash
-curl http://localhost:3001/health
+curl https://nsapi.twistedx.tech/health
 # Expected: {"status":"healthy","timestamp":"...","version":"1.0.0"}
 ```
 
-The gateway handles OAuth authentication automatically - no manual authentication needed!
+Override the URL for local development:
+```bash
+export NETSUITE_GATEWAY_URL=http://localhost:3001
+```
+
+The gateway handles OAuth authentication automatically — no manual credentials needed for query execution.
 
 ## Quick Start
 
@@ -227,25 +228,21 @@ SELECT * FROM customrecord_pri_frgt_cnt WHERE ROWNUM <= 10
 ## Error Handling
 
 ### Gateway Connection Errors
-If you receive gateway connection errors, ensure the NetSuite API Gateway is running:
+If you receive gateway connection errors:
 
 ```bash
-# Check gateway status
+# Check hosted gateway status
+curl https://nsapi.twistedx.tech/health
+
+# For local dev, override the URL:
+export NETSUITE_GATEWAY_URL=http://localhost:3001
 curl http://localhost:3001/health
-
-# Start gateway if not running
-cd ~/NetSuiteApiGateway
-docker compose up -d
-
-# View gateway logs
-docker compose logs -f gateway
 ```
 
 ### Authentication Errors
-The gateway handles OAuth 1.0a authentication automatically. If you receive authentication errors:
-- Check gateway logs: `docker compose logs gateway`
-- Verify OAuth configuration in `~/NetSuiteApiGateway/config/oauth.json`
-- Ensure credentials are properly configured for the target environment
+The gateway handles OAuth authentication server-side. If you receive 401/403 errors:
+- Check that the gateway service is healthy (see above)
+- OAuth credentials are managed on the gateway — contact the gateway owner if they are expired
 
 ### Query Syntax Errors
 If the query fails with "Field not found" or similar errors, verify the exact column names before guessing:
@@ -462,11 +459,12 @@ ERROR: HTTP 400: Invalid value for field
 ```
 → Check field type (text, list, checkbox) and provide appropriate value
 
-**Gateway not running:**
+**Gateway not reachable:**
 ```
 ERROR: Gateway connection error: Connection refused
 ```
-→ Start the NetSuite API Gateway: `cd ~/NetSuiteApiGateway && docker compose up -d`
+→ Check hosted gateway: `curl https://nsapi.twistedx.tech/health`
+→ For local dev: `export NETSUITE_GATEWAY_URL=http://localhost:3001`
 
 ### Record Operations Best Practices
 
@@ -476,6 +474,77 @@ ERROR: Gateway connection error: Connection refused
 4. **JSON Format:** Use `--json` flag for scripted operations that need structured output
 5. **Document Updates:** Keep track of what you changed and why
 6. **Verify After:** Always query after update to confirm changes took effect
+
+## Record Transform Operations (Create Transaction Chains)
+
+Use `transform_record.py` for workflows that require `record.transform` — the primitive behind NetSuite's "Fulfill", "Bill", "Invoice", and "Receive" UI buttons. `update_record.py` uses `record.create` and cannot source lines from a parent transaction.
+
+### Quick Start — Transaction Chains
+
+**SO → Item Fulfillment (set all lines to receive at location 1):**
+```bash
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type itemfulfillment \
+  --fields '{"shipstatus":"A"}' \
+  --line-updates '{"item":[{"matchAll":true,"fields":{"itemreceive":true,"location":1}}]}'
+```
+
+**SO → Invoice:**
+```bash
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type invoice
+```
+
+**PO → Item Receipt:**
+```bash
+python3 scripts/transform_record.py \
+  --from-type purchaseorder --from-id 99999 --to-type itemreceipt
+```
+
+**Dry-run (inspect payload before firing):**
+```bash
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type itemfulfillment \
+  --fields '{"shipstatus":"A"}' \
+  --dry-run
+```
+
+### lineUpdates vs sublists
+
+| Scenario | Use |
+|----------|-----|
+| Modify existing lines after transform (e.g. IF item sublist) | `--line-updates` |
+| Add new lines to a non-static sublist | `--sublists` |
+
+The IF item sublist is **static** after `record.transform`. Any attempt to use `--sublists` for it will result in `SSS_INVALID_SUBLIST_OPERATION`. Always use `--line-updates` for IF line mutations.
+
+### lineUpdates targeting strategies
+
+```json
+{ "item": [ { "matchAll": true, "fields": { "itemreceive": true } } ] }
+{ "item": [ { "matchIndex": 0, "fields": { "location": 1 } } ] }
+{ "item": [ { "match": { "item": "73494" }, "fields": { "location": 1 } } ] }
+```
+
+### defaultValues — transform-time sourcing overrides
+
+```bash
+# Override inventory location at sourcing time (before post-transform field sets)
+python3 scripts/transform_record.py \
+  --from-type salesorder --from-id 24017329 --to-type itemfulfillment \
+  --default-values '{"inventorylocation":1}'
+```
+
+### Verify the result
+
+After transform, query EDI history to confirm the type-8 (940) row was created:
+```bash
+python3 scripts/query_netsuite.py \
+  'SELECT h.id, h.custrecord_twx_edi_type AS edi_type, h.custrecord_twx_eth_edi_tp AS tp_id
+   FROM customrecord_twx_edi_history h
+   WHERE h.custrecord_twx_edi_history_transaction = ?' \
+  --params <new-IF-id> --env sb2
+```
 
 ## Resources
 
@@ -517,6 +586,15 @@ Executable Python script for record CRUD operations. Handles:
 - Multiple field updates in single operation
 - Same account/environment support as query_netsuite.py
 - Error handling for field validation and record access
+
+### scripts/transform_record.py
+Wraps record.transform via twxTransformRecord — SO→IF, SO→Invoice, PO→IR, etc.
+- Drives NetSuite's native transaction-chain creation (same primitive as UI "Fulfill/Bill/Invoice/Receive" buttons)
+- `--from-type` / `--from-id` / `--to-type` are required; all other args are optional JSON objects
+- `--line-updates` for mutating existing lines on static sublists (e.g. IF item sublist after transform)
+- `--fields` for post-transform field values; `--default-values` for transform-time sourcing overrides
+- `--dry-run` prints the assembled payload without calling the API
+- Same auth pattern as update_record.py (NETSUITE_API_KEY → Origin fallback)
 
 ### references/common_queries.md
 Library of pre-built query patterns including:
@@ -567,6 +645,30 @@ python3 scripts/query_netsuite.py '<query>' --format json
 # CSV export
 python3 scripts/query_netsuite.py '<query>' --format csv > results.csv
 ```
+
+## Critical: `runSuiteQL` 5,000-Row Hard Cap (M/R `getInputData`)
+
+**`query.runSuiteQL({ query: sql }).asMappedResults()` silently truncates at 5,000 rows with no error, no warning, and no indication that data was dropped.** This is the default convenience API and is safe only for small, bounded result sets.
+
+For M/R `getInputData` or any SuiteScript that processes all records of a type, use `runSuiteQLPaged` instead:
+
+```javascript
+// ❌ WRONG — silently truncates at 5,000 rows:
+const rows = query.runSuiteQL({ query: sql }).asMappedResults();
+
+// ✅ CORRECT — collects all pages, handles any dataset size:
+const rows = [];
+query.runSuiteQLPaged({ query: sql, pageSize: 1000 }).iterator().each(function (page) {
+    page.value.data.asMappedResults().forEach(function (r) { rows.push(r); });
+    return true;
+});
+```
+
+**Detection:** After a backfill M/R, cross-check the "updated" count in `summarize` against a direct `SELECT COUNT(*)` query. If counts diverge and the updated count is exactly 5,000, suspect this cap.
+
+**Note:** `runSuiteQLPaged` has its own known failure modes for complex queries (see below). For simple SELECT + JOIN queries (no GROUP BY, no UNION ALL, no complex CTEs), it is the right choice.
+
+---
 
 ## Critical: `runSuiteQLPaged` Silent Failure Modes
 
@@ -626,37 +728,59 @@ python3 scripts/schema_lookup.py status
 
 ### Schema Cache Setup
 
-The schema cache has two sources — use either or both:
+The schema cache has three sources (highest priority first):
 
-**Custom records only (no ODBC needed, run anytime):**
+**1. Local cache** `~/.cache/netsuite-schema/` — fastest; populated by sync or ODBC refresh.
+
+**2. Gateway (zero setup, automatic):**
+The schema cache is hosted on the gateway at `https://nsapi.twistedx.tech` and refreshed weekly by the Railway cron service. `schema_lookup.py` automatically fetches from the gateway when the local cache is missing and warms it locally for next time.
+
+First-time on a new machine — pull everything from the gateway:
 ```bash
-python3 scripts/schema_lookup.py refresh-custom --account twx --env sb2
+# Pull all schema from gateway into local cache (no ODBC needed)
+python3 scripts/schema_lookup.py sync --account twx --env sb2
+python3 scripts/schema_lookup.py sync --account twx --env prod
+python3 scripts/schema_lookup.py sync --account dm --env prod
+# Or pull all accounts/environments:
+python3 scripts/schema_lookup.py sync all
 ```
-Queries `CustomRecordType` and `CustomField` via the API gateway. Covers all custom record types and custom fields with human-readable labels.
 
-**Full schema (requires ODBC setup, run quarterly):**
+**3. Real-time probe** — last resort, discovers column names via `SELECT * WHERE ROWNUM=1`. Slow and incomplete (no types/lengths/FKs).
+
+**Check cache status:**
 ```bash
-# One-time ODBC setup (reads all account/connection details from gateway automatically)
+python3 scripts/schema_lookup.py status
+```
+
+---
+
+### Contributors: Refreshing the Gateway Cache
+
+The gateway schema cache is refreshed automatically every Monday by the `nsapi-schema-cron` Railway service. Manual refresh is only needed after a NetSuite release or schema change.
+
+**One-off manual refresh + upload** (requires ODBC driver + SuiteAnalytics Connect credentials):
+```bash
+# Full ODBC schema → gateway
+export NETSUITE_ODBC_USER='your@email.com'
+export NETSUITE_ODBC_PASSWORD='yourpassword'
+export SCHEMA_ADMIN_TOKEN='...'   # from 1Password "Twisted X AI Agent"
+python3 scripts/schema_refresh.py --all-accounts --all-environments --upload
+
+# Custom records → gateway (no ODBC; uses SuiteQL via gateway OAuth)
+python3 scripts/schema_lookup.py refresh-custom --account twx --env sb2 --upload
+python3 scripts/schema_lookup.py refresh-custom --account twx --env prod --upload
+```
+
+**First-time ODBC setup** (contributors only, one time per machine):
+```bash
 python3 scripts/setup_odbc.py \
   --driver-zip ~/Downloads/NetSuiteODBCDrivers_Linux64bit.zip \
   --cert-zip ~/Downloads/Certificates.zip
-
-# Reload shell env
 source ~/.bashrc
-
-# Refresh all accounts/environments
-export NETSUITE_ODBC_USER='your@email.com'
-export NETSUITE_ODBC_PASSWORD='yourpassword'
-python3 scripts/schema_refresh.py --all-accounts --all-environments
+python3 scripts/setup_odbc.py --check   # verify
 ```
-Queries `OA_TABLES`, `OA_COLUMNS`, `OA_FKEYS` via SuiteAnalytics Connect ODBC. Covers all standard tables, all custom tables, column types/lengths, and FK relationships.
 
 Download the driver from: NetSuite > Setup > Company > SuiteAnalytics Connect > Set Up SuiteAnalytics Connect (Linux 64-bit ODBC driver + Certificate Authority Certificates).
-
-**Check setup status on any machine:**
-```bash
-python3 scripts/setup_odbc.py --check
-```
 
 **Regenerate DSNs after adding a new account to the gateway:**
 ```bash

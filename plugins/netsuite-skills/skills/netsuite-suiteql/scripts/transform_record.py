@@ -121,17 +121,17 @@ def transform_record(
     return payload, resolved_account, resolved_env
 
 
-def call_gateway(payload: Dict[str, Any], gateway_url: str, gw_base: str) -> Dict[str, Any]:
+def call_gateway(payload: Dict[str, Any], gateway_url: str, gw_base: str,
+                 api_key: str = '') -> Dict[str, Any]:
     """POST payload to the gateway and return the parsed JSON response."""
     data = json.dumps(payload).encode('utf-8')
-    _api_key = os.environ.get('NETSUITE_API_KEY', '')
     req = urllib.request.Request(
         gateway_url,
         data=data,
         headers={
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            **({'X-API-Key': _api_key} if _api_key else {'Origin': gw_base}),
+            **({'X-API-Key': api_key} if api_key else {'Origin': gw_base}),
         },
     )
     try:
@@ -250,6 +250,7 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
     # Resolve gateway URL (--gateway-url flag overrides env var / module default)
     resolved_gw_base = args.gateway_url.rstrip('/') if args.gateway_url else _gw_base
     resolved_gateway_url = f'{resolved_gw_base}/api/suiteapi'
+    api_key = os.environ.get('NETSUITE_API_KEY', '')
 
     # Parse JSON arguments
     default_values = parse_json_arg(args.default_values, '--default-values')
@@ -285,7 +286,7 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
     print(f"Transforming {args.from_type} {args.from_id} → {args.to_type} "
           f"in {resolved_account}/{resolved_env}...", file=sys.stderr)
 
-    result = call_gateway(payload, resolved_gateway_url, resolved_gw_base)
+    result = call_gateway(payload, resolved_gateway_url, resolved_gw_base, api_key)
 
     if args.json_output:
         out = sys.stdout if result.get('success') else sys.stderr

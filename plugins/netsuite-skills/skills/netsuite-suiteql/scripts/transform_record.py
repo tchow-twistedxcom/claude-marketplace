@@ -231,6 +231,12 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
                         help='JSON object to override record.save() options '
                              '(default: {"enableSourcing":true,"ignoreMandatoryFields":true})')
 
+    parser.add_argument('--idempotency-key', default=None, metavar='KEY',
+                        help='Unique key forwarded in payload for dedup auditing. '
+                             'record.transform is non-idempotent — use a stable key (e.g. '
+                             'uuid4 or SO-id+toType) so retried calls can be identified. '
+                             'The gateway does not enforce dedup; this is for audit/logging.')
+
     # Output
     parser.add_argument('--dry-run', action='store_true',
                         help='Print the assembled payload and exit without calling the API')
@@ -268,6 +274,9 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
         subrecords=subrecords,
         save=save,
     )
+
+    if args.idempotency_key:
+        payload['idempotencyKey'] = args.idempotency_key
 
     if args.dry_run:
         print(json.dumps(payload, indent=2))

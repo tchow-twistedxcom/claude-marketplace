@@ -22,7 +22,7 @@ import json
 import argparse
 import urllib.request
 import urllib.error
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 # NetSuite API Gateway endpoint — override with NETSUITE_GATEWAY_URL env var
 _gw_base = os.environ.get('NETSUITE_GATEWAY_URL', 'https://nsapi.twistedx.tech').rstrip('/')
@@ -85,13 +85,12 @@ def transform_record(
     sublists: Optional[Dict[str, Any]] = None,
     subrecords: Optional[Dict[str, Any]] = None,
     save: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], str, str]:
     """
-    Transform a NetSuite record via the API Gateway (twxTransformRecord).
+    Build the twxTransformRecord gateway payload.
 
     Returns:
-        Dictionary with: id, fromType, fromId, toType on success;
-        error key on failure.
+        (payload dict, resolved_account, resolved_env)
     """
     resolved_account = resolve_account(account)
     resolved_env = resolve_environment(environment)
@@ -274,14 +273,14 @@ API Key auth: set NETSUITE_API_KEY env var (falls back to Origin header if unset
         print(json.dumps(payload, indent=2))
         sys.exit(0)
 
-    # Show what we're doing
     print(f"Transforming {args.from_type} {args.from_id} → {args.to_type} "
-          f"in {resolved_account}/{resolved_env}...\n")
+          f"in {resolved_account}/{resolved_env}...\n", file=sys.stderr)
 
     result = call_gateway(payload)
 
     if args.json_output:
-        print(json.dumps(result, indent=2))
+        out = sys.stdout if result.get('success') else sys.stderr
+        print(json.dumps(result, indent=2), file=out)
     else:
         if result.get('success'):
             data = result.get('data', result)

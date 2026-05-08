@@ -1,0 +1,20 @@
+{
+  "name": "cowork-bridge",
+  "version": "1.0.0",
+  "description": "Shared workspace bridge between Claude Code and Claude Cowork. Packages artifacts, generates Cowork-ready prompts with deliverable templates, and tracks handoffs via manifest. Syncs via SharePoint/OneDrive.",
+  "author": {
+    "name": "tchow",
+    "url": "https://github.com/tchow-twistedxcom"
+  },
+  "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
+  "license": "MIT",
+  "keywords": ["cowork", "sharepoint", "handoff", "deliverables", "collaboration", "onedrive"],
+  "commands": [
+    "./commands/cowork-handoff.md",
+    "./commands/cowork-setup.md"
+  ],
+  "skills": [
+    "./skills/cowork-handoff"
+  ]
+}

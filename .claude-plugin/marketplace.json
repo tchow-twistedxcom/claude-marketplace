@@ -27,8 +27,8 @@
     {
       "name": "celigo-integration",
       "source": "./plugins/celigo-integration",
-      "description": "Celigo iPaaS integration via Python CLI - ~170 operations across 27 resource types with full REST API coverage including EDI profiles, trading partner connectors, Tools, MCP Servers, OPA management, async helpers, and cross-system EDI audit against NetSuite",
-      "version": "4.0.0",
+      "description": "Celigo iPaaS integration via Python CLI - ~195 operations across 31 resource types including ILM revisions, distributed exports, access tokens, stateless parsers/generators, OPA token rotation, and cross-system EDI audit against NetSuite",
+      "version": "4.1.0",
       "keywords": [
         "celigo",
         "integration",

@@ -62,7 +62,7 @@
       "name": "netsuite-skills",
       "source": "./plugins/netsuite-skills",
       "description": "NetSuite expertise skills: PRI Container Tracking, SDF deployment, SuiteQL queries, File Cabinet, CRE 2.0, Script Execution Logs, API Toolkit, PRI Query Renderer, and NetSuite debugger",
-      "version": "1.8.0",
+      "version": "1.9.0",
       "keywords": [
         "netsuite",
         "erp",

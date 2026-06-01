@@ -1,8 +1,8 @@
 ---
 name: celigo-integrator
-description: "Execute Celigo operations via Python CLI. Full REST API coverage: integrations, flows, connections, exports, imports, scripts, jobs, errors, caches, state, EDI profiles, EDI transactions, EDI audit, trading partner connectors, file definitions, Tools, builder-mode APIs, MCP Servers, async helpers, notifications, OPA management, and cross-system EDI reconciliation against NetSuite."
+description: "Execute Celigo operations via Python CLI. Full REST API coverage: integrations (incl. ILM revisions/snapshots), flows, connections, exports (incl. distributed/RT), imports, scripts, jobs, errors, caches, state, EDI profiles, EDI transactions, EDI audit, trading partner connectors, file definitions, access tokens, parsers/generators, Tools, builder-mode APIs, MCP Servers, async helpers, notifications, OPA management (incl. token rotation), and cross-system EDI reconciliation against NetSuite."
 license: MIT
-version: 4.0.0
+version: 4.1.0
 ---
 
 # Celigo Integrator CLI Skill

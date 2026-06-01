@@ -1,7 +1,7 @@
 {
   "name": "celigo-integration",
-  "version": "4.0.0",
-  "description": "Celigo iPaaS integration via Python CLI - ~170 operations across 27 resource types: integrations, flows, connections, jobs, errors, state, EDI profiles, trading partner connectors, file definitions, Tools, builder-mode APIs, MCP Servers, async helpers, notifications, OPA management, and cross-system EDI audit against NetSuite",
+  "version": "4.1.0",
+  "description": "Celigo iPaaS integration via Python CLI - ~195 operations across 31 resource types: integrations (incl. ILM revisions), flows, connections, exports (incl. distributed), imports, jobs, errors, caches, state, EDI profiles, trading partner connectors, file definitions, Tools, builder-mode APIs, MCP Servers, async helpers, notifications, OPA management, access tokens, stateless parsers/generators, and cross-system EDI audit against NetSuite",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"

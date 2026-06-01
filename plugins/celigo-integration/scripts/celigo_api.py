@@ -314,6 +314,36 @@ class IntegrationsAPI:
         """Download integration as installable template."""
         return self.client.post(f"/integrations/{integration_id}/template")
 
+    def revisions_list(self, integration_id: str) -> list:
+        """List all ILM revisions for an integration."""
+        return self.client.get(f"/integrations/{integration_id}/revisions")
+
+    def revision_get(self, integration_id: str, revision_id: str) -> dict:
+        """Get a specific ILM revision."""
+        return self.client.get(f"/integrations/{integration_id}/revisions/{revision_id}")
+
+    def revision_diff(self, integration_id: str, revision_id: str) -> dict:
+        """Get diff envelope (before/after) for a revision."""
+        return self.client.get(f"/integrations/{integration_id}/revisions/{revision_id}/diff")
+
+    def revision_snapshot(self, integration_id: str, description: str = None) -> dict:
+        """Create a snapshot revision of the current integration state."""
+        data = {"type": "snapshot"}
+        if description:
+            data["description"] = description
+        return self.client.post(f"/integrations/{integration_id}/revisions", data)
+
+    def revision_pull(self, integration_id: str, description: str = None) -> dict:
+        """Pull remote changes into the integration (creates a pull revision)."""
+        data = {"type": "pull"}
+        if description:
+            data["description"] = description
+        return self.client.post(f"/integrations/{integration_id}/revisions", data)
+
+    def revision_apply(self, integration_id: str, revision_id: str) -> dict:
+        """Apply (revert to) a specific revision."""
+        return self.client.put(f"/integrations/{integration_id}/revisions/{revision_id}", data={})
+
 
 # =============================================================================
 # Resource: Flows
@@ -538,6 +568,14 @@ class ExportsAPI:
     def replace_connection(self, export_id: str, data: dict) -> dict:
         """Replace connection in an export."""
         return self.client.put(f"/exports/{export_id}/replaceConnection", data)
+
+    def distributed_get(self, export_id: str) -> dict:
+        """Get distributed settings (NetSuite/Salesforce real-time exports)."""
+        return self.client.get(f"/exports/{export_id}/distributed")
+
+    def distributed_update(self, export_id: str, data: dict) -> dict:
+        """Update distributed settings (NetSuite/Salesforce real-time exports)."""
+        return self.client.put(f"/exports/{export_id}/distributed", data)
 
 
 # =============================================================================
@@ -884,6 +922,18 @@ class LookupCachesAPI:
     def data_purge(self, cache_id: str) -> dict:
         """Delete all data from lookup cache."""
         return self.client.delete(f"/lookupcaches/{cache_id}/data/purge")
+
+    def patch(self, cache_id: str, data: list) -> dict:
+        """Partial update lookup cache metadata (JSON Patch RFC 6902)."""
+        return self.client.patch(f"/lookupcaches/{cache_id}", data)
+
+    def clone_preview(self, cache_id: str) -> dict:
+        """Preview clone of a lookup cache (shows what will be created)."""
+        return self.client.get(f"/lookupcaches/{cache_id}/clone/preview")
+
+    def dependencies(self, cache_id: str) -> dict:
+        """Get dependency graph for a lookup cache."""
+        return self.client.get(f"/lookupcaches/{cache_id}/dependencies")
 
 
 # =============================================================================
@@ -1500,6 +1550,14 @@ class OpaAPI:
     def restart(self, agent_id: str) -> dict:
         return self.client.post(f"/agents/{agent_id}/restart")
 
+    def display_token(self, agent_id: str) -> dict:
+        """Display the current authentication token for an OPA."""
+        return self.client.get(f"/agents/{agent_id}/display-token")
+
+    def change_token(self, agent_id: str) -> dict:
+        """Rotate (regenerate) the authentication token for an OPA."""
+        return self.client.put(f"/agents/{agent_id}/change-token", data={})
+
 
 # =============================================================================
 # Resource: Trading Partner Connectors
@@ -1523,6 +1581,60 @@ class TradingPartnerConnectorsAPI:
     def update(self, connector_id: str, data: dict) -> dict:
         """Update a TPC (full-replace PUT — fetch-merge first)."""
         return self.client.put(f"/tradingPartnerConnectors/{connector_id}", data)
+
+
+# =============================================================================
+# Resource: Access Tokens
+# =============================================================================
+
+class AccessTokensAPI:
+    """Account-level API token management."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def list(self) -> list:
+        return self.client.get("/accesstokens")
+
+    def get(self, token_id: str) -> dict:
+        return self.client.get(f"/accesstokens/{token_id}")
+
+    def create(self, data: dict) -> dict:
+        return self.client.post("/accesstokens", data)
+
+    def update(self, token_id: str, data: dict) -> dict:
+        return self.client.put(f"/accesstokens/{token_id}", data)
+
+    def delete(self, token_id: str) -> dict:
+        return self.client.delete(f"/accesstokens/{token_id}")
+
+
+ACCESS_TOKEN_READONLY_FIELDS = frozenset(["_id", "lastModified", "createdAt", "token"])
+
+
+# =============================================================================
+# Resource: Parsers and Generators
+# =============================================================================
+
+class ParsersGeneratorsAPI:
+    """Stateless EDI document parse/generate endpoints using file definitions."""
+
+    def __init__(self, client: CeligoClient):
+        self.client = client
+
+    def parse(self, data: dict) -> dict:
+        """Parse raw EDI/CSV/structured data using a file definition.
+
+        data must include _fileDefinitionId and the raw content to parse.
+        """
+        return self.client.post("/parsers", data)
+
+    def generate(self, data: dict) -> dict:
+        """Generate EDI output from structured data using a file definition.
+
+        data must include _fileDefinitionId and structured input records.
+        """
+        return self.client.post("/generators", data)
 
 
 # =============================================================================
@@ -1610,6 +1722,26 @@ def cmd_integrations(args):
 
     elif args.action == "download-template":
         print_result(api.download_template(args.id), args.format)
+
+    elif args.action == "revisions-list":
+        data = api.revisions_list(args.id)
+        columns = ["_id", "type", "description", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "revision-get":
+        print_result(api.revision_get(args.id, args.rev_id), args.format)
+
+    elif args.action == "revision-diff":
+        print_result(api.revision_diff(args.id, args.rev_id), args.format)
+
+    elif args.action == "revision-snapshot":
+        print_result(api.revision_snapshot(args.id, description=getattr(args, 'description', None)), args.format)
+
+    elif args.action == "revision-pull":
+        print_result(api.revision_pull(args.id, description=getattr(args, 'description', None)), args.format)
+
+    elif args.action == "revision-apply":
+        print_result(api.revision_apply(args.id, args.rev_id), args.format)
 
 
 # Read-only fields to strip before PUT requests (Celigo PUT is full-replace)
@@ -1939,6 +2071,21 @@ def cmd_exports(args):
         data = _resolve_json_input(args)
         print_result(api.replace_connection(args.id, data), args.format)
 
+    elif args.action == "distributed-get":
+        print_result(api.distributed_get(args.id), args.format)
+
+    elif args.action == "distributed-update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided. Use --data or --file", file=sys.stderr)
+            sys.exit(1)
+        current = api.distributed_get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, EXPORT_READONLY_FIELDS)
+        print_result(api.distributed_update(args.id, merged), args.format)
+
 
 def cmd_imports(args):
     """Handle imports subcommands."""
@@ -2266,6 +2413,20 @@ def cmd_caches(args):
 
     elif args.action == "data-purge":
         print_result(api.data_purge(args.id), args.format)
+
+    elif args.action == "patch":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No patch data provided.", file=sys.stderr)
+            sys.exit(1)
+        patch_ops = data if isinstance(data, list) else [data]
+        print_result(api.patch(args.id, patch_ops), args.format)
+
+    elif args.action == "clone-preview":
+        print_result(api.clone_preview(args.id), args.format)
+
+    elif args.action == "dependencies":
+        print_result(api.dependencies(args.id), args.format)
 
 
 def cmd_tags(args):
@@ -2911,6 +3072,12 @@ def cmd_opa(args):
     elif args.action == "restart":
         print_result(api.restart(args.id), args.format)
 
+    elif args.action == "display-token":
+        print_result(api.display_token(args.id), args.format)
+
+    elif args.action == "change-token":
+        print_result(api.change_token(args.id), args.format)
+
 
 def cmd_trading_partners(args):
     """Handle Trading Partner Connectors subcommands."""
@@ -2946,6 +3113,64 @@ def cmd_trading_partners(args):
         print(f"Error: Unknown action '{args.action}'. Trading Partner Connectors do not support delete via API.",
               file=sys.stderr)
         sys.exit(1)
+
+
+def cmd_accesstokens(args):
+    """Handle access token subcommands."""
+    client = CeligoClient(args.env)
+    api = AccessTokensAPI(client)
+
+    if args.action == "list":
+        data = api.list()
+        columns = ["_id", "name", "scope", "lastModified"]
+        print_result(data, args.format, columns)
+
+    elif args.action == "get":
+        print_result(api.get(args.id), args.format)
+
+    elif args.action == "create":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No token data provided. Use --data or --file", file=sys.stderr)
+            sys.exit(1)
+        print_result(api.create(data), args.format)
+
+    elif args.action == "update":
+        updates = _resolve_json_input(args)
+        if not updates:
+            print("Error: No update data provided.", file=sys.stderr)
+            sys.exit(1)
+        current = api.get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, ACCESS_TOKEN_READONLY_FIELDS)
+        print_result(api.update(args.id, merged), args.format)
+
+    elif args.action == "delete":
+        print_result(api.delete(args.id), args.format)
+
+
+def cmd_parsers(args):
+    """Handle stateless EDI parse/generate subcommands."""
+    client = CeligoClient(args.env)
+    api = ParsersGeneratorsAPI(client)
+
+    if args.action == "parse":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No input provided. Use --data or --file with {\"_fileDefinitionId\": ..., ...}",
+                  file=sys.stderr)
+            sys.exit(1)
+        print_result(api.parse(data), args.format)
+
+    elif args.action == "generate":
+        data = _resolve_json_input(args)
+        if not data:
+            print("Error: No input provided. Use --data or --file with {\"_fileDefinitionId\": ..., ...}",
+                  file=sys.stderr)
+            sys.exit(1)
+        print_result(api.generate(data), args.format)
 
 
 def cmd_edi_reports(args):
@@ -3361,6 +3586,29 @@ Examples:
     int_dltpl = int_sub.add_parser("download-template", help="Download as installable template")
     int_dltpl.add_argument("id", help="Integration ID")
 
+    int_revlist = int_sub.add_parser("revisions-list", help="List ILM revisions for an integration")
+    int_revlist.add_argument("id", help="Integration ID")
+
+    int_revget = int_sub.add_parser("revision-get", help="Get a specific ILM revision")
+    int_revget.add_argument("id", help="Integration ID")
+    int_revget.add_argument("rev_id", help="Revision ID")
+
+    int_revdiff = int_sub.add_parser("revision-diff", help="Get diff (before/after) for a revision")
+    int_revdiff.add_argument("id", help="Integration ID")
+    int_revdiff.add_argument("rev_id", help="Revision ID")
+
+    int_revsnap = int_sub.add_parser("revision-snapshot", help="Create a snapshot of current state")
+    int_revsnap.add_argument("id", help="Integration ID")
+    int_revsnap.add_argument("--description", help="Optional snapshot description")
+
+    int_revpull = int_sub.add_parser("revision-pull", help="Pull remote changes (create pull revision)")
+    int_revpull.add_argument("id", help="Integration ID")
+    int_revpull.add_argument("--description", help="Optional pull description")
+
+    int_revapply = int_sub.add_parser("revision-apply", help="Apply (revert to) a specific revision")
+    int_revapply.add_argument("id", help="Integration ID")
+    int_revapply.add_argument("rev_id", help="Revision ID to apply")
+
     # --- Flows ---
     flow_parser = subparsers.add_parser("flows", help="Flow operations")
     flow_sub = flow_parser.add_subparsers(dest="action")
@@ -3543,6 +3791,16 @@ Examples:
     exp_replconn.add_argument("id", help="Export ID")
     exp_replconn.add_argument("--data", help="Connection replacement JSON")
     exp_replconn.add_argument("--file", help="Path to JSON file")
+
+    exp_distget = exp_sub.add_parser("distributed-get",
+                                     help="Get distributed settings (NetSuite/Salesforce RT exports)")
+    exp_distget.add_argument("id", help="Export ID")
+
+    exp_distupd = exp_sub.add_parser("distributed-update",
+                                     help="Update distributed settings (NetSuite/Salesforce RT exports)")
+    exp_distupd.add_argument("id", help="Export ID")
+    exp_distupd.add_argument("--data", help="Distributed settings JSON")
+    exp_distupd.add_argument("--file", help="Path to JSON file")
 
     # --- Imports ---
     imp_parser = subparsers.add_parser("imports", help="Import operations")
@@ -3761,6 +4019,17 @@ Examples:
 
     cache_data_purge = cache_sub.add_parser("data-purge", help="Delete all cache data")
     cache_data_purge.add_argument("id", help="Cache ID")
+
+    cache_patch = cache_sub.add_parser("patch", help="Partial update cache metadata (JSON Patch)")
+    cache_patch.add_argument("id", help="Cache ID")
+    cache_patch.add_argument("--data", help="JSON Patch array")
+    cache_patch.add_argument("--file", help="Path to JSON Patch file")
+
+    cache_clone_prev = cache_sub.add_parser("clone-preview", help="Preview clone of a cache")
+    cache_clone_prev.add_argument("id", help="Cache ID")
+
+    cache_deps = cache_sub.add_parser("dependencies", help="Get cache dependency graph")
+    cache_deps.add_argument("id", help="Cache ID")
 
     # --- Tags ---
     tag_parser = subparsers.add_parser("tags", help="Tag operations")
@@ -4256,6 +4525,12 @@ Examples:
     opa_restart = opa_sub.add_parser("restart", help="Restart OPA connection")
     opa_restart.add_argument("id", help="Agent ID")
 
+    opa_disptoken = opa_sub.add_parser("display-token", help="Display current OPA auth token (outputs live bearer token)")
+    opa_disptoken.add_argument("id", help="Agent ID")
+
+    opa_chgtoken = opa_sub.add_parser("change-token", help="Rotate (regenerate) OPA auth token")
+    opa_chgtoken.add_argument("id", help="Agent ID")
+
     # --- Trading Partner Connectors ---
     tpc_parser = subparsers.add_parser("trading-partners",
                                        help="Trading Partner Connectors (B2B onboarding templates)")
@@ -4274,6 +4549,44 @@ Examples:
     tpc_update.add_argument("id", help="Connector ID")
     tpc_update.add_argument("--data", help="Partial JSON (inline)")
     tpc_update.add_argument("--file", help="Path to JSON file")
+
+    # --- Access Tokens ---
+    at_parser = subparsers.add_parser("accesstokens", help="Account-level API token management")
+    at_sub = at_parser.add_subparsers(dest="action")
+
+    at_sub.add_parser("list", help="List access tokens")
+
+    at_get = at_sub.add_parser("get", help="Get access token")
+    at_get.add_argument("id", help="Token ID")
+
+    at_create = at_sub.add_parser("create", help="Create access token")
+    at_create.add_argument("--data", help="Full JSON (inline); include name, scope")
+    at_create.add_argument("--file", help="Path to JSON file")
+
+    at_update = at_sub.add_parser("update", help="Update access token (fetch-merge-PUT)")
+    at_update.add_argument("id", help="Token ID")
+    at_update.add_argument("--data", help="Partial JSON (inline)")
+    at_update.add_argument("--file", help="Path to JSON file")
+
+    at_delete = at_sub.add_parser("delete", help="Delete access token")
+    at_delete.add_argument("id", help="Token ID")
+
+    # --- Parsers and Generators ---
+    pg_parser = subparsers.add_parser("parsers",
+                                      help="Stateless EDI parse/generate using file definitions")
+    pg_sub = pg_parser.add_subparsers(dest="action")
+
+    pg_parse = pg_sub.add_parser("parse",
+                                 help="Parse raw EDI/CSV/structured data using a file definition")
+    pg_parse.add_argument("--data",
+                          help='JSON with _fileDefinitionId and raw content, e.g. {"_fileDefinitionId":"...","data":"..."}')
+    pg_parse.add_argument("--file", help="Path to JSON file")
+
+    pg_gen = pg_sub.add_parser("generate",
+                               help="Generate EDI output from structured data using a file definition")
+    pg_gen.add_argument("--data",
+                        help='JSON with _fileDefinitionId and structured records')
+    pg_gen.add_argument("--file", help="Path to JSON file")
 
     return parser
 
@@ -4321,6 +4634,8 @@ def main():
         "notifications": cmd_notifications,
         "opa": cmd_opa,
         "trading-partners": cmd_trading_partners,
+        "accesstokens": cmd_accesstokens,
+        "parsers": cmd_parsers,
     }
 
     handler = handlers.get(args.resource)

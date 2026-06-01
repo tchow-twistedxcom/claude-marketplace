@@ -193,6 +193,21 @@ def safe_delete(resource_type, resource_id):
     return response.status_code == 204
 ```
 
+## Official Celigo CLI
+
+Celigo ships a first-party Node.js CLI: `@celigo/celigo-cli` (npm, MIT, Node 22+).
+It provides full API parity and auto-installs AI assistant skills for Claude Code, Cursor, and Windsurf.
+
+When to prefer `@celigo/celigo-cli`:
+- You need connection metadata introspection (record types, saved searches, sObject types per connector)
+- You want the official vendor-maintained implementation
+
+When to prefer this Python CLI (`celigo_api.py`):
+- Cross-system EDI reconciliation against NetSuite (`edi_audit.py`)
+- Health digest orchestration and Slack alerting
+- Python-native scripting without Node 22 dependency
+- Integrated environment and config management
+
 ## API Versioning
 
 The API is versioned via URL path (`/v1/`). Breaking changes require new version.

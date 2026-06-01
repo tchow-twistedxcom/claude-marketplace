@@ -342,7 +342,7 @@ class IntegrationsAPI:
 
     def revision_apply(self, integration_id: str, revision_id: str) -> dict:
         """Apply (revert to) a specific revision."""
-        return self.client.put(f"/integrations/{integration_id}/revisions/{revision_id}")
+        return self.client.put(f"/integrations/{integration_id}/revisions/{revision_id}", data={})
 
 
 # =============================================================================
@@ -2075,11 +2075,16 @@ def cmd_exports(args):
         print_result(api.distributed_get(args.id), args.format)
 
     elif args.action == "distributed-update":
-        data = _resolve_json_input(args)
-        if not data:
+        updates = _resolve_json_input(args)
+        if not updates:
             print("Error: No update data provided. Use --data or --file", file=sys.stderr)
             sys.exit(1)
-        print_result(api.distributed_update(args.id, data), args.format)
+        current = api.distributed_get(args.id)
+        if current.get("error"):
+            print_result(current, args.format)
+            return
+        merged = _merge_updates_for_put(current, updates, EXPORT_READONLY_FIELDS)
+        print_result(api.distributed_update(args.id, merged), args.format)
 
 
 def cmd_imports(args):
@@ -4520,7 +4525,7 @@ Examples:
     opa_restart = opa_sub.add_parser("restart", help="Restart OPA connection")
     opa_restart.add_argument("id", help="Agent ID")
 
-    opa_disptoken = opa_sub.add_parser("display-token", help="Display current OPA auth token")
+    opa_disptoken = opa_sub.add_parser("display-token", help="Display current OPA auth token (outputs live bearer token)")
     opa_disptoken.add_argument("id", help="Agent ID")
 
     opa_chgtoken = opa_sub.add_parser("change-token", help="Rotate (regenerate) OPA auth token")

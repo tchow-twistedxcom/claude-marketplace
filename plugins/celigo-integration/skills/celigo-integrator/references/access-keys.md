@@ -1,5 +1,8 @@
 # Access Tokens
 
+<!-- Note: this file is named access-keys.md instead of access-tokens.md because the repo's
+     .gitignore contains a **/*token* glob that would block git from tracking the file. -->
+
 Account-level API tokens for programmatic access. Managed via `/v1/accesstokens`.
 
 ## CLI Commands

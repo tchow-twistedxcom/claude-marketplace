@@ -394,6 +394,9 @@ def main():
             if not isinstance(sublists, dict):
                 print("ERROR: --sublists must be a JSON object keyed by sublist id, e.g. '{\"item\":[...]}'")
                 sys.exit(1)
+            if not sublists:
+                print("ERROR: --sublists object is empty; provide at least one sublist key, e.g. '{\"item\":[...]}'")
+                sys.exit(1)
             i += 2
         elif arg == '--account' and i + 1 < len(sys.argv):
             account = sys.argv[i + 1]
@@ -413,7 +416,7 @@ def main():
             sys.exit(1)
 
     if not fields and not sublists:
-        print("ERROR: At least one --field or --sublists required")
+        print("ERROR: At least one --field or a non-empty --sublists is required")
         print_usage()
         sys.exit(1)
 

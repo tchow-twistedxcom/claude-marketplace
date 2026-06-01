@@ -314,6 +314,29 @@ python3 scripts/update_record.py customrecord_twx_notification_template --create
   --env sb2
 ```
 
+**Create a line-bearing transaction (invoice, credit memo, sales order):**
+
+Header `--field`s alone cannot save a transaction (the save fails with "You must enter
+at least one line item"). Pass the line items with `--sublists`, a JSON object keyed by
+sublist id. `twxUpsertRecord` honors the same `sublists` payload as `twxTransformRecord`.
+
+```bash
+# Standalone (open) credit memo with one item line
+python3 scripts/update_record.py creditmemo --create \
+  --field entity=40902 --field location=2 \
+  --sublists '{"item":[{"item":37947,"quantity":1,"rate":50,"location":2}]}' \
+  --env sb2
+```
+
+Notes:
+- Inventory items require a `location` on the line (and often the header) or the save
+  fails with `MLI_REQD`.
+- To modify existing lines on a static sublist after a `record.transform` (e.g. the IF
+  item sublist), use `transform_record.py --line-updates` instead; `--sublists` here is
+  for adding new lines on a create/update.
+- A buggy account User Event may throw in `afterSubmit` (which runs post-commit), so the
+  CLI can report an error even though the record was created. Verify with a query.
+
 ### Record Operation Workflow
 
 #### 1. **Identify Record Type and ID**

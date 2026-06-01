@@ -68,7 +68,8 @@ def update_record(
     record_id: int,
     fields: Dict[str, Any],
     account: str = DEFAULT_ACCOUNT,
-    environment: str = DEFAULT_ENVIRONMENT
+    environment: str = DEFAULT_ENVIRONMENT,
+    sublists: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Update a NetSuite record via the API Gateway.
@@ -79,6 +80,11 @@ def update_record(
         fields: Dictionary of field names and values to update
         account: Account to update ('twistedx'/'twx' or 'dutyman'/'dm')
         environment: 'prod'/'production', 'sb1'/'sandbox', or 'sb2'/'sandbox2'
+        sublists: Optional dict of sublist lines to add, keyed by sublist id, e.g.
+                  {"item": [{"item": 37947, "quantity": 1, "rate": 50, "location": 2}]}.
+                  Required to create line-bearing transactions (invoice, credit memo,
+                  sales order, etc.); twxUpsertRecord cannot save those from header
+                  fields alone ("You must enter at least one line item").
 
     Returns:
         Dictionary with:
@@ -122,6 +128,10 @@ def update_record(
         'netsuiteAccount': resolved_account,
         'netsuiteEnvironment': resolved_env
     }
+    # Sublist lines (e.g. transaction item lines). twxUpsertRecord honors a top-level
+    # 'sublists' key the same way twxTransformRecord does; required for line-bearing records.
+    if sublists:
+        payload['sublists'] = sublists
 
     try:
         # Prepare request to gateway
@@ -188,7 +198,8 @@ def create_record(
     record_type: str,
     fields: Dict[str, Any],
     account: str = DEFAULT_ACCOUNT,
-    environment: str = DEFAULT_ENVIRONMENT
+    environment: str = DEFAULT_ENVIRONMENT,
+    sublists: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Create a new NetSuite record via the API Gateway.
@@ -210,7 +221,7 @@ def create_record(
         - error: Error message if failed
     """
     # For creates, don't pass an ID (or pass null/0)
-    return update_record(record_type, None, fields, account, environment)
+    return update_record(record_type, None, fields, account, environment, sublists)
 
 
 def format_result(result: Dict[str, Any]) -> str:
@@ -256,6 +267,12 @@ Options:
                          For JSON values, use single quotes around value:
                          --field conditions='{"status":"Processing Error"}'
 
+  --sublists <json>      Sublist lines to add, as a JSON object keyed by sublist id.
+                         Required for line-bearing records (invoice, credit memo, SO).
+                         Example: --sublists '{"item":[{"item":37947,"quantity":1,"rate":50,"location":2}]}'
+                         (To modify existing lines on a static sublist after a
+                         transform, use transform_record.py --line-updates instead.)
+
   --account <account>    Account to operate on (default: twistedx)
                          Aliases: twistedx (twx), dutyman (dm)
 
@@ -278,6 +295,12 @@ Examples:
     --field name="Test Template" \\
     --field custrecord_twx_template_subject="Test Subject" \\
     --field custrecord_twx_template_body="Test Body" \\
+    --env sb2
+
+  # Create a standalone (open) credit memo with one item line (note: --sublists)
+  python3 update_record.py creditmemo --create \\
+    --field entity=40902 --field location=2 \\
+    --sublists '{"item":[{"item":37947,"quantity":1,"rate":50,"location":2}]}' \\
     --env sb2
 
   # Update record in production
@@ -314,6 +337,7 @@ def main():
     record_type = sys.argv[1]
     record_id = None
     fields = {}
+    sublists = None
     account = DEFAULT_ACCOUNT
     environment = DEFAULT_ENVIRONMENT
     is_create = False
@@ -359,6 +383,18 @@ def main():
                     # Keep as string
                     fields[name] = value
             i += 2
+        elif arg in ('--sublists', '--sublist') and i + 1 < len(sys.argv):
+            try:
+                sublists = json.loads(sys.argv[i + 1])
+            except json.JSONDecodeError as e:
+                print(f"ERROR: --sublists requires a JSON object keyed by sublist id "
+                      f"(e.g. '{{\"item\":[{{\"item\":37947,\"quantity\":1,\"rate\":50}}]}}'); "
+                      f"invalid JSON: {e}")
+                sys.exit(1)
+            if not isinstance(sublists, dict):
+                print("ERROR: --sublists must be a JSON object keyed by sublist id, e.g. '{\"item\":[...]}'")
+                sys.exit(1)
+            i += 2
         elif arg == '--account' and i + 1 < len(sys.argv):
             account = sys.argv[i + 1]
             i += 2
@@ -376,8 +412,8 @@ def main():
             print_usage()
             sys.exit(1)
 
-    if not fields:
-        print("ERROR: At least one --field required")
+    if not fields and not sublists:
+        print("ERROR: At least one --field or --sublists required")
         print_usage()
         sys.exit(1)
 
@@ -389,9 +425,9 @@ def main():
 
     # Execute operation
     if is_create:
-        result = create_record(record_type, fields, account, environment)
+        result = create_record(record_type, fields, account, environment, sublists)
     else:
-        result = update_record(record_type, record_id, fields, account, environment)
+        result = update_record(record_type, record_id, fields, account, environment, sublists)
 
     # Format and print result
     if json_output:

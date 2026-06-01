@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Comprehensive plugin marketplace: Personal framework (behavioral rules, 14 specialist agents, MCP configs) + ClaudeKit skills (35+ skills) + Custom skills (1Password, Airbyte, SEO, web design, etc.) + Enterprise integrations (NetSuite/SDF, Celigo iPaaS, Shopify, Atlassian, Plytix PIM, NinjaOne RMM, M365/Azure AD, Amazon SP-API, Mimecast, Slack, Meraki, n8n, MongoDB Atlas) + Infrastructure skills + EDI/PDF specialist + Google Analytics",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "license": "MIT"

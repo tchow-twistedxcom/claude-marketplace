@@ -1556,7 +1556,7 @@ class OpaAPI:
 
     def change_token(self, agent_id: str) -> dict:
         """Rotate (regenerate) the authentication token for an OPA."""
-        return self.client.put(f"/agents/{agent_id}/change-token")
+        return self.client.put(f"/agents/{agent_id}/change-token", data={})
 
 
 # =============================================================================

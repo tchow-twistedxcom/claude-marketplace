@@ -201,20 +201,6 @@
       ]
     },
     {
-      "name": "adventurelog-skills",
-      "source": "./plugins/adventurelog-skills",
-      "description": "AdventureLog trip planning skill for creating rich, fully-detailed trips via the REST API. Covers collections, locations, transportation, lodging, notes, checklists, itinerary days, and scheduling",
-      "version": "1.0.0",
-      "keywords": [
-        "adventurelog",
-        "trip-planner",
-        "travel",
-        "itinerary",
-        "vacation",
-        "lodging"
-      ]
-    },
-    {
       "name": "meraki-skills",
       "source": "./plugins/meraki-skills",
       "description": "Cisco Meraki Dashboard API integration for network monitoring and management. Covers organizations, networks, devices, wireless, switches, MX appliances, and cameras.",

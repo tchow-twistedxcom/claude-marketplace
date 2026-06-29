@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Comprehensive plugin marketplace: Personal framework (behavioral rules, 14 specialist agents, MCP configs) + ClaudeKit skills (35+ skills) + Custom skills (1Password, Airbyte, SEO, web design, etc.) + Enterprise integrations (NetSuite/SDF, Celigo iPaaS, Shopify, Atlassian, Plytix PIM, NinjaOne RMM, M365/Azure AD, Amazon SP-API, Mimecast, Slack, Meraki, n8n, MongoDB Atlas) + Infrastructure skills + EDI/PDF specialist + Google Analytics",
-    "version": "2.4.0",
+    "version": "2.4.1",
     "homepage": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "repository": "https://github.com/tchow-twistedxcom/claude-marketplace",
     "license": "MIT"
@@ -133,7 +133,7 @@
       "name": "m365-skills",
       "source": "./plugins/m365-skills",
       "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Azure AD/Entra ID operations for users, groups, devices, and directory, security and incident response (sign-in logs, risk detections, audit logs, session revocation), plus applications and service principals, OAuth consent-grant detection, usage and MFA reports, tenant policy posture, calendar, and threat assessment and intelligence.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "keywords": [
         "microsoft-365",
         "m365",

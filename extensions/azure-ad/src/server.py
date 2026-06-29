@@ -1336,9 +1336,9 @@ async def azure_ad_search_mail(
                Prefix with 'from:email@domain.com' to filter by sender instead.
         folder: Folder to search: 'sentItems', 'inbox', 'deletedItems' (default: sentItems).
         top: Max results (default 50).
-        hours: Look-back window in hours (default 168 = 7 days). For subject/keyword searches a
-               larger candidate set is scanned by relevance and then filtered to this window
-               client-side, so very high-volume subjects may still need a larger top.
+        hours: Look-back window in hours (default 168 = 7 days). Subject/keyword searches page
+               through a bounded relevance-ranked candidate pool (up to 1000) and then filter to
+               this window client-side; extremely high-volume subjects could still exceed the pool.
     """
     folder_safe = folder.lower()
     if folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
@@ -1379,11 +1379,18 @@ async def azure_ad_search_mail(
         params = {
             "$search": f'"subject:{term}"',
             "$select": select,
-            "$top": max(top, 250),
+            "$top": 250,  # page size; the search path pages through a bounded pool below
         }
 
-    result = await _graph("GET", f"/users/{user_id}/mailFolders/{folder}/messages", params=params)
-    messages = result.get("value") or []
+    endpoint = f"/users/{user_id}/mailFolders/{folder}/messages"
+    if is_sender:
+        result = await _graph("GET", endpoint, params=params)
+        messages = result.get("value") or []
+    else:
+        # $search is relevance-ranked (not date-ordered), so a single page can omit recent in-window
+        # matches that rank lower. Page through a bounded candidate pool (up to 4 pages of 250 = 1000),
+        # then window, sort, and truncate client-side. Bounded to avoid runaway paging on common terms.
+        messages = await _get_all_pages(endpoint, params, max_pages=4)
 
     def _msg_dt(m: dict):
         value = m.get(date_field) or m.get("receivedDateTime") or m.get("sentDateTime")
@@ -1404,7 +1411,8 @@ async def azure_ad_search_mail(
     for m in messages:
         to = [r.get("emailAddress", {}).get("address", "") for r in m.get("toRecipients", [])]
         summary.append({
-            "sentDateTime": m.get("sentDateTime") or m.get("receivedDateTime"),
+            "sentDateTime": m.get("sentDateTime"),
+            "receivedDateTime": m.get("receivedDateTime"),
             "subject": m.get("subject"),
             "to": to,
             "hasAttachments": m.get("hasAttachments"),

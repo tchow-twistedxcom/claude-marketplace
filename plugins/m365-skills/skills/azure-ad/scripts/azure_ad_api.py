@@ -792,12 +792,14 @@ class AzureADAPI:
 
     def policy_cross_tenant(self) -> dict:
         """Cross-tenant access policy, including its default config. Requires Policy.Read.All."""
-        result = self._request('GET', '/policies/crossTenantAccessPolicy')
         try:
-            result = dict(result)
+            result = dict(self._request('GET', '/policies/crossTenantAccessPolicy'))
+        except GraphAPIError as e:
+            return {"error": str(e)}
+        try:
             result['default'] = self._request('GET', '/policies/crossTenantAccessPolicy/default')
-        except GraphAPIError:
-            pass
+        except GraphAPIError as e:
+            result['default'] = {"error": str(e)}
         return result
 
     def policy_admin_consent_request(self) -> dict:
@@ -807,8 +809,21 @@ class AzureADAPI:
     def policy_posture(self) -> dict:
         """Aggregate key tenant policies and flag risky settings. Requires Policy.Read.All."""
         findings: list[dict] = []
-        security_defaults = self.policy_security_defaults()
-        authorization = self.policy_authorization()
+        errors: dict[str, str] = {}
+
+        # Best-effort: a transient failure or a partial-permission error on one policy must not
+        # abort the whole posture report. Mirrors the MCP azure_ad_policy_posture, which fetches
+        # with gather(return_exceptions=True) and returns partial results plus error stubs.
+        try:
+            security_defaults = self.policy_security_defaults()
+        except GraphAPIError as e:
+            security_defaults = {}
+            errors['securityDefaults'] = str(e)
+        try:
+            authorization = self.policy_authorization()
+        except GraphAPIError as e:
+            authorization = {}
+            errors['authorizationPolicy'] = str(e)
 
         if security_defaults.get('isEnabled') is False:
             findings.append({
@@ -855,7 +870,7 @@ class AzureADAPI:
                           "members. Guests can enumerate the directory.",
             })
 
-        return {
+        result = {
             "findings": findings,
             "findingCount": len(findings),
             "securityDefaultsEnabled": security_defaults.get('isEnabled'),
@@ -863,6 +878,9 @@ class AzureADAPI:
             "permissionGrantPoliciesAssigned": assigned,
             "guestUserRoleId": authorization.get('guestUserRoleId'),
         }
+        if errors:
+            result["errors"] = errors
+        return result
 
     # ========== CALENDAR ==========
 
@@ -877,6 +895,9 @@ class AzureADAPI:
 
     def calendar_view(self, user_id: str, start: str, end: str, top: int = 50) -> dict:
         """Calendar view over a start/end window (expands recurring series). Requires Calendars.Read."""
+        for label, value in (("start", start), ("end", end)):
+            if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', value):
+                raise ValueError(f"Invalid --{label} (expected ISO 8601, e.g. 2026-06-01T00:00:00Z): {value!r}")
         params = {
             "startDateTime": start,
             "endDateTime": end,
@@ -934,7 +955,7 @@ class AzureADAPI:
 
     def threat_intel_host(self, host: str) -> dict:
         """MDTI host reputation/enrichment (license-gated). Requires ThreatIntelligence.Read.All."""
-        if not re.match(r'^[A-Za-z0-9.\-:_]+$', host):
+        if not re.match(r'^[A-Za-z0-9.\-:_]+\Z', host):
             raise ValueError(f"Invalid host format: {host!r}")
         return self._ti_request(f'/security/threatIntelligence/hosts/{host}')
 
@@ -944,7 +965,7 @@ class AzureADAPI:
 
     def threat_intel_vulnerability(self, cve: str) -> dict:
         """MDTI vulnerability detail by CVE (license-gated). Requires ThreatIntelligence.Read.All."""
-        if not re.match(r'^CVE-\d{4}-\d{4,}$', cve, re.IGNORECASE):
+        if not re.match(r'^CVE-\d{4}-\d{4,}\Z', cve, re.IGNORECASE):
             raise ValueError(f"Invalid CVE id format: {cve!r}. Expected like 'CVE-2021-44228'.")
         return self._ti_request(f'/security/threatIntelligence/vulnerabilities/{cve}')
 

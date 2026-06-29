@@ -3370,6 +3370,9 @@ async def azure_ad_calendar_view(user_id: str, start: str, end: str) -> str:
 
     Returns the expanded event instances within the window.
     """
+    for label, value in (("start", start), ("end", end)):
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', value):
+            raise ValueError(f"Invalid {label} (expected ISO 8601, e.g. 2026-06-01T00:00:00Z): {value!r}")
     params = {
         "startDateTime": start,
         "endDateTime": end,
@@ -3511,7 +3514,7 @@ async def azure_ad_ti_host(host: str) -> str:
     Returns the MDTI host object (reputation, first/last seen, related artifacts), or an
     'unavailable' status dict if not licensed.
     """
-    if not re.match(r'^[A-Za-z0-9.\-:_]+$', host):
+    if not re.match(r'^[A-Za-z0-9.\-:_]+\Z', host):
         raise ValueError(f"Invalid host format: {host!r}")
     endpoint = f"/security/threatIntelligence/hosts/{host}"
     try:
@@ -3558,7 +3561,7 @@ async def azure_ad_ti_vulnerability(cve_id: str) -> str:
     Returns the MDTI vulnerability object (severity, exploitation, affected products), or an
     'unavailable' status dict if not licensed.
     """
-    if not re.match(r'^CVE-\d{4}-\d{4,}$', cve_id, re.IGNORECASE):
+    if not re.match(r'^CVE-\d{4}-\d{4,}\Z', cve_id, re.IGNORECASE):
         raise ValueError(f"Invalid CVE id format: {cve_id!r}. Expected like 'CVE-2021-44228'.")
     endpoint = f"/security/threatIntelligence/vulnerabilities/{cve_id}"
     try:

@@ -73,6 +73,36 @@ Comprehensive Azure AD operations using Microsoft Graph API.
 - **Auth methods**: MFA enrollment per user
 - **Compromise sweep**: 6-vector detection (IP sweep, MFA fatigue, risk events, audit anomalies, auth methods)
 
+### Applications Domain (apps, service principals, consent)
+- **Apps and service principals**: List/get app registrations and enterprise apps (CLI + MCP)
+- **Credentials**: Surface key/password credentials with an "added N days ago" flag for backdoor detection
+- **App role assignments**: App roles granted to a service principal
+- **OAuth consent grants**: Tenant-wide `oauth2PermissionGrants` for illicit-consent-grant detection
+- **Guarded writes**: Disable a malicious service principal; remove attacker-added secret/certificate
+  (all require `--confirm` / `confirm=True`). See `references/applications_api.md`.
+
+### Reports Domain
+- **MFA registration report**: Who has/has not registered MFA (`AuditLog.Read.All`, JSON)
+- **Usage reports**: Office 365 active users, email activity, mailbox usage (`Reports.Read.All`, CSV
+  via 302 redirect, parsed to rows). See `references/reports_api.md`.
+
+### Policy Domain (tenant security posture)
+- **Authorization, security defaults, auth-methods, permission-grant, cross-tenant, admin-consent**
+  policy reads (`Policy.Read.All`)
+- **Posture**: Aggregate check that flags risky settings (security defaults off, broad user consent,
+  broad app/guest permissions). See `references/policy_api.md`.
+
+### Calendar Domain
+- **Events, calendar view (time window), calendars** per user (`Calendars.Read`). Note: app-only
+  reads ALL mailboxes unless scoped by an Exchange Application Access Policy. See
+  `references/calendar_api.md`.
+
+### Threat Domain
+- **Threat assessment requests** and results (`ThreatAssessment.Read.All`)
+- **Defender Threat Intelligence**: articles, hosts, intel profiles, vulnerabilities
+  (`ThreatIntelligence.Read.All`, requires MDTI premium + API add-on license; tools degrade
+  gracefully when unlicensed). See `references/threat_api.md`.
+
 ### MCP Extension Tools (Agent-Native)
 
 These tools are exposed by the `azure-ad` MCP server and are available to agents when the server
@@ -201,12 +231,15 @@ These tools are available but not individually documented above. Use them for ge
 | `azure_ad_revoke_sessions` | **Revoke all sessions for a user (dry_run=True default)** |
 | `azure_ad_confirm_compromised` | **Mark users as confirmed compromised (confirm=False default)** |
 
-## MCP Server (49 Agent-Native Tools)
+## MCP Server (81 Agent-Native Tools)
 
-The `azure-ad` MCP server exposes 49 tools including `azure_ad_incident_triage`, email forensics
+The `azure-ad` MCP server exposes 81 tools including `azure_ad_incident_triage`, email forensics
 (`azure_ad_sent_emails`, `azure_ad_email_events`), Defender Advanced Hunting (`azure_ad_advanced_hunt`),
-CA policy management, OAuth grant detection, inbox rule deletion, and risky user dismissal. These
-tools are registered automatically when `m365-skills` is installed via the plugin system.
+CA policy management, OAuth grant detection, inbox rule deletion, risky user dismissal, applications
+and service principals (with guarded SP and credential writes), tenant-wide OAuth consent grants,
+usage and MFA registration reports, tenant policy posture, calendar reads, and threat assessment and
+Defender Threat Intelligence. These tools are registered automatically when `m365-skills` is
+installed via the plugin system.
 
 ### Method 1: Environment Variables (Plugin Auto-Registration)
 
@@ -239,10 +272,10 @@ The DXT manifest is at `extensions/azure-ad/manifest.json`. The server entry poi
 
 ## MCP Tools vs CLI Scripts
 
-If the `azure-ad` MCP server is connected (test by calling `azure_ad_list_users` — if it responds, the server is up), **prefer MCP tools**:
+If the `azure-ad` MCP server is connected (test by calling `azure_ad_list_users`; if it responds, the server is up), **prefer MCP tools**:
 - No `cwd` setup required
 - Return structured JSON directly
-- Cover all 49 operations
+- Cover all 81 operations
 - Support concurrent tool calls
 
 Use `scripts/azure_ad_api.py` CLI only when:
@@ -280,15 +313,40 @@ Uses OAuth 2.0 Client Credentials flow via MSAL:
 
 ## Required Permissions
 
-Minimum read-only permissions:
-- `User.Read.All`
-- `Group.Read.All`
-- `Device.Read.All`
-- `Directory.Read.All`
+This skill is built for an app-only (client-credentials) registration. The full set of Microsoft
+Graph **application** permissions, grouped by what they enable, and whether the skill currently
+exercises each:
 
-For write operations add:
-- `User.ReadWrite.All`
-- `Group.ReadWrite.All`
+| Permission | Enables | Used |
+|------------|---------|------|
+| `User.Read.All` | Users read | Yes |
+| `Group.Read.All` | Groups read | Yes |
+| `Device.Read.All` | Devices read | Yes |
+| `Directory.Read.All` | Directory + tenant OAuth grants | Yes |
+| `Organization.Read.All` | Tenant/org info | Yes |
+| `User.ReadWrite.All` | User lifecycle (CLI) | Yes |
+| `Group.ReadWrite.All` | Group lifecycle (CLI) | Yes |
+| `Application.ReadWrite.All` | Apps/SPs + guarded SP and credential writes | Yes |
+| `Reports.Read.All` | Usage reports | Yes |
+| `AuditLog.Read.All` | Sign-in/audit logs, MFA registration report | Yes |
+| `Policy.Read.All` | Tenant policy posture | Yes |
+| `Policy.ReadWrite.ConditionalAccess` | Conditional Access management | Yes |
+| `Calendars.Read` | Calendar reads | Yes |
+| `Mail.Read` | Email forensics | Yes |
+| `MailboxSettings.Read` | Forwarding detection | Yes |
+| `IdentityRiskyUser.ReadWrite.All` | Risky users read + dismiss | Yes |
+| `IdentityRiskEvent.ReadWrite.All` / `IdentityRiskEvent.Read.All` | Risk detections | Yes |
+| `UserAuthenticationMethod.Read.All` | Auth methods | Yes |
+| `User.RevokeSessions.All` | Session revocation | Yes |
+| `ThreatAssessment.Read.All` | Threat assessment requests | Yes |
+| `ThreatHunting.Read.All` | Defender Advanced Hunting (KQL) | Yes |
+| `ThreatIntelligence.Read.All` | Defender Threat Intelligence (MDTI license required) | Yes (license-gated) |
+| `ActivityFeed.Read` (Office 365 Management API) | Unified Audit Log forensics | Yes |
+| `ThreatIndicators.Read.All` | none (orphaned) | No |
+
+> **`ThreatIndicators.Read.All` is orphaned**: its only endpoint, `/security/tiIndicators`, is beta
+> and was removed around April 2026. Recommend removing this permission from the app registration
+> (an admin action requiring human sign-off, not performed by this skill).
 
 ## Files
 
@@ -302,14 +360,20 @@ azure-ad/
 │   └── .azure_tokens.json          # Token cache (gitignored)
 ├── scripts/
 │   ├── auth.py                     # MSAL authentication
-│   ├── azure_ad_api.py             # Main CLI (45+ operations)
+│   ├── azure_ad_api.py             # Main CLI
+│   ├── sweep.py                    # Compromise sweep orchestrator
 │   └── formatters.py               # Output formatting
 └── references/
     ├── users_api.md
     ├── groups_api.md
     ├── devices_api.md
     ├── directory_api.md
-    └── security_api.md     # Security operations, incident response playbook
+    ├── security_api.md         # Security operations, incident response playbook
+    ├── applications_api.md     # Apps, service principals, OAuth consent grants
+    ├── reports_api.md          # Usage reports + MFA registration report
+    ├── policy_api.md           # Tenant policy posture reads
+    ├── calendar_api.md         # Calendar reads
+    └── threat_api.md           # Threat assessment + Defender Threat Intelligence
 ```
 
 ## Output Formats

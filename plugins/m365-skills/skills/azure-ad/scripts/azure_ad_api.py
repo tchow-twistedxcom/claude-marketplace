@@ -8,6 +8,11 @@ Comprehensive CLI for Microsoft Graph API operations on Azure AD resources:
 - Devices: List, get, search, owners, registered users
 - Directory: Organization info, domains, licenses, roles
 - Security: Sign-in logs, risk detections, risky users, audit logs, auth methods
+- Applications: App registrations, service principals, OAuth consent grants, guarded credential/SP writes
+- Reports: MFA/auth-method registration report, Microsoft 365 usage reports
+- Policy: Tenant security posture (authorization, security defaults, consent, cross-tenant)
+- Calendar: User calendar events, calendar view, calendars
+- Threat: Threat assessment requests, Microsoft Defender Threat Intelligence
 
 Usage:
     python azure_ad_api.py users list
@@ -17,10 +22,16 @@ Usage:
     python azure_ad_api.py -t prod devices list
     python azure_ad_api.py security sign-ins --hours 24
     python azure_ad_api.py security risky-users --risk-level high
+    python azure_ad_api.py applications oauth-grants --all
+    python azure_ad_api.py reports mfa-registration --filter "isMfaRegistered eq false" --all
+    python azure_ad_api.py policy posture
+    python azure_ad_api.py threat assessments
 """
 
 import argparse
+import csv
 import getpass
+import io
 import json
 import os
 import re
@@ -545,6 +556,381 @@ class AzureADAPI:
         """Fetch authentication methods for a user. Requires UserAuthenticationMethod.Read.All."""
         return self._request('GET', f'/users/{upn}/authentication/methods')
 
+    # ========== SHARED HELPERS (reports / credentials) ==========
+
+    def _request_csv(self, endpoint: str, params: dict | None = None) -> str:
+        """GET a Graph endpoint that returns CSV via a 302 redirect.
+
+        Microsoft 365 usage reports respond with HTTP 302 pointing at a short-lived,
+        pre-authenticated download URL that serves CSV. The redirect is followed manually
+        WITHOUT the Authorization header so the bearer token is never sent to the storage
+        host (the redirect target carries its own SAS token and needs no bearer).
+        """
+        url = f"{self.BASE_URL}{endpoint}"
+        auth_headers = self.auth.get_auth_headers()
+        timeout = self.config.get('defaults', {}).get('timeout', 60)
+        try:
+            response = requests.get(
+                url, headers=auth_headers, params=params,
+                timeout=timeout, allow_redirects=False,
+            )
+            if response.status_code in (301, 302, 303, 307, 308):
+                location = response.headers.get('Location')
+                if not location:
+                    raise GraphAPIError("Usage report redirect is missing a Location header")
+                if not location.startswith('https://'):
+                    raise ValueError(f"Refusing non-HTTPS report redirect: {location[:100]}")
+                response = requests.get(location, timeout=timeout)
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.HTTPError as e:
+            error_detail = ""
+            try:
+                error_body = e.response.json()
+                error_detail = error_body.get('error', {}).get('message', str(e))
+            except Exception:
+                error_detail = e.response.text[:500] if e.response.text else str(e)
+            raise GraphAPIError(f"API error ({e.response.status_code}): {error_detail}") from e
+        except requests.exceptions.RequestException as e:
+            raise GraphAPIError(f"Request failed: {e}") from e
+
+    @staticmethod
+    def _parse_csv(text: str) -> list[dict]:
+        """Parse a CSV string (with a header row) into a list of dict rows."""
+        if not text or not text.strip():
+            return []
+        reader = csv.DictReader(io.StringIO(text))
+        return [dict(row) for row in reader]
+
+    @staticmethod
+    def _add_days_ago(creds: list[dict] | None) -> list[dict]:
+        """Annotate each credential with 'addedDaysAgo' computed from its startDateTime.
+
+        Secrets or certificates added near a compromise window are a common
+        attacker-persistence signal that survives password resets and session revocation.
+        """
+        now = datetime.now(timezone.utc)
+        enriched: list[dict] = []
+        for cred in creds or []:
+            item = dict(cred)
+            item['addedDaysAgo'] = None
+            start = cred.get('startDateTime')
+            if start:
+                try:
+                    dt = datetime.fromisoformat(str(start).replace('Z', '+00:00'))
+                    item['addedDaysAgo'] = (now - dt).days
+                except (ValueError, TypeError):
+                    pass
+            enriched.append(item)
+        return enriched
+
+    # ========== APPLICATIONS ==========
+
+    def applications_apps_list(
+        self,
+        top: int = 50,
+        all_pages: bool = False,
+        include_credentials: bool = False,
+    ) -> dict:
+        """List app registrations. Requires Application.Read.All or Directory.Read.All."""
+        select = "id,appId,displayName,signInAudience,createdDateTime,publisherDomain"
+        if include_credentials:
+            select += ",keyCredentials,passwordCredentials"
+        params = {"$top": top, "$select": select}
+        if all_pages:
+            items = self._get_all_pages("/applications", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/applications', params=params)
+
+    def applications_apps_get(self, app_object_id: str) -> dict:
+        """Get a single application by object ID. Requires Application.Read.All."""
+        return self._request('GET', f'/applications/{app_object_id}')
+
+    def applications_apps_credentials(self, app_object_id: str) -> dict:
+        """Return an application's key/password credentials with an 'addedDaysAgo' flag."""
+        result = self._request(
+            'GET', f'/applications/{app_object_id}',
+            params={"$select": "appId,displayName,keyCredentials,passwordCredentials"},
+        )
+        return {
+            "appId": result.get('appId'),
+            "displayName": result.get('displayName'),
+            "keyCredentials": self._add_days_ago(result.get('keyCredentials')),
+            "passwordCredentials": self._add_days_ago(result.get('passwordCredentials')),
+        }
+
+    def applications_sp_list(self, top: int = 50, all_pages: bool = False) -> dict:
+        """List service principals (enterprise apps). Requires Application.Read.All."""
+        select = "id,appId,displayName,accountEnabled,servicePrincipalType,appRoleAssignmentRequired"
+        params = {"$top": top, "$select": select}
+        if all_pages:
+            items = self._get_all_pages("/servicePrincipals", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/servicePrincipals', params=params)
+
+    def applications_sp_get(self, sp_object_id: str) -> dict:
+        """Get a single service principal by object ID. Requires Application.Read.All."""
+        return self._request('GET', f'/servicePrincipals/{sp_object_id}')
+
+    def applications_sp_app_roles(self, sp_object_id: str) -> dict:
+        """List app-role assignments granted TO a service principal."""
+        return self._request('GET', f'/servicePrincipals/{sp_object_id}/appRoleAssignedTo')
+
+    def applications_oauth_grants(self, top: int = 200, all_pages: bool = False) -> dict:
+        """List tenant-wide OAuth2 permission grants. Requires Directory.Read.All.
+
+        Primary signal for illicit-consent-grant attacks.
+        """
+        params = {"$top": top}
+        if all_pages:
+            items = self._get_all_pages("/oauth2PermissionGrants", params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', '/oauth2PermissionGrants', params=params)
+
+    def applications_sp_set_enabled(self, sp_object_id: str, enabled: bool) -> dict:
+        """Enable or disable a service principal. Requires Application.ReadWrite.All.
+
+        Disabling (accountEnabled=false) immediately blocks the enterprise app from
+        authenticating. Reversible by enabling again.
+        """
+        return self._request(
+            'PATCH', f'/servicePrincipals/{sp_object_id}',
+            data={"accountEnabled": enabled},
+        )
+
+    def applications_apps_remove_password(self, app_object_id: str, key_id: str) -> dict:
+        """Remove a client secret (password credential) by keyId. Requires Application.ReadWrite.All."""
+        return self._request(
+            'POST', f'/applications/{app_object_id}/removePassword',
+            data={"keyId": key_id},
+        )
+
+    def applications_apps_remove_key(self, app_object_id: str, key_id: str) -> dict:
+        """Remove a certificate (key credential) by keyId. Requires Application.ReadWrite.All.
+
+        Graph v1.0 has no single-key remove on /applications, so this fetches the current
+        keyCredentials, drops the one matching key_id, and PATCHes back the remainder.
+        """
+        current = self._request(
+            'GET', f'/applications/{app_object_id}', params={"$select": "keyCredentials"},
+        )
+        creds = current.get('keyCredentials') or []
+        remaining = [c for c in creds if c.get('keyId') != key_id]
+        if len(remaining) == len(creds):
+            raise GraphAPIError(
+                f"No keyCredential with keyId {key_id} found on application {app_object_id}"
+            )
+        return self._request(
+            'PATCH', f'/applications/{app_object_id}', data={"keyCredentials": remaining},
+        )
+
+    # ========== REPORTS ==========
+
+    USAGE_REPORTS = {
+        "office365-active": "getOffice365ActiveUserDetail",
+        "email-activity": "getEmailActivityUserDetail",
+        "mailbox-usage": "getMailboxUsageDetail",
+    }
+
+    def reports_mfa_registration(
+        self,
+        top: int = 100,
+        filter_query: str | None = None,
+        all_pages: bool = False,
+    ) -> dict:
+        """Auth-method / MFA registration report (JSON). Requires AuditLog.Read.All."""
+        endpoint = "/reports/authenticationMethods/userRegistrationDetails"
+        params: dict = {"$top": top}
+        if filter_query:
+            params["$filter"] = filter_query
+        if all_pages:
+            items = self._get_all_pages(endpoint, params)
+            return {"value": items, "@count": len(items)}
+        return self._request('GET', endpoint, params=params)
+
+    def reports_usage(self, report: str, period: str = "D7") -> dict:
+        """Fetch a Microsoft 365 usage report (CSV via 302) and parse it to rows.
+
+        Requires Reports.Read.All. 'report' is one of USAGE_REPORTS; 'period' is one of
+        D7, D30, D90, D180.
+        """
+        fn = self.USAGE_REPORTS.get(report)
+        if not fn:
+            raise GraphAPIError(
+                f"Unknown usage report {report!r}. Choose from: {', '.join(self.USAGE_REPORTS)}"
+            )
+        if period not in ("D7", "D30", "D90", "D180"):
+            raise GraphAPIError(f"Invalid period {period!r}. Choose from: D7, D30, D90, D180")
+        endpoint = f"/reports/{fn}(period='{period}')"
+        rows = self._parse_csv(self._request_csv(endpoint))
+        return {"report": report, "period": period, "value": rows, "@count": len(rows)}
+
+    # ========== POLICY ==========
+
+    # Guest role that grants guests the same directory access as members (most permissive).
+    GUEST_ROLE_SAME_AS_MEMBER = "a0b1b346-4d3e-4e8b-98f8-753987be4970"
+
+    def policy_authorization(self) -> dict:
+        """Authorization policy (user consent + guest defaults). Requires Policy.Read.All."""
+        return self._request('GET', '/policies/authorizationPolicy')
+
+    def policy_security_defaults(self) -> dict:
+        """Security defaults enforcement policy. Requires Policy.Read.All."""
+        return self._request('GET', '/policies/identitySecurityDefaultsEnforcementPolicy')
+
+    def policy_authentication_methods(self) -> dict:
+        """Authentication methods policy (which MFA methods are enabled). Requires Policy.Read.All."""
+        return self._request('GET', '/policies/authenticationMethodsPolicy')
+
+    def policy_permission_grants(self) -> dict:
+        """Permission grant policies (app consent framework). Requires Policy.Read.All."""
+        return self._request('GET', '/policies/permissionGrantPolicies')
+
+    def policy_cross_tenant(self) -> dict:
+        """Cross-tenant access policy, including its default config. Requires Policy.Read.All."""
+        result = self._request('GET', '/policies/crossTenantAccessPolicy')
+        try:
+            result = dict(result)
+            result['default'] = self._request('GET', '/policies/crossTenantAccessPolicy/default')
+        except GraphAPIError:
+            pass
+        return result
+
+    def policy_admin_consent_request(self) -> dict:
+        """Admin consent request policy. Requires Policy.Read.All."""
+        return self._request('GET', '/policies/adminConsentRequestPolicy')
+
+    def policy_posture(self) -> dict:
+        """Aggregate key tenant policies and flag risky settings. Requires Policy.Read.All."""
+        findings: list[dict] = []
+        security_defaults = self.policy_security_defaults()
+        authorization = self.policy_authorization()
+
+        if security_defaults.get('isEnabled') is False:
+            findings.append({
+                "finding": "Security defaults disabled",
+                "severity": "medium",
+                "detail": "identitySecurityDefaultsEnforcementPolicy.isEnabled is false. "
+                          "Baseline MFA may not be enforced (acceptable only if Conditional "
+                          "Access covers it).",
+            })
+
+        role_perms = authorization.get('defaultUserRolePermissions') or {}
+        if role_perms.get('allowedToCreateApps') is True:
+            findings.append({
+                "finding": "Users can register applications",
+                "severity": "medium",
+                "detail": "authorizationPolicy.defaultUserRolePermissions.allowedToCreateApps is "
+                          "true. Enables rogue app registrations.",
+            })
+
+        assigned = authorization.get('permissionGrantPoliciesAssigned') or []
+        user_consent = [p for p in assigned if 'ManagePermissionGrantsForSelf' in str(p)]
+        if user_consent:
+            findings.append({
+                "finding": "User consent to applications is permitted",
+                "severity": "high",
+                "detail": "authorizationPolicy.permissionGrantPoliciesAssigned grants user "
+                          f"consent ({', '.join(user_consent)}). Enables illicit-consent-grant "
+                          "phishing.",
+            })
+
+        if authorization.get('guestUserRoleId') == self.GUEST_ROLE_SAME_AS_MEMBER:
+            findings.append({
+                "finding": "Guests have member-level directory access",
+                "severity": "high",
+                "detail": "authorizationPolicy.guestUserRoleId grants guests the same access as "
+                          "members. Guests can enumerate the directory.",
+            })
+
+        return {
+            "findings": findings,
+            "findingCount": len(findings),
+            "securityDefaultsEnabled": security_defaults.get('isEnabled'),
+            "allowedToCreateApps": role_perms.get('allowedToCreateApps'),
+            "permissionGrantPoliciesAssigned": assigned,
+            "guestUserRoleId": authorization.get('guestUserRoleId'),
+        }
+
+    # ========== CALENDAR ==========
+
+    CALENDAR_SELECT = (
+        "id,subject,organizer,start,end,location,isOnlineMeeting,onlineMeetingUrl,webLink"
+    )
+
+    def calendar_events(self, user_id: str, top: int = 50) -> dict:
+        """List a user's calendar events. Requires Calendars.Read (app-only reads all mailboxes)."""
+        params = {"$top": top, "$orderby": "start/dateTime desc", "$select": self.CALENDAR_SELECT}
+        return self._request('GET', f'/users/{user_id}/events', params=params)
+
+    def calendar_view(self, user_id: str, start: str, end: str, top: int = 50) -> dict:
+        """Calendar view over a start/end window (expands recurring series). Requires Calendars.Read."""
+        params = {
+            "startDateTime": start,
+            "endDateTime": end,
+            "$top": top,
+            "$orderby": "start/dateTime",
+            "$select": self.CALENDAR_SELECT,
+        }
+        return self._request('GET', f'/users/{user_id}/calendarView', params=params)
+
+    def calendar_calendars(self, user_id: str) -> dict:
+        """List a user's calendars. Requires Calendars.Read."""
+        return self._request('GET', f'/users/{user_id}/calendars')
+
+    # ========== THREAT ==========
+
+    def _ti_request(self, endpoint: str, params: dict | None = None) -> dict:
+        """GET a Defender Threat Intelligence endpoint, degrading gracefully when unlicensed.
+
+        MDTI requires a premium + API add-on license; without it Graph returns Forbidden.
+        Return a clear 'unavailable' object instead of raising in that case.
+        """
+        try:
+            return self._request('GET', endpoint, params=params)
+        except GraphAPIError as e:
+            text = str(e)
+            if '(403)' in text or 'forbidden' in text.lower() or 'license' in text.lower():
+                return {
+                    "status": "unavailable",
+                    "message": (
+                        "Microsoft Defender Threat Intelligence is unavailable. It requires an "
+                        "MDTI premium plus API add-on license on the tenant. Confirm licensing "
+                        f"before relying on these endpoints. Underlying error: {e}"
+                    ),
+                }
+            raise
+
+    def threat_assessments(self) -> dict:
+        """List submitted threat assessment requests. Requires ThreatAssessment.Read.All."""
+        return self._request('GET', '/informationProtection/threatAssessmentRequests')
+
+    def threat_assessment(self, request_id: str) -> dict:
+        """Get one threat assessment request. Requires ThreatAssessment.Read.All."""
+        return self._request('GET', f'/informationProtection/threatAssessmentRequests/{request_id}')
+
+    def threat_assessment_results(self, request_id: str) -> dict:
+        """Get the result detail for a threat assessment. Requires ThreatAssessment.Read.All."""
+        return self._request(
+            'GET', f'/informationProtection/threatAssessmentRequests/{request_id}/results'
+        )
+
+    def threat_intel_articles(self, top: int = 20) -> dict:
+        """MDTI threat articles (license-gated). Requires ThreatIntelligence.Read.All."""
+        return self._ti_request('/security/threatIntelligence/articles', params={"$top": top})
+
+    def threat_intel_host(self, host: str) -> dict:
+        """MDTI host reputation/enrichment (license-gated). Requires ThreatIntelligence.Read.All."""
+        return self._ti_request(f'/security/threatIntelligence/hosts/{host}')
+
+    def threat_intel_profiles(self, top: int = 20) -> dict:
+        """MDTI intel profiles (license-gated). Requires ThreatIntelligence.Read.All."""
+        return self._ti_request('/security/threatIntelligence/intelProfiles', params={"$top": top})
+
+    def threat_intel_vulnerability(self, cve: str) -> dict:
+        """MDTI vulnerability detail by CVE (license-gated). Requires ThreatIntelligence.Read.All."""
+        return self._ti_request(f'/security/threatIntelligence/vulnerabilities/{cve}')
+
 
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
@@ -838,6 +1224,134 @@ Examples:
     p = security_sub.add_parser('auth-methods', help='Get authentication methods for a user')
     p.add_argument('upn', help='User principal name')
 
+    # ===== APPLICATIONS COMMANDS =====
+    apps_parser = subparsers.add_parser(
+        'applications', help='App registrations, service principals, OAuth consent'
+    )
+    apps_sub = apps_parser.add_subparsers(dest='action', help='Action')
+
+    p = apps_sub.add_parser('apps-list', help='List app registrations')
+    p.add_argument('--top', type=int, default=50, help='Number of results (default: 50)')
+    p.add_argument('--all', action='store_true', help='Get all pages')
+    p.add_argument('--include-credentials', action='store_true', dest='include_credentials',
+                   help='Include key/password credentials in the listing')
+
+    p = apps_sub.add_parser('apps-get', help='Get a single application')
+    p.add_argument('app_object_id', help='Application object ID')
+
+    p = apps_sub.add_parser('apps-credentials',
+                            help="Application credentials with an 'added N days ago' flag")
+    p.add_argument('app_object_id', help='Application object ID')
+
+    p = apps_sub.add_parser('sp-list', help='List service principals (enterprise apps)')
+    p.add_argument('--top', type=int, default=50, help='Number of results (default: 50)')
+    p.add_argument('--all', action='store_true', help='Get all pages')
+
+    p = apps_sub.add_parser('sp-get', help='Get a single service principal')
+    p.add_argument('sp_object_id', help='Service principal object ID')
+
+    p = apps_sub.add_parser('sp-app-roles', help='App roles granted to a service principal')
+    p.add_argument('sp_object_id', help='Service principal object ID')
+
+    p = apps_sub.add_parser('oauth-grants', help='Tenant-wide OAuth2 permission grants')
+    p.add_argument('--top', type=int, default=200, help='Number of results (default: 200)')
+    p.add_argument('--all', action='store_true', help='Get all pages')
+
+    p = apps_sub.add_parser('sp-disable', help='Disable a service principal (guarded write)')
+    p.add_argument('sp_object_id', help='Service principal object ID')
+    p.add_argument('--confirm', action='store_true', required=True, help='Confirm disable')
+
+    p = apps_sub.add_parser('sp-enable', help='Re-enable a service principal (guarded write)')
+    p.add_argument('sp_object_id', help='Service principal object ID')
+    p.add_argument('--confirm', action='store_true', required=True, help='Confirm enable')
+
+    p = apps_sub.add_parser('apps-remove-password',
+                            help='Remove a client secret by keyId (guarded write)')
+    p.add_argument('app_object_id', help='Application object ID')
+    p.add_argument('--key-id', dest='key_id', required=True, help='keyId of the password credential')
+    p.add_argument('--confirm', action='store_true', required=True, help='Confirm removal')
+
+    p = apps_sub.add_parser('apps-remove-key',
+                            help='Remove a certificate by keyId (guarded write)')
+    p.add_argument('app_object_id', help='Application object ID')
+    p.add_argument('--key-id', dest='key_id', required=True, help='keyId of the key credential')
+    p.add_argument('--confirm', action='store_true', required=True, help='Confirm removal')
+
+    # ===== REPORTS COMMANDS =====
+    reports_parser = subparsers.add_parser(
+        'reports', help='Usage reports and MFA registration report'
+    )
+    reports_sub = reports_parser.add_subparsers(dest='action', help='Action')
+
+    p = reports_sub.add_parser('mfa-registration',
+                               help='Auth-method / MFA registration report (JSON)')
+    p.add_argument('--top', type=int, default=100, help='Number of results (default: 100)')
+    p.add_argument('--filter', dest='filter_query',
+                   help='OData filter (e.g. "isMfaRegistered eq false")')
+    p.add_argument('--all', action='store_true', help='Get all pages')
+
+    p = reports_sub.add_parser('usage', help='Microsoft 365 usage report (CSV parsed to rows)')
+    p.add_argument('--report', required=True,
+                   choices=['office365-active', 'email-activity', 'mailbox-usage'],
+                   help='Which usage report to fetch')
+    p.add_argument('--period', default='D7', choices=['D7', 'D30', 'D90', 'D180'],
+                   help='Reporting period (default: D7)')
+
+    # ===== POLICY COMMANDS =====
+    policy_parser = subparsers.add_parser('policy', help='Tenant security policy posture')
+    policy_sub = policy_parser.add_subparsers(dest='action', help='Action')
+    policy_sub.add_parser('authorization', help='Authorization policy (consent + guest defaults)')
+    policy_sub.add_parser('security-defaults', help='Security defaults enforcement policy')
+    policy_sub.add_parser('authentication-methods', help='Authentication methods policy')
+    policy_sub.add_parser('permission-grants', help='Permission grant policies')
+    policy_sub.add_parser('cross-tenant', help='Cross-tenant access policy (incl. default)')
+    policy_sub.add_parser('admin-consent-request', help='Admin consent request policy')
+    policy_sub.add_parser('posture', help='Aggregate posture check with flagged risky settings')
+
+    # ===== CALENDAR COMMANDS =====
+    calendar_parser = subparsers.add_parser('calendar', help='User calendar reads')
+    calendar_sub = calendar_parser.add_subparsers(dest='action', help='Action')
+
+    p = calendar_sub.add_parser('events', help="List a user's calendar events")
+    p.add_argument('user_id', help='User ID or UPN')
+    p.add_argument('--top', type=int, default=50, help='Number of results (default: 50)')
+
+    p = calendar_sub.add_parser('view', help='Calendar view over a start/end window')
+    p.add_argument('user_id', help='User ID or UPN')
+    p.add_argument('--start', required=True,
+                   help='Window start (UTC ISO 8601, e.g. 2026-06-01T00:00:00Z)')
+    p.add_argument('--end', required=True, help='Window end (UTC ISO 8601)')
+    p.add_argument('--top', type=int, default=50, help='Number of results (default: 50)')
+
+    p = calendar_sub.add_parser('calendars', help="List a user's calendars")
+    p.add_argument('user_id', help='User ID or UPN')
+
+    # ===== THREAT COMMANDS =====
+    threat_parser = subparsers.add_parser(
+        'threat', help='Threat assessment + Defender Threat Intelligence'
+    )
+    threat_sub = threat_parser.add_subparsers(dest='action', help='Action')
+    threat_sub.add_parser('assessments', help='List submitted threat assessment requests')
+
+    p = threat_sub.add_parser('assessment', help='Get one threat assessment request')
+    p.add_argument('request_id', help='Threat assessment request ID')
+
+    p = threat_sub.add_parser('assessment-results', help='Get result detail for an assessment')
+    p.add_argument('request_id', help='Threat assessment request ID')
+
+    p = threat_sub.add_parser('intel-articles', help='MDTI threat articles (license-gated)')
+    p.add_argument('--top', type=int, default=20, help='Number of results (default: 20)')
+
+    p = threat_sub.add_parser('intel-host', help='MDTI host reputation/enrichment (license-gated)')
+    p.add_argument('host', help='Host name or IP')
+
+    p = threat_sub.add_parser('intel-profiles', help='MDTI intel profiles (license-gated)')
+    p.add_argument('--top', type=int, default=20, help='Number of results (default: 20)')
+
+    p = threat_sub.add_parser('intel-vulnerability',
+                              help='MDTI vulnerability detail by CVE (license-gated)')
+    p.add_argument('cve', help='CVE identifier (e.g. CVE-2024-12345)')
+
     return parser
 
 
@@ -904,6 +1418,102 @@ def handle_security(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
         return api.security_audit_logs(top=args.top, filter_query=fq)
     elif args.security_action == 'auth-methods':
         return api.security_auth_methods(args.upn)
+    return None
+
+
+def handle_applications(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
+    """Handle applications subcommand dispatch."""
+    if args.action == 'apps-list':
+        return api.applications_apps_list(
+            top=args.top, all_pages=args.all,
+            include_credentials=getattr(args, 'include_credentials', False),
+        )
+    elif args.action == 'apps-get':
+        return api.applications_apps_get(args.app_object_id)
+    elif args.action == 'apps-credentials':
+        return api.applications_apps_credentials(args.app_object_id)
+    elif args.action == 'sp-list':
+        return api.applications_sp_list(top=args.top, all_pages=args.all)
+    elif args.action == 'sp-get':
+        return api.applications_sp_get(args.sp_object_id)
+    elif args.action == 'sp-app-roles':
+        return api.applications_sp_app_roles(args.sp_object_id)
+    elif args.action == 'oauth-grants':
+        return api.applications_oauth_grants(top=args.top, all_pages=args.all)
+    elif args.action == 'sp-disable':
+        result = api.applications_sp_set_enabled(args.sp_object_id, False)
+        print_success(f"Service principal disabled: {args.sp_object_id}")
+        return result
+    elif args.action == 'sp-enable':
+        result = api.applications_sp_set_enabled(args.sp_object_id, True)
+        print_success(f"Service principal enabled: {args.sp_object_id}")
+        return result
+    elif args.action == 'apps-remove-password':
+        result = api.applications_apps_remove_password(args.app_object_id, args.key_id)
+        print_success(f"Client secret {args.key_id} removed from {args.app_object_id}")
+        return result
+    elif args.action == 'apps-remove-key':
+        result = api.applications_apps_remove_key(args.app_object_id, args.key_id)
+        print_success(f"Certificate {args.key_id} removed from {args.app_object_id}")
+        return result
+    return None
+
+
+def handle_reports(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
+    """Handle reports subcommand dispatch."""
+    if args.action == 'mfa-registration':
+        return api.reports_mfa_registration(
+            top=args.top,
+            filter_query=getattr(args, 'filter_query', None),
+            all_pages=args.all,
+        )
+    elif args.action == 'usage':
+        return api.reports_usage(report=args.report, period=args.period)
+    return None
+
+
+def handle_policy(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
+    """Handle policy subcommand dispatch."""
+    dispatch = {
+        'authorization': api.policy_authorization,
+        'security-defaults': api.policy_security_defaults,
+        'authentication-methods': api.policy_authentication_methods,
+        'permission-grants': api.policy_permission_grants,
+        'cross-tenant': api.policy_cross_tenant,
+        'admin-consent-request': api.policy_admin_consent_request,
+        'posture': api.policy_posture,
+    }
+    handler = dispatch.get(args.action)
+    return handler() if handler else None
+
+
+def handle_calendar(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
+    """Handle calendar subcommand dispatch."""
+    if args.action == 'events':
+        return api.calendar_events(args.user_id, top=args.top)
+    elif args.action == 'view':
+        return api.calendar_view(args.user_id, args.start, args.end, top=args.top)
+    elif args.action == 'calendars':
+        return api.calendar_calendars(args.user_id)
+    return None
+
+
+def handle_threat(api: AzureADAPI, args: argparse.Namespace) -> dict | None:
+    """Handle threat subcommand dispatch."""
+    if args.action == 'assessments':
+        return api.threat_assessments()
+    elif args.action == 'assessment':
+        return api.threat_assessment(args.request_id)
+    elif args.action == 'assessment-results':
+        return api.threat_assessment_results(args.request_id)
+    elif args.action == 'intel-articles':
+        return api.threat_intel_articles(top=args.top)
+    elif args.action == 'intel-host':
+        return api.threat_intel_host(args.host)
+    elif args.action == 'intel-profiles':
+        return api.threat_intel_profiles(top=args.top)
+    elif args.action == 'intel-vulnerability':
+        return api.threat_intel_vulnerability(args.cve)
     return None
 
 
@@ -1078,6 +1688,26 @@ def main():
         # ===== SECURITY =====
         elif args.domain == 'security':
             result = handle_security(api, args)
+
+        # ===== APPLICATIONS =====
+        elif args.domain == 'applications':
+            result = handle_applications(api, args)
+
+        # ===== REPORTS =====
+        elif args.domain == 'reports':
+            result = handle_reports(api, args)
+
+        # ===== POLICY =====
+        elif args.domain == 'policy':
+            result = handle_policy(api, args)
+
+        # ===== CALENDAR =====
+        elif args.domain == 'calendar':
+            result = handle_calendar(api, args)
+
+        # ===== THREAT =====
+        elif args.domain == 'threat':
+            result = handle_threat(api, args)
 
         # Output result
         if result:

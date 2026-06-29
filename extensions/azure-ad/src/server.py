@@ -1336,43 +1336,70 @@ async def azure_ad_search_mail(
                Prefix with 'from:email@domain.com' to filter by sender instead.
         folder: Folder to search: 'sentItems', 'inbox', 'deletedItems' (default: sentItems).
         top: Max results (default 50).
-        hours: Look-back window in hours (default 168 = 7 days). For subject/keyword searches the
-               window is applied client-side after the search, so raise top if results look thin.
+        hours: Look-back window in hours (default 168 = 7 days). For subject/keyword searches a
+               larger candidate set is scanned by relevance and then filtered to this window
+               client-side, so very high-volume subjects may still need a larger top.
     """
     folder_safe = folder.lower()
     if folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
         raise ValueError(f"Invalid folder: {folder!r}. Use a known folder name or a folder ID (GUID).")
 
-    since = (datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))).strftime('%Y-%m-%dT%H:%M:%SZ')
+    window_start = datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))
+    since = window_start.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Graph rejects $orderby combined with these message filters (returns 400 "restriction or
-    # sort order is too complex"), and does NOT support contains() on subject in $filter. So:
-    #   sender ('from:') -> $filter on from + sentDateTime, no $orderby
-    #   subject/keyword  -> $search (no $filter/$orderby; $search needs ConsistencyLevel: eventual,
-    #                       which _graph already sets)
-    # Sorting (newest first) and, for the $search path, the time window are applied client-side.
+    # Window field: sentItems is dated by sentDateTime; every other folder (inbox, deletedItems,
+    # custom folder IDs) by receivedDateTime, which all messages carry. Using receivedDateTime for
+    # received folders avoids missing a recently-received message whose sender-clock sentDateTime is
+    # older than the window.
+    date_field = "sentDateTime" if folder_safe == "sentitems" else "receivedDateTime"
+
     select = "id,subject,sentDateTime,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,bodyPreview"
-    params: dict = {"$select": select, "$top": top}
-    use_search = False
-    if query.lower().startswith("from:"):
+
+    # Graph rejects $orderby combined with these message filters (400 "restriction or sort order is
+    # too complex") and does NOT support contains() on subject in $filter. So sender queries use
+    # $filter (no $orderby) and subject queries use $search (needs ConsistencyLevel: eventual, set by
+    # _graph). $search ranks by RELEVANCE and cannot carry a date window, so for the subject path we
+    # fetch a larger candidate pool, then window, sort, and truncate to top client-side; this keeps
+    # recent in-window matches from being dropped by relevance truncation.
+    is_sender = query.lower().startswith("from:")
+    if is_sender:
         sender = query[5:].strip().replace("'", "''")
-        params["$filter"] = f"from/emailAddress/address eq '{sender}' and sentDateTime ge {since}"
+        if not sender:
+            raise ValueError("Empty 'from:' query. Provide an address, e.g. from:user@domain.com.")
+        params: dict = {
+            "$filter": f"from/emailAddress/address eq '{sender}' and {date_field} ge {since}",
+            "$select": select,
+            "$top": top,
+        }
     else:
         # $search takes a quoted term; strip characters that would break the search string.
         term = re.sub(r'["\\\r\n]', " ", query).strip()
-        params["$search"] = f'"subject:{term}"'
-        use_search = True
+        if not term:
+            raise ValueError("Empty search term. Provide a subject keyword, or use a 'from:' query.")
+        params = {
+            "$search": f'"subject:{term}"',
+            "$select": select,
+            "$top": max(top, 250),
+        }
 
     result = await _graph("GET", f"/users/{user_id}/mailFolders/{folder}/messages", params=params)
-    messages = result.get("value", [])
+    messages = result.get("value") or []
 
-    def _sent(m: dict) -> str:
-        return m.get("sentDateTime") or m.get("receivedDateTime") or ""
+    def _msg_dt(m: dict):
+        value = m.get(date_field) or m.get("receivedDateTime") or m.get("sentDateTime")
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
 
-    if use_search:
-        # $search cannot carry the sentDateTime window, so apply it client-side.
-        messages = [m for m in messages if _sent(m) >= since]
-    messages.sort(key=_sent, reverse=True)
+    if not is_sender:
+        # $search cannot carry the date window, so apply it client-side with a real datetime compare
+        # (an unparseable timestamp is kept rather than silently dropped).
+        messages = [m for m in messages if (_msg_dt(m) or window_start) >= window_start]
+    messages.sort(key=lambda m: _msg_dt(m) or window_start, reverse=True)
+    messages = messages[:top]
     summary = []
     for m in messages:
         to = [r.get("emailAddress", {}).get("address", "") for r in m.get("toRecipients", [])]

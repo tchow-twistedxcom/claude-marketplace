@@ -1,7 +1,7 @@
 {
   "name": "m365-skills",
-  "version": "1.1.0",
-  "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Includes Azure AD/Entra ID operations for users, groups, devices, and directory management.",
+  "version": "1.2.0",
+  "description": "Microsoft 365 and Azure integrations via Microsoft Graph API. Azure AD/Entra ID operations for users, groups, devices, and directory, plus applications and service principals, usage and MFA reports, tenant policy posture, calendar, and threat assessment and intelligence.",
   "author": {
     "name": "tchow",
     "url": "https://github.com/tchow-twistedxcom"

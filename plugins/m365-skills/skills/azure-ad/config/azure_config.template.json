@@ -1,4 +1,18 @@
 {
+  "_required_app_permissions": {
+    "_note": "Microsoft Graph APPLICATION permissions (app-only) the registration should be granted, with admin consent. The skill authenticates with scope https://graph.microsoft.com/.default which requests whatever roles are consented.",
+    "core_directory": ["User.Read.All", "Group.Read.All", "Device.Read.All", "Directory.Read.All", "Organization.Read.All"],
+    "directory_write": ["User.ReadWrite.All", "Group.ReadWrite.All"],
+    "applications": ["Application.ReadWrite.All"],
+    "reports": ["Reports.Read.All", "AuditLog.Read.All"],
+    "policy": ["Policy.Read.All", "Policy.ReadWrite.ConditionalAccess"],
+    "calendar_mail": ["Calendars.Read", "Mail.Read", "MailboxSettings.Read"],
+    "identity_protection": ["IdentityRiskyUser.ReadWrite.All", "IdentityRiskEvent.ReadWrite.All", "UserAuthenticationMethod.Read.All", "User.RevokeSessions.All"],
+    "threat": ["ThreatAssessment.Read.All", "ThreatHunting.Read.All", "ThreatIntelligence.Read.All"],
+    "ual_office365_management_api": ["ActivityFeed.Read"],
+    "_deprecated_remove": ["ThreatIndicators.Read.All (orphaned: only endpoint /security/tiIndicators is beta and removed ~Apr 2026)"],
+    "_license_gated": ["ThreatIntelligence.Read.All requires Microsoft Defender Threat Intelligence premium + API add-on license"]
+  },
   "tenants": {
     "default": {
       "name": "Primary Tenant",

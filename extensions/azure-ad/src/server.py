@@ -2,6 +2,8 @@
 
 import asyncio
 import base64
+import csv
+import io
 import ipaddress
 import json
 import os
@@ -323,6 +325,55 @@ def _gather_values(result: Any) -> list:
     if isinstance(result, Exception):
         return []
     return result.get("value", []) if isinstance(result, dict) else []
+
+
+async def _graph_csv(endpoint: str, params: dict | None = None) -> str:
+    """GET a Graph API endpoint that returns CSV (e.g. /reports/* detail reports).
+
+    Reuses the bearer token (_get_token) and the shared httpx client (_get_http_client) exactly
+    like _graph. Graph CSV report endpoints respond with a 302 redirect to a short-lived,
+    pre-authenticated download URL. The shared client has follow_redirects=True and strips the
+    Authorization header on cross-host redirects, which is correct here: the 302 target is already
+    authenticated via a SAS token in the URL, so re-sending the bearer token is unnecessary (and
+    avoids leaking it to the storage host).
+
+    Args:
+        endpoint: Graph path (e.g. "/reports/getOffice365ActiveUserDetail(period='D7')") or full URL.
+        params: Optional query parameters.
+
+    Returns the raw CSV body as text. Raises ValueError on 401/403/404, mirroring _graph.
+    """
+    token = await _get_token()
+    url = f"{GRAPH_BASE}{endpoint}" if not endpoint.startswith("http") else endpoint
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "text/csv",
+    }
+    client = await _get_http_client()
+    response = await client.request("GET", url, headers=headers, params=params)
+    if response.status_code == 401:
+        raise ValueError("Unauthorized. Check credentials and app permissions.")
+    if response.status_code == 403:
+        raise ValueError(
+            f"Forbidden. The app lacks the required Graph API permission for this operation. "
+            f"Details: {response.text[:300]}"
+        )
+    if response.status_code == 404:
+        raise ValueError(f"Not found: {endpoint}")
+    response.raise_for_status()
+    return response.text
+
+
+def _parse_csv(text: str) -> list[dict]:
+    """Parse a CSV string (with a header row) into a list of dict rows using the stdlib csv module.
+
+    Graph M365 usage-report CSVs carry a leading UTF-8 BOM; strip it so the first column header
+    is not read as "\ufeffReport Refresh Date".
+    """
+    if not text or not text.strip():
+        return []
+    reader = csv.DictReader(io.StringIO(text.lstrip('\ufeff')))
+    return [dict(row) for row in reader]
 
 
 # ─── Users ────────────────────────────────────────────────────────────────────
@@ -2590,6 +2641,937 @@ async def azure_ad_incident_triage(
             for i, r in enumerate(reports)
         ],
     })
+
+
+# ─── Applications, Service Principals, Consent ──────────────────────────────────
+
+@mcp.tool()
+async def azure_ad_list_applications(
+    filter_query: str | None = None,
+    include_credentials: bool = False,
+    top: int = 100,
+    all_pages: bool = False,
+) -> str:
+    """List Azure AD app registrations (applications).
+
+    App registrations define the identity, redirect URIs, and requested permissions for custom and
+    third-party apps. Reviewing them is core to detecting backdoor apps and over-privileged
+    registrations during incident response.
+
+    Args:
+        filter_query: OData $filter (e.g. "signInAudience eq 'AzureADMultipleOrgs'").
+            NOTE: passed directly to Graph without sanitization. Admin use only, do not pass
+            untrusted user input here.
+        include_credentials: If True, select keyCredentials and passwordCredentials so you can audit
+            certificates and client secrets. The public key blob (the `key` field) is omitted by
+            default by Graph, so only credential metadata (keyId, dates, displayName) is returned.
+            NOTE: selecting credentials triggers a tighter 150 requests/min throttle on the
+            /applications endpoint, so avoid all_pages with this flag on large tenants.
+        top: Results per page (default 100, max 999).
+        all_pages: If True, follow pagination to retrieve all applications.
+
+    Returns a list of application objects.
+    """
+    if filter_query and len(filter_query) > 2000:
+        raise ValueError(f"filter_query is too long ({len(filter_query)} chars). Maximum is 2000 characters.")
+    params: dict = {"$top": min(top, 999)}
+    if include_credentials:
+        params["$select"] = "id,appId,displayName,signInAudience,keyCredentials,passwordCredentials"
+    if filter_query:
+        params["$filter"] = filter_query
+
+    if all_pages:
+        items = await _get_all_pages("/applications", params)
+        return _fmt({"value": items, "count": len(items)})
+
+    result = await _graph("GET", "/applications", params=params)
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_get_application(app_id: str) -> str:
+    """Get a single app registration by object ID.
+
+    Args:
+        app_id: Application object ID (GUID). To look up by appId (client ID), use
+            azure_ad_list_applications with filter_query="appId eq '<guid>'".
+
+    Returns the full application object including requested API permissions
+    (requiredResourceAccess), redirect URIs, sign-in audience, and credential metadata.
+    """
+    result = await _graph("GET", f"/applications/{app_id}")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_app_credentials(app_id: str) -> str:
+    """Audit an app registration's certificates and client secrets for backdoor credentials.
+
+    A common persistence technique: an attacker adds their own client secret or certificate
+    (passwordCredentials / keyCredentials) to a legitimate, often highly privileged, app
+    registration. The credential survives password resets and session revocation. A credential
+    added very recently (low addedDaysAgo) on a sensitive app is a strong persistence indicator.
+
+    Args:
+        app_id: Application object ID (GUID).
+
+    Returns a summary listing each credential's keyId, type, displayName, start/end dates, and
+    addedDaysAgo (whole days since startDateTime). Credentials added within the last 7 days are
+    highlighted under recentlyAdded.
+    """
+    result = await _graph(
+        "GET",
+        f"/applications/{app_id}",
+        params={"$select": "id,appId,displayName,keyCredentials,passwordCredentials"},
+    )
+
+    now = datetime.now(timezone.utc)
+
+    def _enrich(cred: dict, cred_type: str) -> dict:
+        added_days_ago: int | None = None
+        start = cred.get("startDateTime")
+        if start:
+            try:
+                start_dt = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+                added_days_ago = (now - start_dt).days
+            except (ValueError, TypeError):
+                added_days_ago = None
+        return {
+            "credentialType": cred_type,
+            "keyId": cred.get("keyId"),
+            "displayName": cred.get("displayName"),
+            "startDateTime": start,
+            "endDateTime": cred.get("endDateTime"),
+            "addedDaysAgo": added_days_ago,
+        }
+
+    key_creds = [_enrich(c, "certificate") for c in (result.get("keyCredentials") or [])]
+    pwd_creds = [_enrich(c, "clientSecret") for c in (result.get("passwordCredentials") or [])]
+    all_creds = key_creds + pwd_creds
+    recently_added = [
+        c for c in all_creds
+        if c["addedDaysAgo"] is not None and 0 <= c["addedDaysAgo"] <= 7
+    ]
+
+    return _fmt({
+        "appId": result.get("appId"),
+        "objectId": result.get("id"),
+        "displayName": result.get("displayName"),
+        "credentialCount": len(all_creds),
+        "credentials": all_creds,
+        "recentlyAdded": recently_added,
+        "note": "Investigate any credential with a low addedDaysAgo on a privileged app. Possible backdoor persistence.",
+    })
+
+
+@mcp.tool()
+async def azure_ad_list_service_principals(
+    filter_query: str | None = None,
+    top: int = 100,
+    all_pages: bool = False,
+) -> str:
+    """List service principals (enterprise applications / app instances in this tenant).
+
+    A service principal is the local identity an application uses inside your tenant. Malicious
+    enterprise apps created via illicit consent grants appear here. Use to inventory which apps
+    exist and their accountEnabled state.
+
+    Args:
+        filter_query: OData $filter (e.g. "accountEnabled eq false" or "appOwnerOrganizationId eq <guid>").
+            NOTE: passed directly to Graph without sanitization. Admin use only.
+        top: Results per page (default 100, max 999).
+        all_pages: If True, follow pagination to retrieve all service principals.
+
+    Returns a list of service principal objects.
+    """
+    if filter_query and len(filter_query) > 2000:
+        raise ValueError(f"filter_query is too long ({len(filter_query)} chars). Maximum is 2000 characters.")
+    params: dict = {"$top": min(top, 999)}
+    if filter_query:
+        params["$filter"] = filter_query
+
+    if all_pages:
+        items = await _get_all_pages("/servicePrincipals", params)
+        return _fmt({"value": items, "count": len(items)})
+
+    result = await _graph("GET", "/servicePrincipals", params=params)
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_get_service_principal(sp_id: str) -> str:
+    """Get a single service principal by object ID.
+
+    Args:
+        sp_id: Service principal object ID (GUID).
+
+    Returns the full service principal object including appId, accountEnabled, app roles,
+    oauth2 permission scopes, reply URLs, and publisher info.
+    """
+    result = await _graph("GET", f"/servicePrincipals/{sp_id}")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_sp_app_role_assignments(sp_id: str) -> str:
+    """List app role assignments where this service principal is the resource (appRoleAssignedTo).
+
+    Returns which users, groups, and client service principals have been granted app roles exposed
+    by this service principal. For an API or resource app (e.g. the Microsoft Graph service
+    principal), this surfaces every client that holds an application permission against it, a key
+    view for spotting over-privileged or attacker-controlled clients.
+
+    Args:
+        sp_id: Service principal object ID (GUID).
+
+    Returns a list of appRoleAssignment objects with appRoleId, principalId, principalDisplayName,
+    principalType, resourceId, and resourceDisplayName.
+    """
+    result = await _graph("GET", f"/servicePrincipals/{sp_id}/appRoleAssignedTo")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_oauth_grants_tenant(
+    filter_query: str | None = None,
+    top: int = 200,
+    all_pages: bool = False,
+) -> str:
+    """List OAuth2 delegated permission grants across the ENTIRE tenant (illicit consent hunt).
+
+    The illicit consent grant attack tricks a user (or an admin) into consenting to a malicious
+    app, which then reads mail or files via delegated permissions that survive password resets.
+    This enumerates every oauth2PermissionGrant in the tenant and enriches each with the client
+    app's display name so you can spot unfamiliar apps holding broad scopes (Mail.Read,
+    Files.ReadWrite.All, offline_access).
+
+    Args:
+        filter_query: OData $filter (e.g. "consentType eq 'AllPrincipals'" for tenant-wide grants).
+            NOTE: passed directly to Graph without sanitization. Admin use only.
+        top: Results per page (default 200, max 999).
+        all_pages: If True, follow pagination to retrieve all grants (recommended for a full sweep).
+
+    Returns grants enriched with appDisplayName, scope, consentType (AllPrincipals means admin
+    consent for all users, Principal means single-user consent), and the resource/client IDs.
+    """
+    if filter_query and len(filter_query) > 2000:
+        raise ValueError(f"filter_query is too long ({len(filter_query)} chars). Maximum is 2000 characters.")
+    params: dict = {"$top": min(top, 999)}
+    if filter_query:
+        params["$filter"] = filter_query
+
+    if all_pages:
+        items = await _get_all_pages("/oauth2PermissionGrants", params)
+    else:
+        result = await _graph("GET", "/oauth2PermissionGrants", params=params)
+        items = result.get("value", []) if isinstance(result, dict) else []
+
+    # Enrich clientId -> service principal displayName (parallel, bounded), same pattern as
+    # azure_ad_user_oauth_grants.
+    client_ids = list({g.get("clientId", "") for g in items if g.get("clientId")})
+    sp_map: dict = {}
+    if client_ids:
+        sem = asyncio.Semaphore(10)
+
+        async def _fetch_sp(cid: str):
+            async with sem:
+                return await _graph("GET", f"/servicePrincipals/{cid}",
+                                    params={"$select": "displayName,appId,publisherName"})
+
+        sp_results = await asyncio.gather(
+            *[_fetch_sp(cid) for cid in client_ids],
+            return_exceptions=True,
+        )
+        for cid, sp in zip(client_ids, sp_results):
+            if isinstance(sp, dict):
+                sp_map[cid] = sp
+
+    grants = []
+    for g in items:
+        cid = g.get("clientId", "")
+        sp = sp_map.get(cid, {})
+        grants.append({
+            "appDisplayName": sp.get("displayName", cid),
+            "appId": sp.get("appId"),
+            "publisher": sp.get("publisherName"),
+            "consentType": g.get("consentType"),
+            "principalId": g.get("principalId"),
+            "scope": g.get("scope", ""),
+            "resourceId": g.get("resourceId"),
+            "clientId": cid,
+            "id": g.get("id"),
+        })
+    return _fmt({"count": len(grants), "grants": grants})
+
+
+@mcp.tool()
+async def azure_ad_disable_service_principal(
+    sp_id: str,
+    confirm: bool = False,
+) -> str:
+    """Disable a service principal (set accountEnabled=false) to neutralize a malicious app.
+
+    Incident response: instantly stops a malicious or compromised enterprise app from
+    authenticating, without deleting it (preserving forensic evidence). Reversible via
+    azure_ad_enable_service_principal.
+
+    By default confirm=False returns a preview. Pass confirm=True to execute.
+
+    Args:
+        sp_id: Service principal object ID (GUID). Get from azure_ad_list_service_principals.
+        confirm: Must be True to execute. Defaults to False for safety.
+
+    Returns a preview dict when confirm=False, or the result when confirm=True.
+    """
+    if not confirm:
+        return _fmt({
+            "confirm": False,
+            "action": "disable_service_principal",
+            "target_sp_id": sp_id,
+            "would_set": {"accountEnabled": False},
+            "note": "Set confirm=True to execute. This blocks the enterprise app from authenticating.",
+        })
+    print(f"[azure-ad-server] DESTRUCTIVE OP: disableServicePrincipal sp_id={sp_id}", file=sys.stderr)
+    await _graph("PATCH", f"/servicePrincipals/{sp_id}", data={"accountEnabled": False})
+    return _fmt({"success": True, "sp_id": sp_id, "accountEnabled": False})
+
+
+@mcp.tool()
+async def azure_ad_enable_service_principal(
+    sp_id: str,
+    confirm: bool = False,
+) -> str:
+    """Re-enable a previously disabled service principal (set accountEnabled=true).
+
+    Undo for azure_ad_disable_service_principal once an enterprise app has been cleared during
+    incident response.
+
+    By default confirm=False returns a preview. Pass confirm=True to execute.
+
+    Args:
+        sp_id: Service principal object ID (GUID).
+        confirm: Must be True to execute. Defaults to False for safety.
+
+    Returns a preview dict when confirm=False, or a success result when confirm=True.
+    """
+    if not confirm:
+        return _fmt({
+            "confirm": False,
+            "action": "enable_service_principal",
+            "target_sp_id": sp_id,
+            "would_set": {"accountEnabled": True},
+            "note": "Set confirm=True to execute. This restores the enterprise app's ability to authenticate.",
+        })
+    print(f"[azure-ad-server] OP: enableServicePrincipal sp_id={sp_id}", file=sys.stderr)
+    await _graph("PATCH", f"/servicePrincipals/{sp_id}", data={"accountEnabled": True})
+    return _fmt({"success": True, "sp_id": sp_id, "accountEnabled": True})
+
+
+@mcp.tool()
+async def azure_ad_remove_app_password(
+    app_id: str,
+    key_id: str,
+    confirm: bool = False,
+) -> str:
+    """Remove a client secret (password credential) from an app registration.
+
+    Incident response: revokes an attacker-added client secret used for persistence. Identify the
+    keyId with azure_ad_app_credentials. Uses the removePassword action endpoint.
+
+    By default confirm=False returns a preview. Pass confirm=True to execute.
+
+    Args:
+        app_id: Application object ID (GUID).
+        key_id: The keyId (GUID) of the password credential to remove (from azure_ad_app_credentials).
+        confirm: Must be True to execute. Defaults to False for safety.
+
+    Returns a preview dict when confirm=False, or a success result when confirm=True.
+    """
+    if not confirm:
+        return _fmt({
+            "confirm": False,
+            "action": "remove_app_password",
+            "target_app_id": app_id,
+            "key_id": key_id,
+            "note": "Set confirm=True to execute. This revokes the client secret immediately.",
+        })
+    print(f"[azure-ad-server] DESTRUCTIVE OP: removeAppPassword app_id={app_id} key_id={key_id}", file=sys.stderr)
+    await _graph("POST", f"/applications/{app_id}/removePassword", data={"keyId": key_id})
+    return _fmt({"success": True, "app_id": app_id, "removed_key_id": key_id})
+
+
+@mcp.tool()
+async def azure_ad_remove_app_key(
+    app_id: str,
+    key_id: str,
+    confirm: bool = False,
+) -> str:
+    """Remove a certificate (key credential) from an app registration.
+
+    Incident response: revokes an attacker-added certificate used for persistence. Graph has no
+    per-key remove action for certificates, so this reads the current keyCredentials, filters out
+    the entry whose keyId matches, and PATCHes the remaining set back. Identify the keyId with
+    azure_ad_app_credentials.
+
+    By default confirm=False returns a preview. Pass confirm=True to execute.
+
+    Args:
+        app_id: Application object ID (GUID).
+        key_id: The keyId (GUID) of the certificate to remove (from azure_ad_app_credentials).
+        confirm: Must be True to execute. Defaults to False for safety.
+
+    Returns a preview dict when confirm=False, or a success result when confirm=True.
+    Raises ValueError if the keyId is not present on the application.
+    """
+    current = await _graph(
+        "GET", f"/applications/{app_id}",
+        params={"$select": "id,keyCredentials"},
+    )
+    key_creds = current.get("keyCredentials") or []
+    match = next((c for c in key_creds if c.get("keyId") == key_id), None)
+    if match is None:
+        raise ValueError(
+            f"keyId {key_id!r} not found on application {app_id}. "
+            f"Existing keyIds: {[c.get('keyId') for c in key_creds]}"
+        )
+    filtered = [c for c in key_creds if c.get("keyId") != key_id]
+
+    if not confirm:
+        return _fmt({
+            "confirm": False,
+            "action": "remove_app_key",
+            "target_app_id": app_id,
+            "key_id": key_id,
+            "remaining_key_count": len(filtered),
+            "note": "Set confirm=True to execute. This PATCHes keyCredentials without the targeted certificate.",
+        })
+    print(f"[azure-ad-server] DESTRUCTIVE OP: removeAppKey app_id={app_id} key_id={key_id}", file=sys.stderr)
+    await _graph("PATCH", f"/applications/{app_id}", data={"keyCredentials": filtered})
+    return _fmt({
+        "success": True,
+        "app_id": app_id,
+        "removed_key_id": key_id,
+        "remaining_key_count": len(filtered),
+    })
+
+
+# ─── Reports ────────────────────────────────────────────────────────────────────
+
+VALID_USAGE_REPORTS = {"office365-active", "email-activity", "mailbox-usage"}
+VALID_USAGE_PERIODS = {"d7", "d30", "d90", "d180"}
+
+
+@mcp.tool()
+async def azure_ad_mfa_registration_report(
+    filter_query: str | None = None,
+    top: int = 100,
+    all_pages: bool = False,
+) -> str:
+    """Report per-user MFA and SSPR registration status (userRegistrationDetails).
+
+    Identifies users without MFA registered (prime targets for password spray and credential
+    stuffing) and SSPR coverage gaps. Requires AuditLog.Read.All (granted).
+
+    Args:
+        filter_query: OData $filter on registration fields, e.g. "isMfaRegistered eq false",
+            "isMfaCapable eq false", or "isSsprRegistered eq false".
+            NOTE: passed directly to Graph without sanitization. Admin use only.
+        top: Results per page (default 100, max 999).
+        all_pages: If True, follow pagination to retrieve all users.
+
+    Returns userRegistrationDetails objects with userPrincipalName, isMfaRegistered, isMfaCapable,
+    isSsprRegistered, isSsprCapable, and registered methods.
+    """
+    if filter_query and len(filter_query) > 2000:
+        raise ValueError(f"filter_query is too long ({len(filter_query)} chars). Maximum is 2000 characters.")
+    params: dict = {"$top": min(top, 999)}
+    if filter_query:
+        params["$filter"] = filter_query
+
+    endpoint = "/reports/authenticationMethods/userRegistrationDetails"
+    if all_pages:
+        items = await _get_all_pages(endpoint, params)
+        return _fmt({"value": items, "count": len(items)})
+
+    result = await _graph("GET", endpoint, params=params)
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_usage_report(report: str, period: str = "D7") -> str:
+    """Fetch a Microsoft 365 usage report (Office 365 active users, email activity, mailbox usage).
+
+    Useful for spotting dormant accounts (attack surface), unusual mailbox growth (exfiltration
+    staging), and overall license utilization. The Graph reports endpoint returns CSV via a 302
+    redirect to a short-lived, pre-authenticated download URL; this tool follows that redirect and
+    parses the CSV into rows. NOTE: if the tenant has the "concealed names" privacy setting enabled,
+    UPNs and display names in the report are obfuscated (replaced with anonymized identifiers).
+
+    Args:
+        report: One of 'office365-active' (getOffice365ActiveUserDetail),
+            'email-activity' (getEmailActivityUserDetail), or
+            'mailbox-usage' (getMailboxUsageDetail).
+        period: Aggregation window: 'D7', 'D30', 'D90', or 'D180' (default 'D7').
+
+    Returns {"report": ..., "period": ..., "rowCount": ..., "rows": [ ... ]}.
+    """
+    report = report.lower()
+    _validate_enum(report, VALID_USAGE_REPORTS, "report")
+    period = period.upper()
+    _validate_enum(period, VALID_USAGE_PERIODS, "period")
+    report_map = {
+        "office365-active": "getOffice365ActiveUserDetail",
+        "email-activity": "getEmailActivityUserDetail",
+        "mailbox-usage": "getMailboxUsageDetail",
+    }
+    func = report_map[report]
+    endpoint = f"/reports/{func}(period='{period}')"
+    text = await _graph_csv(endpoint)
+    rows = _parse_csv(text)
+    return _fmt({
+        "report": report,
+        "period": period,
+        "rowCount": len(rows),
+        "rows": rows,
+    })
+
+
+# ─── Policy Posture ─────────────────────────────────────────────────────────────
+
+@mcp.tool()
+async def azure_ad_authorization_policy() -> str:
+    """Get the tenant authorization policy (default user permissions).
+
+    Reveals whether ordinary users can register applications, create security groups, consent to
+    apps on their own behalf, and how guest access is restricted. Over-permissive settings here
+    enable illicit consent and rogue app registration. Requires Policy.Read.All.
+
+    Returns the authorizationPolicy object including defaultUserRolePermissions
+    (allowedToCreateApps, allowedToCreateSecurityGroups, allowedToReadOtherUsers), guestUserRoleId,
+    and the permission grant policies assigned to the default user role.
+    """
+    result = await _graph("GET", "/policies/authorizationPolicy")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_security_defaults() -> str:
+    """Get the Security Defaults enforcement policy (is baseline MFA enforced?).
+
+    Security Defaults enforce tenant-wide MFA and block legacy authentication for tenants without
+    Conditional Access. If Security Defaults are disabled AND no CA policies exist, the tenant has
+    no MFA enforcement, a critical finding. Requires Policy.Read.All.
+
+    Returns the identitySecurityDefaultsEnforcementPolicy object with the isEnabled flag.
+    """
+    result = await _graph("GET", "/policies/identitySecurityDefaultsEnforcementPolicy")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_authentication_methods_policy() -> str:
+    """Get the authentication methods policy (which MFA methods are enabled and for whom).
+
+    Shows which authentication methods (FIDO2, Microsoft Authenticator, SMS, voice, email OTP,
+    temporary access pass) are enabled and their target groups. Use to verify strong methods are
+    enabled and weak ones (SMS, voice) are restricted. Requires Policy.Read.All.
+
+    Returns the authenticationMethodsPolicy object with authenticationMethodConfigurations.
+    """
+    result = await _graph("GET", "/policies/authenticationMethodsPolicy")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_permission_grant_policies() -> str:
+    """List permission grant policies (which delegated permissions users may consent to).
+
+    These policies define the consent framework: which app permissions a non-admin user is allowed
+    to grant. Overly broad include rules enable the illicit consent grant attack. Requires
+    Policy.Read.All.
+
+    Returns a list of permissionGrantPolicy objects. Use azure_ad_authorization_policy to see which
+    of these are assigned to the default user role.
+    """
+    result = await _graph("GET", "/policies/permissionGrantPolicies")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_cross_tenant_access_policy() -> str:
+    """Get the cross-tenant access policy plus its default configuration (B2B collaboration posture).
+
+    Controls inbound and outbound collaboration and trust settings with external Microsoft Entra
+    tenants, including whether you trust their MFA and device compliance claims. Misconfiguration
+    can let untrusted external tenants access resources or bypass MFA. Requires Policy.Read.All.
+
+    Returns the crossTenantAccessPolicy object with its default configuration merged under the key
+    "default".
+    """
+    policy_raw, default_raw = await asyncio.gather(
+        _graph("GET", "/policies/crossTenantAccessPolicy"),
+        _graph("GET", "/policies/crossTenantAccessPolicy/default"),
+        return_exceptions=True,
+    )
+    out: dict = dict(policy_raw) if isinstance(policy_raw, dict) else {"policyError": str(policy_raw)}
+    out["default"] = default_raw if not isinstance(default_raw, Exception) else {"error": str(default_raw)}
+    return _fmt(out)
+
+
+@mcp.tool()
+async def azure_ad_admin_consent_request_policy() -> str:
+    """Get the admin consent request policy (admin consent workflow configuration).
+
+    Shows whether the admin consent workflow is enabled (so users can request admin approval for
+    apps that need permissions they cannot grant themselves), who the reviewers are, and the
+    reminder and expiry settings. A disabled workflow combined with broad user consent is a risk
+    indicator. Requires Policy.Read.All.
+
+    Returns the adminConsentRequestPolicy object.
+    """
+    result = await _graph("GET", "/policies/adminConsentRequestPolicy")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_policy_posture() -> str:
+    """Assess core identity security posture and flag common misconfigurations.
+
+    Fetches the authorization policy, the Security Defaults policy, and the authentication methods
+    policy in parallel, then evaluates high-signal findings: Security Defaults disabled, users
+    allowed to register apps, broad user consent to apps, and broad guest access. Requires
+    Policy.Read.All.
+
+    Returns {"posture": {...raw policy summaries...}, "findings": [ {severity, finding, detail} ]}.
+    Findings are heuristics, validate against Conditional Access before acting.
+    """
+    auth_pol, sec_def, methods_pol = await asyncio.gather(
+        _graph("GET", "/policies/authorizationPolicy"),
+        _graph("GET", "/policies/identitySecurityDefaultsEnforcementPolicy"),
+        _graph("GET", "/policies/authenticationMethodsPolicy"),
+        return_exceptions=True,
+    )
+
+    findings: list = []
+    posture: dict = {}
+
+    # Security Defaults
+    if isinstance(sec_def, dict):
+        sd_enabled = sec_def.get("isEnabled")
+        posture["securityDefaultsEnabled"] = sd_enabled
+        if sd_enabled is False:
+            findings.append({
+                "severity": "medium",
+                "finding": "SECURITY_DEFAULTS_DISABLED",
+                "detail": "Security Defaults are off. Confirm Conditional Access enforces MFA and blocks legacy auth.",
+            })
+    else:
+        posture["securityDefaultsEnabled"] = {"error": str(sec_def)}
+
+    # Authorization policy
+    if isinstance(auth_pol, dict):
+        default_perms = auth_pol.get("defaultUserRolePermissions") or {}
+        allowed_create_apps = default_perms.get("allowedToCreateApps")
+        consent_policies = (
+            default_perms.get("permissionGrantPoliciesAssigned")
+            or auth_pol.get("permissionGrantPolicyIdsAssignedToDefaultUserRole")
+            or []
+        )
+        guest_role_id = auth_pol.get("guestUserRoleId")
+        posture["allowedToCreateApps"] = allowed_create_apps
+        posture["userConsentPolicies"] = consent_policies
+        posture["guestUserRoleId"] = guest_role_id
+
+        if allowed_create_apps is True:
+            findings.append({
+                "severity": "low",
+                "finding": "USERS_CAN_REGISTER_APPS",
+                "detail": "defaultUserRolePermissions.allowedToCreateApps is true. Any user can create app registrations.",
+            })
+        # User consent enabled: any ManagePermissionGrantsForSelf policy assigned to default users
+        # means users can self-consent to apps (the illicit-consent-grant attack surface). Matches
+        # the CLI policy_posture detection so the two surfaces agree on the same tenant.
+        user_consent = [p for p in consent_policies if "ManagePermissionGrantsForSelf" in str(p)]
+        if user_consent:
+            findings.append({
+                "severity": "medium",
+                "finding": "BROAD_USER_CONSENT",
+                "detail": f"Default users can consent to apps via policy {user_consent}. Consider requiring the admin consent workflow.",
+            })
+        # Broad guest access: guestUserRoleId equal to "User" (same as members, most permissive).
+        if guest_role_id == "a0b1b346-4d3e-4e8b-98f8-753987be4970":
+            findings.append({
+                "severity": "medium",
+                "finding": "BROAD_GUEST_ACCESS",
+                "detail": "Guests have the same access as members (most permissive guestUserRoleId). Restrict guest permissions.",
+            })
+    else:
+        posture["authorizationPolicy"] = {"error": str(auth_pol)}
+
+    # Authentication methods (informational summary)
+    if isinstance(methods_pol, dict):
+        configs = methods_pol.get("authenticationMethodConfigurations") or []
+        posture["authenticationMethods"] = [
+            {"id": c.get("id"), "state": c.get("state")} for c in configs
+        ]
+    else:
+        posture["authenticationMethods"] = {"error": str(methods_pol)}
+
+    return _fmt({"posture": posture, "findings": findings})
+
+
+# ─── Calendar ───────────────────────────────────────────────────────────────────
+
+@mcp.tool()
+async def azure_ad_user_events(
+    user_id: str,
+    top: int = 50,
+    all_pages: bool = False,
+) -> str:
+    """List calendar events from a user's default calendar.
+
+    App-only Calendars.Read can read ANY mailbox in the tenant, so use only for authorized
+    investigations. Useful in incident response to spot attacker-created meetings (e.g. social
+    engineering invites) or to review a compromised user's schedule. Returns recurrence master
+    events, use azure_ad_calendar_view to expand recurring occurrences over a date range.
+
+    Args:
+        user_id: User UPN or object ID.
+        top: Max events per page (default 50, max 999).
+        all_pages: If True, follow pagination to retrieve all events.
+
+    Returns event objects with subject, organizer, attendees, start/end, location, and webLink.
+    """
+    params: dict = {
+        "$top": min(top, 999),
+        "$select": "id,subject,organizer,attendees,start,end,location,isOnlineMeeting,webLink,createdDateTime",
+    }
+    endpoint = f"/users/{user_id}/events"
+    if all_pages:
+        items = await _get_all_pages(endpoint, params)
+        return _fmt({"value": items, "count": len(items)})
+    result = await _graph("GET", endpoint, params=params)
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_calendar_view(user_id: str, start: str, end: str) -> str:
+    """Get a user's calendar view over a date range (expands recurring events into instances).
+
+    Unlike azure_ad_user_events (which returns raw event objects including recurrence masters),
+    calendarView returns every occurrence within [start, end], which is what you want for "what was
+    on their calendar that week". App-only Calendars.Read reads ANY mailbox, authorized
+    investigations only.
+
+    Args:
+        user_id: User UPN or object ID.
+        start: Start of the range, ISO 8601 (e.g. '2026-06-01T00:00:00Z'). Required.
+        end: End of the range, ISO 8601 (e.g. '2026-06-30T23:59:59Z'). Required.
+
+    Returns the expanded event instances within the window.
+    """
+    for label, value in (("start", start), ("end", end)):
+        if not re.match(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}', value):
+            raise ValueError(f"Invalid {label} (expected ISO 8601, e.g. 2026-06-01T00:00:00Z): {value!r}")
+    params = {
+        "startDateTime": start,
+        "endDateTime": end,
+        "$select": "id,subject,organizer,attendees,start,end,location,isOnlineMeeting,webLink",
+        "$top": 200,
+    }
+    result = await _graph("GET", f"/users/{user_id}/calendarView", params=params)
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_user_calendars(user_id: str) -> str:
+    """List the calendars in a user's mailbox.
+
+    Surfaces additional or shared calendars (an attacker may stage activity on a secondary
+    calendar). App-only Calendars.Read reads ANY mailbox, authorized investigations only.
+
+    Args:
+        user_id: User UPN or object ID.
+
+    Returns calendar objects with name, owner, color, and canEdit/canShare flags.
+    """
+    result = await _graph("GET", f"/users/{user_id}/calendars")
+    return _fmt(result)
+
+
+# ─── Threat Assessment and Defender TI ──────────────────────────────────────────
+
+@mcp.tool()
+async def azure_ad_threat_assessments(top: int = 50, all_pages: bool = False) -> str:
+    """List threat assessment requests (mail, URL, file, and email-attachment submissions).
+
+    Threat assessment lets you submit suspicious mail, URLs, and files to Microsoft for a verdict.
+    This lists prior submissions and their status, useful when triaging a reported phishing message.
+
+    Args:
+        top: Max requests per page (default 50, max 999).
+        all_pages: If True, follow pagination to retrieve all requests.
+
+    Returns threatAssessmentRequest objects with category, contentType, status, and createdDateTime.
+    """
+    # Note: the threatAssessmentRequests collection does NOT support $top (returns 400).
+    # Page via nextLink for all_pages; otherwise truncate client-side.
+    endpoint = "/informationProtection/threatAssessmentRequests"
+    if all_pages:
+        items = await _get_all_pages(endpoint)
+        return _fmt({"value": items, "count": len(items)})
+    result = await _graph("GET", endpoint)
+    if isinstance(result, dict) and isinstance(result.get("value"), list):
+        result["value"] = result["value"][:top]
+        result["count"] = len(result["value"])
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_threat_assessment(request_id: str) -> str:
+    """Get a single threat assessment request by ID.
+
+    Args:
+        request_id: Threat assessment request ID (from azure_ad_threat_assessments).
+
+    Returns the full request object including category, expected vs actual verdict, and status.
+    """
+    result = await _graph("GET", f"/informationProtection/threatAssessmentRequests/{request_id}")
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_threat_assessment_results(request_id: str) -> str:
+    """Get the per-stage results of a threat assessment request.
+
+    Args:
+        request_id: Threat assessment request ID (from azure_ad_threat_assessments).
+
+    Returns threatAssessmentResult records with resultType (e.g. CheckPolicy, Rescan), message,
+    and timestamps showing how Microsoft evaluated the submission.
+    """
+    result = await _graph("GET", f"/informationProtection/threatAssessmentRequests/{request_id}/results")
+    return _fmt(result)
+
+
+_MDTI_UNAVAILABLE_REASON = "Requires Microsoft Defender Threat Intelligence premium + API add-on license"
+
+
+def _is_license_error(err: Exception) -> bool:
+    """Return True if a Graph error indicates a missing license or forbidden access (402/403).
+
+    MDTI endpoints return 402 Payment Required when the tenant lacks the premium + API add-on
+    license, and 403 Forbidden when the permission is missing.
+    """
+    msg = str(err).lower()
+    return any(s in msg for s in ("forbidden", "403", "402", "payment required", "license"))
+
+
+def _mdti_unavailable(endpoint: str, err: Exception) -> str:
+    """Return a structured 'unavailable' result for a license-gated MDTI endpoint."""
+    return _fmt({
+        "status": "unavailable",
+        "reason": _MDTI_UNAVAILABLE_REASON,
+        "endpoint": endpoint,
+        "detail": str(err)[:300],
+    })
+
+
+@mcp.tool()
+async def azure_ad_ti_articles(top: int = 20) -> str:
+    """List Microsoft Defender Threat Intelligence (MDTI) articles (threat research write-ups).
+
+    LICENSE: requires the Microsoft Defender Threat Intelligence premium license plus the API
+    add-on. Without it, Graph returns 403 and this tool returns a status='unavailable' result
+    instead of raising.
+
+    Args:
+        top: Max articles to return (default 20).
+
+    Returns MDTI article objects with title, summary, tags, and indicators, or an 'unavailable'
+    status dict if the tenant is not licensed.
+    """
+    endpoint = "/security/threatIntelligence/articles"
+    try:
+        result = await _graph("GET", endpoint, params={"$top": min(top, 100)})
+    except (ValueError, httpx.HTTPStatusError) as e:
+        if _is_license_error(e):
+            return _mdti_unavailable(endpoint, e)
+        raise
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_ti_host(host: str) -> str:
+    """Look up a host (domain or IP) in Microsoft Defender Threat Intelligence.
+
+    LICENSE: requires MDTI premium plus the API add-on. Returns status='unavailable' if the tenant
+    is not licensed.
+
+    Args:
+        host: Hostname, domain, or IP to look up (e.g. 'malicious.example.com' or '203.0.113.10').
+
+    Returns the MDTI host object (reputation, first/last seen, related artifacts), or an
+    'unavailable' status dict if not licensed.
+    """
+    if not re.match(r'^[A-Za-z0-9.\-:_]+\Z', host):
+        raise ValueError(f"Invalid host format: {host!r}")
+    endpoint = f"/security/threatIntelligence/hosts/{host}"
+    try:
+        result = await _graph("GET", endpoint)
+    except (ValueError, httpx.HTTPStatusError) as e:
+        if _is_license_error(e):
+            return _mdti_unavailable(endpoint, e)
+        raise
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_ti_profiles(top: int = 20) -> str:
+    """List MDTI intel profiles (threat actor and tooling profiles).
+
+    LICENSE: requires MDTI premium plus the API add-on. Returns status='unavailable' if the tenant
+    is not licensed.
+
+    Args:
+        top: Max profiles to return (default 20).
+
+    Returns MDTI intelProfile objects, or an 'unavailable' status dict if not licensed.
+    """
+    endpoint = "/security/threatIntelligence/intelProfiles"
+    try:
+        result = await _graph("GET", endpoint, params={"$top": min(top, 100)})
+    except (ValueError, httpx.HTTPStatusError) as e:
+        if _is_license_error(e):
+            return _mdti_unavailable(endpoint, e)
+        raise
+    return _fmt(result)
+
+
+@mcp.tool()
+async def azure_ad_ti_vulnerability(cve_id: str) -> str:
+    """Look up a CVE in MDTI vulnerability intelligence.
+
+    LICENSE: requires MDTI premium plus the API add-on. Returns status='unavailable' if the tenant
+    is not licensed.
+
+    Args:
+        cve_id: CVE identifier (e.g. 'CVE-2021-44228').
+
+    Returns the MDTI vulnerability object (severity, exploitation, affected products), or an
+    'unavailable' status dict if not licensed.
+    """
+    if not re.match(r'^CVE-\d{4}-\d{4,}\Z', cve_id, re.IGNORECASE):
+        raise ValueError(f"Invalid CVE id format: {cve_id!r}. Expected like 'CVE-2021-44228'.")
+    endpoint = f"/security/threatIntelligence/vulnerabilities/{cve_id}"
+    try:
+        result = await _graph("GET", endpoint)
+    except (ValueError, httpx.HTTPStatusError) as e:
+        if _is_license_error(e):
+            return _mdti_unavailable(endpoint, e)
+        raise
+    return _fmt(result)
+
 
 if __name__ == "__main__":
     mcp.run()

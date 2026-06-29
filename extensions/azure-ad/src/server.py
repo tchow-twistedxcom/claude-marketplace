@@ -1324,49 +1324,95 @@ async def azure_ad_search_mail(
     top: int = 50,
     hours: int = 168,
 ) -> str:
-    """Search a user's mailbox folder by subject keyword or sender.
+    """Search a user's mailbox folder by subject keyword or sender (app-only Mail.Read, any mailbox).
 
-    Uses OData $filter (works with app-only Mail.Read permissions on any mailbox).
-    Note: Searches subject line. For full-text body search, use azure_ad_sent_emails
-    with include_body=True and review bodyPreview manually.
+    Subject/keyword queries use Graph $search against the subject; sender queries ('from:' prefix)
+    use $filter on the from address. Results are returned newest-first. For full-text body search,
+    use azure_ad_sent_emails with include_body=True and review bodyPreview manually.
 
     Args:
         user_id: User UPN or object ID.
-        query: Keyword or phrase to match against subject (e.g. 'SHAREDFILE', 'invoice').
+        query: Keyword or phrase to match against the subject (e.g. 'SHAREDFILE', 'invoice').
                Prefix with 'from:email@domain.com' to filter by sender instead.
         folder: Folder to search: 'sentItems', 'inbox', 'deletedItems' (default: sentItems).
         top: Max results (default 50).
-        hours: Look-back window in hours (default 168 = 7 days).
+        hours: Look-back window in hours (default 168 = 7 days). Subject/keyword searches page
+               through a bounded relevance-ranked candidate pool (up to 1000) and then filter to
+               this window client-side; extremely high-volume subjects could still exceed the pool.
     """
     folder_safe = folder.lower()
     if folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
         raise ValueError(f"Invalid folder: {folder!r}. Use a known folder name or a folder ID (GUID).")
 
-    since = (datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))).strftime('%Y-%m-%dT%H:%M:%SZ')
+    window_start = datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))
+    since = window_start.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Build filter: support 'from:address' prefix or default subject contains
-    if query.lower().startswith("from:"):
+    # Window field: sentItems is dated by sentDateTime; every other folder (inbox, deletedItems,
+    # custom folder IDs) by receivedDateTime, which all messages carry. Using receivedDateTime for
+    # received folders avoids missing a recently-received message whose sender-clock sentDateTime is
+    # older than the window.
+    date_field = "sentDateTime" if folder_safe == "sentitems" else "receivedDateTime"
+
+    select = "id,subject,sentDateTime,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,bodyPreview"
+
+    # Graph rejects $orderby combined with these message filters (400 "restriction or sort order is
+    # too complex") and does NOT support contains() on subject in $filter. So sender queries use
+    # $filter (no $orderby) and subject queries use $search (needs ConsistencyLevel: eventual, set by
+    # _graph). $search ranks by RELEVANCE and cannot carry a date window, so for the subject path we
+    # fetch a larger candidate pool, then window, sort, and truncate to top client-side; this keeps
+    # recent in-window matches from being dropped by relevance truncation.
+    is_sender = query.lower().startswith("from:")
+    if is_sender:
         sender = query[5:].strip().replace("'", "''")
-        filter_parts = [f"from/emailAddress/address eq '{sender}'"]
+        if not sender:
+            raise ValueError("Empty 'from:' query. Provide an address, e.g. from:user@domain.com.")
+        params: dict = {
+            "$filter": f"from/emailAddress/address eq '{sender}' and {date_field} ge {since}",
+            "$select": select,
+            "$top": top,
+        }
     else:
-        # Escape single quotes in query for OData
-        safe_query = query.replace("'", "''")
-        filter_parts = [f"contains(subject, '{safe_query}')"]
-    filter_parts.append(f"sentDateTime ge {since}")
+        # $search takes a quoted term; strip characters that would break the search string.
+        term = re.sub(r'["\\\r\n]', " ", query).strip()
+        if not term:
+            raise ValueError("Empty search term. Provide a subject keyword, or use a 'from:' query.")
+        params = {
+            "$search": f'"subject:{term}"',
+            "$select": select,
+            "$top": 250,  # page size; the search path pages through a bounded pool below
+        }
 
-    params = {
-        "$filter": " and ".join(filter_parts),
-        "$select": "id,subject,sentDateTime,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,bodyPreview",
-        "$orderby": "sentDateTime desc",
-        "$top": top,
-    }
-    result = await _graph("GET", f"/users/{user_id}/mailFolders/{folder}/messages", params=params)
-    messages = result.get("value", [])
+    endpoint = f"/users/{user_id}/mailFolders/{folder}/messages"
+    if is_sender:
+        result = await _graph("GET", endpoint, params=params)
+        messages = result.get("value") or []
+    else:
+        # $search is relevance-ranked (not date-ordered), so a single page can omit recent in-window
+        # matches that rank lower. Page through a bounded candidate pool (up to 4 pages of 250 = 1000),
+        # then window, sort, and truncate client-side. Bounded to avoid runaway paging on common terms.
+        messages = await _get_all_pages(endpoint, params, max_pages=4)
+
+    def _msg_dt(m: dict):
+        value = m.get(date_field) or m.get("receivedDateTime") or m.get("sentDateTime")
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
+
+    if not is_sender:
+        # $search cannot carry the date window, so apply it client-side with a real datetime compare
+        # (an unparseable timestamp is kept rather than silently dropped).
+        messages = [m for m in messages if (_msg_dt(m) or window_start) >= window_start]
+    messages.sort(key=lambda m: _msg_dt(m) or window_start, reverse=True)
+    messages = messages[:top]
     summary = []
     for m in messages:
         to = [r.get("emailAddress", {}).get("address", "") for r in m.get("toRecipients", [])]
         summary.append({
-            "sentDateTime": m.get("sentDateTime") or m.get("receivedDateTime"),
+            "sentDateTime": m.get("sentDateTime"),
+            "receivedDateTime": m.get("receivedDateTime"),
             "subject": m.get("subject"),
             "to": to,
             "hasAttachments": m.get("hasAttachments"),

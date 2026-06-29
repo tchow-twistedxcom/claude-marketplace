@@ -1324,19 +1324,20 @@ async def azure_ad_search_mail(
     top: int = 50,
     hours: int = 168,
 ) -> str:
-    """Search a user's mailbox folder by subject keyword or sender.
+    """Search a user's mailbox folder by subject keyword or sender (app-only Mail.Read, any mailbox).
 
-    Uses OData $filter (works with app-only Mail.Read permissions on any mailbox).
-    Note: Searches subject line. For full-text body search, use azure_ad_sent_emails
-    with include_body=True and review bodyPreview manually.
+    Subject/keyword queries use Graph $search against the subject; sender queries ('from:' prefix)
+    use $filter on the from address. Results are returned newest-first. For full-text body search,
+    use azure_ad_sent_emails with include_body=True and review bodyPreview manually.
 
     Args:
         user_id: User UPN or object ID.
-        query: Keyword or phrase to match against subject (e.g. 'SHAREDFILE', 'invoice').
+        query: Keyword or phrase to match against the subject (e.g. 'SHAREDFILE', 'invoice').
                Prefix with 'from:email@domain.com' to filter by sender instead.
         folder: Folder to search: 'sentItems', 'inbox', 'deletedItems' (default: sentItems).
         top: Max results (default 50).
-        hours: Look-back window in hours (default 168 = 7 days).
+        hours: Look-back window in hours (default 168 = 7 days). For subject/keyword searches the
+               window is applied client-side after the search, so raise top if results look thin.
     """
     folder_safe = folder.lower()
     if folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
@@ -1344,24 +1345,34 @@ async def azure_ad_search_mail(
 
     since = (datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    # Build filter: support 'from:address' prefix or default subject contains
+    # Graph rejects $orderby combined with these message filters (returns 400 "restriction or
+    # sort order is too complex"), and does NOT support contains() on subject in $filter. So:
+    #   sender ('from:') -> $filter on from + sentDateTime, no $orderby
+    #   subject/keyword  -> $search (no $filter/$orderby; $search needs ConsistencyLevel: eventual,
+    #                       which _graph already sets)
+    # Sorting (newest first) and, for the $search path, the time window are applied client-side.
+    select = "id,subject,sentDateTime,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,bodyPreview"
+    params: dict = {"$select": select, "$top": top}
+    use_search = False
     if query.lower().startswith("from:"):
         sender = query[5:].strip().replace("'", "''")
-        filter_parts = [f"from/emailAddress/address eq '{sender}'"]
+        params["$filter"] = f"from/emailAddress/address eq '{sender}' and sentDateTime ge {since}"
     else:
-        # Escape single quotes in query for OData
-        safe_query = query.replace("'", "''")
-        filter_parts = [f"contains(subject, '{safe_query}')"]
-    filter_parts.append(f"sentDateTime ge {since}")
+        # $search takes a quoted term; strip characters that would break the search string.
+        term = re.sub(r'["\\\r\n]', " ", query).strip()
+        params["$search"] = f'"subject:{term}"'
+        use_search = True
 
-    params = {
-        "$filter": " and ".join(filter_parts),
-        "$select": "id,subject,sentDateTime,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,bodyPreview",
-        "$orderby": "sentDateTime desc",
-        "$top": top,
-    }
     result = await _graph("GET", f"/users/{user_id}/mailFolders/{folder}/messages", params=params)
     messages = result.get("value", [])
+
+    def _sent(m: dict) -> str:
+        return m.get("sentDateTime") or m.get("receivedDateTime") or ""
+
+    if use_search:
+        # $search cannot carry the sentDateTime window, so apply it client-side.
+        messages = [m for m in messages if _sent(m) >= since]
+    messages.sort(key=_sent, reverse=True)
     summary = []
     for m in messages:
         to = [r.get("emailAddress", {}).get("address", "") for r in m.get("toRecipients", [])]

@@ -365,10 +365,14 @@ async def _graph_csv(endpoint: str, params: dict | None = None) -> str:
 
 
 def _parse_csv(text: str) -> list[dict]:
-    """Parse a CSV string (with a header row) into a list of dict rows using the stdlib csv module."""
+    """Parse a CSV string (with a header row) into a list of dict rows using the stdlib csv module.
+
+    Graph M365 usage-report CSVs carry a leading UTF-8 BOM; strip it so the first column header
+    is not read as "\ufeffReport Refresh Date".
+    """
     if not text or not text.strip():
         return []
-    reader = csv.DictReader(io.StringIO(text))
+    reader = csv.DictReader(io.StringIO(text.lstrip('\ufeff')))
     return [dict(row) for row in reader]
 
 
@@ -2746,7 +2750,7 @@ async def azure_ad_app_credentials(app_id: str) -> str:
     all_creds = key_creds + pwd_creds
     recently_added = [
         c for c in all_creds
-        if c["addedDaysAgo"] is not None and c["addedDaysAgo"] <= 7
+        if c["addedDaysAgo"] is not None and 0 <= c["addedDaysAgo"] <= 7
     ]
 
     return _fmt({
@@ -3284,12 +3288,15 @@ async def azure_ad_policy_posture() -> str:
                 "finding": "USERS_CAN_REGISTER_APPS",
                 "detail": "defaultUserRolePermissions.allowedToCreateApps is true. Any user can create app registrations.",
             })
-        # Broad user consent: any low-risk or legacy consent policy assigned to default users.
-        if any("low" in str(p).lower() or "legacy" in str(p).lower() for p in consent_policies):
+        # User consent enabled: any ManagePermissionGrantsForSelf policy assigned to default users
+        # means users can self-consent to apps (the illicit-consent-grant attack surface). Matches
+        # the CLI policy_posture detection so the two surfaces agree on the same tenant.
+        user_consent = [p for p in consent_policies if "ManagePermissionGrantsForSelf" in str(p)]
+        if user_consent:
             findings.append({
                 "severity": "medium",
                 "finding": "BROAD_USER_CONSENT",
-                "detail": f"Default users can consent to apps via policy {consent_policies}. Consider requiring the admin consent workflow.",
+                "detail": f"Default users can consent to apps via policy {user_consent}. Consider requiring the admin consent workflow.",
             })
         # Broad guest access: guestUserRoleId equal to "User" (same as members, most permissive).
         if guest_role_id == "a0b1b346-4d3e-4e8b-98f8-753987be4970":

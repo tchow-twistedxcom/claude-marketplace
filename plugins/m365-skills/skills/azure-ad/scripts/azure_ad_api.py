@@ -596,10 +596,14 @@ class AzureADAPI:
 
     @staticmethod
     def _parse_csv(text: str) -> list[dict]:
-        """Parse a CSV string (with a header row) into a list of dict rows."""
+        """Parse a CSV string (with a header row) into a list of dict rows.
+
+        Graph M365 usage-report CSVs are served with a leading UTF-8 BOM; strip it so the
+        first column header is not read as "\\ufeffReport Refresh Date".
+        """
         if not text or not text.strip():
             return []
-        reader = csv.DictReader(io.StringIO(text))
+        reader = csv.DictReader(io.StringIO(text.lstrip('\ufeff')))
         return [dict(row) for row in reader]
 
     @staticmethod
@@ -824,13 +828,21 @@ class AzureADAPI:
                           "true. Enables rogue app registrations.",
             })
 
-        assigned = authorization.get('permissionGrantPoliciesAssigned') or []
+        # The consent-policy assignment lives under defaultUserRolePermissions in the v1.0
+        # authorizationPolicy schema (older tenants expose
+        # permissionGrantPolicyIdsAssignedToDefaultUserRole). Reading the top-level key returns
+        # nothing, so the finding would never fire.
+        assigned = (
+            role_perms.get('permissionGrantPoliciesAssigned')
+            or authorization.get('permissionGrantPolicyIdsAssignedToDefaultUserRole')
+            or []
+        )
         user_consent = [p for p in assigned if 'ManagePermissionGrantsForSelf' in str(p)]
         if user_consent:
             findings.append({
                 "finding": "User consent to applications is permitted",
-                "severity": "high",
-                "detail": "authorizationPolicy.permissionGrantPoliciesAssigned grants user "
+                "severity": "medium",
+                "detail": "defaultUserRolePermissions.permissionGrantPoliciesAssigned grants user "
                           f"consent ({', '.join(user_consent)}). Enables illicit-consent-grant "
                           "phishing.",
             })
@@ -883,14 +895,15 @@ class AzureADAPI:
     def _ti_request(self, endpoint: str, params: dict | None = None) -> dict:
         """GET a Defender Threat Intelligence endpoint, degrading gracefully when unlicensed.
 
-        MDTI requires a premium + API add-on license; without it Graph returns Forbidden.
-        Return a clear 'unavailable' object instead of raising in that case.
+        MDTI requires a premium + API add-on license; without it Graph returns 402 Payment
+        Required (or 403 Forbidden if the permission itself is missing). Return a clear
+        'unavailable' object instead of raising in those cases.
         """
         try:
             return self._request('GET', endpoint, params=params)
         except GraphAPIError as e:
-            text = str(e)
-            if '(403)' in text or 'forbidden' in text.lower() or 'license' in text.lower():
+            lowered = str(e).lower()
+            if any(s in lowered for s in ('(402)', '(403)', 'forbidden', 'payment required', 'license')):
                 return {
                     "status": "unavailable",
                     "message": (
@@ -921,6 +934,8 @@ class AzureADAPI:
 
     def threat_intel_host(self, host: str) -> dict:
         """MDTI host reputation/enrichment (license-gated). Requires ThreatIntelligence.Read.All."""
+        if not re.match(r'^[A-Za-z0-9.\-:_]+$', host):
+            raise ValueError(f"Invalid host format: {host!r}")
         return self._ti_request(f'/security/threatIntelligence/hosts/{host}')
 
     def threat_intel_profiles(self, top: int = 20) -> dict:
@@ -929,6 +944,8 @@ class AzureADAPI:
 
     def threat_intel_vulnerability(self, cve: str) -> dict:
         """MDTI vulnerability detail by CVE (license-gated). Requires ThreatIntelligence.Read.All."""
+        if not re.match(r'^CVE-\d{4}-\d{4,}$', cve, re.IGNORECASE):
+            raise ValueError(f"Invalid CVE id format: {cve!r}. Expected like 'CVE-2021-44228'.")
         return self._ti_request(f'/security/threatIntelligence/vulnerabilities/{cve}')
 
 

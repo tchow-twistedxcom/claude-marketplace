@@ -1320,77 +1320,66 @@ async def azure_ad_sent_emails(
 async def azure_ad_search_mail(
     user_id: str,
     query: str,
-    folder: str = "sentItems",
+    folder: str = "all",
     top: int = 50,
-    hours: int = 168,
+    hours: int = 0,
 ) -> str:
-    """Search a user's mailbox folder by subject keyword or sender (app-only Mail.Read, any mailbox).
+    """Search a user's mailbox by keyword or sender, across ALL folders by default (app-only Mail.Read).
 
-    Subject/keyword queries use Graph $search against the subject; sender queries ('from:' prefix)
-    use $filter on the from address. Results are returned newest-first. For full-text body search,
-    use azure_ad_sent_emails with include_body=True and review bodyPreview manually.
+    Uses Graph $search (KQL). A 'from:' prefix does a partial sender match (from:dell matches any
+    dell address such as received@order.dell.com); otherwise the query is a full-text search over
+    subject, body, and sender. Results are returned newest-first, each tagged with the folder it
+    lives in. Searching all folders finds mail that inbox rules filed into subfolders.
 
     Args:
         user_id: User UPN or object ID.
-        query: Keyword or phrase to match against the subject (e.g. 'SHAREDFILE', 'invoice').
-               Prefix with 'from:email@domain.com' to filter by sender instead.
-        folder: Folder to search: 'sentItems', 'inbox', 'deletedItems' (default: sentItems).
+        query: Keyword/phrase (full-text over subject, body, sender), e.g. 'Dell order', 'invoice'.
+               Prefix with 'from:...' for a partial sender match, e.g. 'from:dell' or
+               'from:support@envoyb2b.com'.
+        folder: 'all' (default) searches the entire mailbox including subfolders. Pass a specific
+               folder name ('inbox', 'sentItems', 'deletedItems', 'junkEmail', 'archive') or a
+               folder ID to scope the search.
         top: Max results (default 50).
-        hours: Look-back window in hours (default 168 = 7 days). Subject/keyword searches page
-               through a bounded relevance-ranked candidate pool (up to 1000) and then filter to
-               this window client-side; extremely high-volume subjects could still exceed the pool.
+        hours: Optional look-back window in hours. 0 (default) means NO time limit (search the full
+               history). Pass e.g. 168 for the last 7 days. Note: $search is relevance-ranked and
+               paged to a bounded pool (up to 1000), so a very common term over the whole mailbox
+               can still exceed the pool; narrow with 'from:' or a tighter query if results look thin.
     """
     folder_safe = folder.lower()
-    if folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
-        raise ValueError(f"Invalid folder: {folder!r}. Use a known folder name or a folder ID (GUID).")
+    search_all = folder_safe == "all"
+    if not search_all and folder_safe not in VALID_MAIL_FOLDERS and not (re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', folder, re.IGNORECASE) or re.match(r'^[A-Za-z0-9+/_-]{20,}={0,2}$', folder)):
+        raise ValueError(f"Invalid folder: {folder!r}. Use 'all', a known folder name, or a folder ID (GUID).")
 
-    window_start = datetime.now(timezone.utc) - timedelta(hours=min(hours, 720))
-    since = window_start.strftime('%Y-%m-%dT%H:%M:%SZ')
+    # Optional time window. hours <= 0 means no limit (search the entire mailbox history), which is
+    # what "find this email" usually wants; the old 30-day cap made older mail unreachable.
+    window_start = datetime.now(timezone.utc) - timedelta(hours=hours) if hours and hours > 0 else None
 
-    # Window field: sentItems is dated by sentDateTime; every other folder (inbox, deletedItems,
-    # custom folder IDs) by receivedDateTime, which all messages carry. Using receivedDateTime for
-    # received folders avoids missing a recently-received message whose sender-clock sentDateTime is
-    # older than the window.
+    # Sort/window on the date the message landed in this mailbox. sentItems is dated by sentDateTime;
+    # all other folders (and the whole-mailbox search) by receivedDateTime, which every message carries.
     date_field = "sentDateTime" if folder_safe == "sentitems" else "receivedDateTime"
 
-    select = "id,subject,sentDateTime,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,bodyPreview"
+    select = "id,subject,sentDateTime,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,bodyPreview,parentFolderId"
 
-    # Graph rejects $orderby combined with these message filters (400 "restriction or sort order is
-    # too complex") and does NOT support contains() on subject in $filter. So sender queries use
-    # $filter (no $orderby) and subject queries use $search (needs ConsistencyLevel: eventual, set by
-    # _graph). $search ranks by RELEVANCE and cannot carry a date window, so for the subject path we
-    # fetch a larger candidate pool, then window, sort, and truncate to top client-side; this keeps
-    # recent in-window matches from being dropped by relevance truncation.
-    is_sender = query.lower().startswith("from:")
-    if is_sender:
-        sender = query[5:].strip().replace("'", "''")
-        if not sender:
-            raise ValueError("Empty 'from:' query. Provide an address, e.g. from:user@domain.com.")
-        params: dict = {
-            "$filter": f"from/emailAddress/address eq '{sender}' and {date_field} ge {since}",
-            "$select": select,
-            "$top": top,
-        }
+    # Both modes use $search (KQL), which cannot combine with $orderby and does not honor a date
+    # window, so we page a bounded relevance-ranked pool (up to 4 pages of 250 = 1000) and then
+    # window, sort, and truncate client-side. 'from:' does a partial sender match; a bare term is
+    # full-text. $search needs ConsistencyLevel: eventual, which _graph sets.
+    if query.lower().startswith("from:"):
+        term = re.sub(r'["\\\r\n]', " ", query[5:]).strip()
+        if not term:
+            raise ValueError("Empty 'from:' query. Provide a sender, e.g. from:dell or from:user@domain.com.")
+        search_value = f'"from:{term}"'
     else:
-        # $search takes a quoted term; strip characters that would break the search string.
         term = re.sub(r'["\\\r\n]', " ", query).strip()
         if not term:
-            raise ValueError("Empty search term. Provide a subject keyword, or use a 'from:' query.")
-        params = {
-            "$search": f'"subject:{term}"',
-            "$select": select,
-            "$top": 250,  # page size; the search path pages through a bounded pool below
-        }
+            raise ValueError("Empty search term. Provide a keyword, or use a 'from:' query.")
+        search_value = f'"{term}"'
 
-    endpoint = f"/users/{user_id}/mailFolders/{folder}/messages"
-    if is_sender:
-        result = await _graph("GET", endpoint, params=params)
-        messages = result.get("value") or []
-    else:
-        # $search is relevance-ranked (not date-ordered), so a single page can omit recent in-window
-        # matches that rank lower. Page through a bounded candidate pool (up to 4 pages of 250 = 1000),
-        # then window, sort, and truncate client-side. Bounded to avoid runaway paging on common terms.
-        messages = await _get_all_pages(endpoint, params, max_pages=4)
+    params = {"$search": search_value, "$select": select, "$top": 250}
+    base = f"/users/{user_id}/messages" if search_all else f"/users/{user_id}/mailFolders/{folder}/messages"
+    messages = await _get_all_pages(base, params, max_pages=4)
+
+    _epoch = datetime.min.replace(tzinfo=timezone.utc)
 
     def _msg_dt(m: dict):
         value = m.get(date_field) or m.get("receivedDateTime") or m.get("sentDateTime")
@@ -1401,11 +1390,10 @@ async def azure_ad_search_mail(
         except (ValueError, TypeError):
             return None
 
-    if not is_sender:
-        # $search cannot carry the date window, so apply it client-side with a real datetime compare
-        # (an unparseable timestamp is kept rather than silently dropped).
+    if window_start is not None:
+        # Real datetime compare; an unparseable timestamp is kept rather than silently dropped.
         messages = [m for m in messages if (_msg_dt(m) or window_start) >= window_start]
-    messages.sort(key=lambda m: _msg_dt(m) or window_start, reverse=True)
+    messages.sort(key=lambda m: _msg_dt(m) or _epoch, reverse=True)
     messages = messages[:top]
     summary = []
     for m in messages:
@@ -1413,10 +1401,12 @@ async def azure_ad_search_mail(
         summary.append({
             "sentDateTime": m.get("sentDateTime"),
             "receivedDateTime": m.get("receivedDateTime"),
+            "from": (m.get("from") or {}).get("emailAddress", {}).get("address"),
             "subject": m.get("subject"),
             "to": to,
             "hasAttachments": m.get("hasAttachments"),
             "bodyPreview": m.get("bodyPreview", "")[:200],
+            "parentFolderId": m.get("parentFolderId"),
             "id": m.get("id"),
         })
     return _fmt({"user": user_id, "query": query, "folder": folder, "count": len(summary), "messages": summary})

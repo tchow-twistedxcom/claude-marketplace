@@ -2,7 +2,7 @@
   "dxt_version": "0.1",
   "name": "azure-ad-integration",
   "display_name": "Azure AD / Entra ID",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Microsoft Graph API for Azure AD / Entra ID. Users, groups, devices, and directory, plus applications and service principals, OAuth consent-grant detection, usage and MFA registration reports, tenant policy posture, calendar, threat assessment and Defender Threat Intelligence, email forensics and search, and full incident-response tooling (sign-in logs, risk detections, Conditional Access, session revocation).",
   "author": {
     "name": "tchow"
@@ -193,7 +193,7 @@
     },
     {
       "name": "azure_ad_search_mail",
-      "description": "Search a user's mailbox folder by subject keyword or sender (app-only Mail.Read, any mailbox)"
+      "description": "Search a user's mailbox by keyword or sender, across ALL folders by default (app-only Mail.Read)"
     },
     {
       "name": "azure_ad_get_email",
